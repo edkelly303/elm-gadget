@@ -1,12 +1,17 @@
 printf "Running pre-commit hooks\n\n"
 
-printf "  1. Running elm-format... "
 
-if elm-format . --yes > /dev/null 2>&1; then
-    printf "Success!\n\n"
-else 
-    printf "Failed!\n\n"
-    exit 1
+
+STAGED=$(git diff --name-only --staged | grep -i ".elm$")
+
+if [[ -n "$STAGED" ]]; then
+    printf "  1. Running elm-format... "
+    if elm-format "$STAGED" --yes ; then
+        printf "Success!\n\n"
+    else 
+        printf "Failed!\n\n"
+        exit 1
+    fi
 fi
 
 printf "  2. Generating docs.json... "
@@ -20,7 +25,7 @@ fi
 
 printf "  3. Staging changed files\n\n"
 
-git add .
+git add docs.json
 
 printf "Pre-commit hooks complete\n\n"
 
