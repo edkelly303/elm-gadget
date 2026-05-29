@@ -13,6 +13,7 @@ diffTests : Test
 diffTests =
     Test.describe "Gadget.Json"
         [ roundTrip recordGadget "Record"
+        , roundTrip treeGadget "Tree"
         , roundTrip Gadget.int "Int"
         , roundTrip Gadget.float "Float"
         , roundTrip Gadget.char "Char"

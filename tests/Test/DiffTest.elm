@@ -5,6 +5,7 @@ import Gadget
 import Gadget.Adapter.Diff
 import Gadget.Adapter.Fuzz
 import Test exposing (..)
+import Test.Html.Event exposing (expect)
 import TestHelpers exposing (..)
 
 
@@ -12,6 +13,7 @@ diffTests : Test
 diffTests =
     Test.describe "Gadget.Diff"
         [ roundTrip recordGadget "Record"
+        , roundTrip treeGadget "Tree"
         , roundTrip (Gadget.int |> Gadget.label "label") "Int"
         , roundTrip Gadget.float "Float"
         , roundTrip Gadget.char "Char"
@@ -29,8 +31,23 @@ roundTrip gadget name =
     <|
         \old new ->
             let
+                _ =
+                    Debug.log "old" old
+
+                _ =
+                    Debug.log "new" new
+
+                _ =
+                    Debug.log "diff" diff
+
+                _ =
+                    Debug.log "expc" expectation
+
                 diff =
                     Gadget.Adapter.Diff.diff gadget old new
+
+                expectation =
+                    Gadget.Adapter.Diff.patch gadget diff old
+                        |> Expect.equal (Ok new)
             in
-            Gadget.Adapter.Diff.patch gadget diff old
-                |> Expect.equal (Ok new)
+            expectation
