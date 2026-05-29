@@ -22,15 +22,15 @@ diffTests =
 
 
 roundTrip : Gadget.Gadget b -> String -> Test
-roundTrip codec name =
+roundTrip gadget name =
     fuzz
-        (Gadget.Adapter.Fuzz.fuzzer codec)
+        (Gadget.Adapter.Fuzz.fuzzer gadget)
         (name ++ " print -> parse roundtrip")
     <|
         \val ->
             let
                 printed =
-                    Gadget.Adapter.String.print codec val
+                    Gadget.Adapter.String.print gadget val
             in
-            Parser.run (Gadget.Adapter.String.parser codec) printed
+            Parser.run (Gadget.Adapter.String.parser gadget) printed
                 |> Expect.equal (Ok val)

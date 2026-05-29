@@ -28,8 +28,8 @@ import Set
 
 -}
 view : IR.Gadget a -> a -> H.Html msg
-view codec value =
-    IR.fromInput codec value
+view gadget value =
+    IR.fromInput gadget value
         |> htmlAdapter
         |> List.singleton
         |> H.article [ HA.class "elm-gadget" ]

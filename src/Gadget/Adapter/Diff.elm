@@ -70,16 +70,16 @@ type ListChange
 {-| Compare two values and generate [Changes](#Changes).
 -}
 diff : IR.Gadget a -> a -> a -> Changes
-diff codec old new =
+diff gadget old new =
     let
         oldIR =
-            IR.fromInput codec old
+            IR.fromInput gadget old
 
         newIR =
-            IR.fromInput codec new
+            IR.fromInput gadget new
 
         irType =
-            IR.irType codec
+            IR.irType gadget
     in
     diffHelp irType oldIR newIR
 
@@ -453,17 +453,17 @@ default irType =
 {-| Use a set of [Changes](#Changes) to patch a value.
 -}
 patch : IR.Gadget a -> Changes -> a -> Result String a
-patch codec delta old =
+patch gadget delta old =
     let
         oldIR =
-            IR.fromInput codec old
+            IR.fromInput gadget old
 
         irType =
-            IR.irType codec
+            IR.irType gadget
     in
     case patchHelp delta oldIR irType of
         Ok ir ->
-            IR.toOutput codec ir
+            IR.toOutput gadget ir
                 |> Result.mapError (\_ -> "IR.toOutput failed")
 
         Err e ->

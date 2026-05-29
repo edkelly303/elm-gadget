@@ -34,9 +34,9 @@ import Set
 
 -}
 encode : IR.Gadget a -> a -> JE.Value
-encode codec value =
+encode gadget value =
     value
-        |> IR.fromInput codec
+        |> IR.fromInput gadget
         |> encodeAdapter
 
 
@@ -62,11 +62,11 @@ encode codec value =
 
 -}
 decoder : IR.Gadget a -> JD.Decoder a
-decoder codec =
+decoder gadget =
     decodeAdapter
         |> JD.andThen
             (\irValue ->
-                case IR.toOutput codec irValue of
+                case IR.toOutput gadget irValue of
                     Ok s ->
                         JD.succeed s
 

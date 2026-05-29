@@ -21,16 +21,16 @@ diffTests =
 
 
 roundTrip : Gadget.Gadget b -> String -> Test
-roundTrip codec name =
+roundTrip gadget name =
     fuzz2
-        (Gadget.Adapter.Fuzz.fuzzer codec)
-        (Gadget.Adapter.Fuzz.fuzzer codec)
+        (Gadget.Adapter.Fuzz.fuzzer gadget)
+        (Gadget.Adapter.Fuzz.fuzzer gadget)
         (name ++ " diff -> patch roundtrip")
     <|
         \old new ->
             let
                 diff =
-                    Gadget.Adapter.Diff.diff codec old new
+                    Gadget.Adapter.Diff.diff gadget old new
             in
-            Gadget.Adapter.Diff.patch codec diff old
+            Gadget.Adapter.Diff.patch gadget diff old
                 |> Expect.equal (Ok new)

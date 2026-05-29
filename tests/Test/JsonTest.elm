@@ -22,15 +22,15 @@ diffTests =
 
 
 roundTrip : Gadget.Gadget b -> String -> Test
-roundTrip codec name =
+roundTrip gadget name =
     fuzz
-        (Gadget.Adapter.Fuzz.fuzzer codec)
+        (Gadget.Adapter.Fuzz.fuzzer gadget)
         (name ++ " encode -> decode roundtrip")
     <|
         \value ->
             let
                 encoded =
-                    Gadget.Adapter.Json.encode codec value
+                    Gadget.Adapter.Json.encode gadget value
             in
-            Json.Decode.decodeValue (Gadget.Adapter.Json.decoder codec) encoded
+            Json.Decode.decodeValue (Gadget.Adapter.Json.decoder gadget) encoded
                 |> Expect.equal (Ok value)

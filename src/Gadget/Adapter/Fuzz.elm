@@ -45,8 +45,8 @@ import Set
 
 -}
 fuzzer : IR.Gadget a -> Fuzz.Fuzzer a
-fuzzer codec =
-    fuzzerWithOverrides [] codec
+fuzzer gadget =
+    fuzzerWithOverrides [] gadget
 
 
 {-| Turn a Gadget into a `Fuzz.Fuzzer`, but override some of the default
@@ -87,18 +87,18 @@ implementations of fuzzers that are defined by this module.
 
 -}
 fuzzerWithOverrides : List Override -> IR.Gadget a -> Fuzz.Fuzzer a
-fuzzerWithOverrides overrides codec =
+fuzzerWithOverrides overrides gadget =
     let
         overridesDict =
             overrides
                 |> List.map (\(Override label overrideFuzzer) -> ( label, overrideFuzzer ))
                 |> Dict.fromList
     in
-    IR.irType codec
+    IR.irType gadget
         |> fuzzAdapter overridesDict
         |> Fuzz.andThen
             (\fuzzedIR ->
-                case IR.toOutput codec fuzzedIR of
+                case IR.toOutput gadget fuzzedIR of
                     Ok fuzzedOutput ->
                         Fuzz.constant fuzzedOutput
 
@@ -116,8 +116,8 @@ type Override
 {-| Override the default implementation of a `Fuzz.Fuzzer`.
 -}
 override : String -> IR.Gadget a -> Fuzz.Fuzzer a -> Override
-override label codec inputFuzzer =
-    Override label (Fuzz.map (IR.fromInput codec) inputFuzzer)
+override label gadget inputFuzzer =
+    Override label (Fuzz.map (IR.fromInput gadget) inputFuzzer)
 
 
 fuzzAdapter : Dict.Dict String (Fuzz.Fuzzer IR.IR) -> IR.IRType -> Fuzz.Fuzzer IR.IR

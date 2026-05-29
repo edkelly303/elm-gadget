@@ -48,8 +48,8 @@ import Set
 
 -}
 generator : IR.Gadget a -> Random.Generator a
-generator codec =
-    generatorWithOverrides [] codec
+generator gadget =
+    generatorWithOverrides [] gadget
 
 
 {-| A type used to represent overrides.
@@ -61,8 +61,8 @@ type Override
 {-| Override the default implementation of a `Random.Generator`.
 -}
 override : String -> IR.Gadget a -> Random.Generator a -> Override
-override label codec inputGenerator =
-    Override label (Random.map (IR.fromInput codec) inputGenerator)
+override label gadget inputGenerator =
+    Override label (Random.map (IR.fromInput gadget) inputGenerator)
 
 
 {-| Turn a Gadget into a `Random.Generator`, but override some of the default
@@ -106,14 +106,14 @@ implementations of generators that are defined by this module.
 
 -}
 generatorWithOverrides : List Override -> IR.Gadget a -> Random.Generator a
-generatorWithOverrides overrides codec =
+generatorWithOverrides overrides gadget =
     let
         overridesDict =
             overrides
                 |> List.map (\(Override label generator_) -> ( label, generator_ ))
                 |> Dict.fromList
     in
-    generatorWithOverridesHelp overridesDict codec
+    generatorWithOverridesHelp overridesDict gadget
         |> Random.andThen
             (\res ->
                 case res of
@@ -122,15 +122,15 @@ generatorWithOverrides overrides codec =
 
                     Err _ ->
                         -- let's hope this never happens...
-                        generatorWithOverrides overrides codec
+                        generatorWithOverrides overrides gadget
             )
 
 
 generatorWithOverridesHelp : Dict.Dict String (Random.Generator IR.IR) -> IR.Gadget a -> Random.Generator (Result IR.Error a)
-generatorWithOverridesHelp overridesDict codec =
-    IR.irType codec
+generatorWithOverridesHelp overridesDict gadget =
+    IR.irType gadget
         |> randomAdapter overridesDict
-        |> Random.map (IR.toOutput codec)
+        |> Random.map (IR.toOutput gadget)
 
 
 randomAdapter : Dict.Dict String (Random.Generator IR.IR) -> IR.IRType -> Random.Generator IR.IR

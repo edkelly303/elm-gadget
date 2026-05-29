@@ -34,8 +34,8 @@ import Set
 
 -}
 print : IR.Gadget a -> a -> String
-print codec value =
-    IR.fromInput codec value
+print gadget value =
+    IR.fromInput gadget value
         |> printAdapter
 
 
@@ -149,11 +149,11 @@ into an Elm value.
 
 -}
 parser : IR.Gadget a -> Parser a
-parser codec =
+parser gadget =
     irParser
         |> P.andThen
             (\ir ->
-                case IR.toOutput codec ir of
+                case IR.toOutput gadget ir of
                     Ok output ->
                         P.succeed output
 

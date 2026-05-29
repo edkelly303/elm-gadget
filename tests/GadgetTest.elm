@@ -23,17 +23,17 @@ irTests =
 
 
 roundTrip : Gadget.Gadget input -> String -> Test
-roundTrip codec name =
+roundTrip gadget name =
     fuzz
         (Gadget.Adapter.Fuzz.fuzzerWithOverrides
             [ Gadget.Adapter.Fuzz.override "fuzz-override" Gadget.string (Fuzz.stringOfLengthBetween 0 6)
             ]
-            codec
+            gadget
         )
         (name ++ " fromInput -> toOutput roundtrip")
     <|
         \rec ->
             rec
-                |> Gadget.IR.fromInput codec
-                |> Gadget.IR.toOutput codec
+                |> Gadget.IR.fromInput gadget
+                |> Gadget.IR.toOutput gadget
                 |> Expect.equal (Ok rec)
