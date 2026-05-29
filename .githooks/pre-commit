@@ -6,7 +6,7 @@ if [[ -n "$STAGED" ]]; then
 
     printf "  1. Running elm-format... "
 
-    if elm-format "$STAGED" --yes ; then
+    if elm-format $STAGED --yes ; then
         printf "Success!\n\n"
     else 
         printf "Failed!\n\n"
