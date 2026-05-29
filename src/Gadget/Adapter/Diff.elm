@@ -86,157 +86,162 @@ diff gadget old new =
 
 diffHelp : IR.IRType -> IR.IR -> IR.IR -> Changes
 diffHelp irType_ oldIR_ newIR_ =
-    if oldIR_ == newIR_ then
-        Identical
+    case irType_ of
+        IR.LazyType toInnerType ->
+            diffHelp (toInnerType ()) oldIR_ newIR_
 
-    else
-        case ( oldIR_, newIR_, irType_ ) of
-            ( IR.Labelled _ inner1, IR.Labelled _ inner2, IR.LabelledType _ innerType ) ->
-                diffHelp innerType inner1 inner2
-
-            ( IR.Bool _, IR.Bool b2, _ ) ->
-                BoolChange b2
-
-            ( IR.String _, IR.String b2, _ ) ->
-                StringChange b2
-
-            ( IR.Char _, IR.Char b2, _ ) ->
-                CharChange b2
-
-            ( IR.Float _, IR.Float b2, _ ) ->
-                FloatChange b2
-
-            ( IR.Int _, IR.Int b2, _ ) ->
-                IntChange b2
-
-            ( IR.List oldList, IR.List newList, IR.ListType itemType ) ->
-                ListDiffer.diffWith (areSimilar itemType) oldList newList
-                    |> List.foldl
-                        (\change { idx, out } ->
-                            case change of
-                                ListDiffer.Added newItem ->
-                                    { idx = idx
-                                    , out =
-                                        case List.Extra.elemIndex newItem oldList of
-                                            Just oldIdx ->
-                                                Just (Moved oldIdx) :: out
-
-                                            Nothing ->
-                                                Just (Added (diffHelp itemType (default itemType) newItem)) :: out
-                                    }
-
-                                ListDiffer.Removed _ ->
-                                    { idx = idx + 1
-                                    , out = Nothing :: out
-                                    }
-
-                                ListDiffer.Similar _ _ changes_ ->
-                                    { idx = idx + 1
-                                    , out = Just (Updated idx changes_) :: out
-                                    }
-
-                                ListDiffer.NoChange _ ->
-                                    { idx = idx + 1
-                                    , out = Just (Moved idx) :: out
-                                    }
-                        )
-                        { idx = 0, out = [] }
-                    |> .out
-                    |> List.filterMap identity
-                    |> coalesceForwardMoveSequences
-                    |> coalesceBackwardMoveSequences
-                    |> doRunLengthEncoding
-                    |> ListChanges
-
-            ( IR.Product fields1, IR.Product fields2, IR.ProductType fieldTypes ) ->
-                let
-                    changes =
-                        List.map3 diffHelp fieldTypes fields1 fields2
-                            |> List.indexedMap Tuple.pair
-                            |> List.filter (\( _, arg ) -> arg /= Identical)
-                in
-                case changes of
-                    change :: restChanges ->
-                        ProductChanges change restChanges
-
-                    [] ->
-                        Identical
-
-            ( IR.Custom oldSelected oldVariant, IR.Custom newSelected newVariant, IR.CustomType firstVariantType restVariantTypes ) ->
-                let
-                    argsToList variant =
-                        case variant of
-                            IR.Variant0 ->
-                                []
-
-                            IR.Variant1 a ->
-                                [ a ]
-
-                            IR.Variant2 a1 a2 ->
-                                [ a1, a2 ]
-
-                            IR.Variant3 a1 a2 a3 ->
-                                [ a1, a2, a3 ]
-
-                            IR.Variant4 a1 a2 a3 a4 ->
-                                [ a1, a2, a3, a4 ]
-
-                            IR.Variant5 a1 a2 a3 a4 a5 ->
-                                [ a1, a2, a3, a4, a5 ]
-
-                    argTypesToList variantType =
-                        case variantType of
-                            IR.Variant0Type ->
-                                []
-
-                            IR.Variant1Type a ->
-                                [ a ]
-
-                            IR.Variant2Type a1 a2 ->
-                                [ a1, a2 ]
-
-                            IR.Variant3Type a1 a2 a3 ->
-                                [ a1, a2, a3 ]
-
-                            IR.Variant4Type a1 a2 a3 a4 ->
-                                [ a1, a2, a3, a4 ]
-
-                            IR.Variant5Type a1 a2 a3 a4 a5 ->
-                                [ a1, a2, a3, a4, a5 ]
-
-                    newArgs =
-                        argsToList newVariant
-
-                    newArgTypes =
-                        List.Extra.getAt newSelected (firstVariantType :: restVariantTypes)
-                            |> Maybe.withDefault firstVariantType
-                            |> argTypesToList
-
-                    diffedArgs =
-                        if oldSelected == newSelected then
-                            let
-                                oldArgs =
-                                    argsToList oldVariant
-                            in
-                            List.Extra.zip3 oldArgs newArgs newArgTypes
-                                |> List.indexedMap
-                                    (\idx ( oldArg, newArg, argType ) ->
-                                        ( idx, diffHelp argType oldArg newArg )
-                                    )
-
-                        else
-                            List.Extra.zip newArgs newArgTypes
-                                |> List.indexedMap
-                                    (\idx ( newArg, argType ) ->
-                                        ( idx, diffHelp argType (default argType) newArg )
-                                    )
-                in
-                diffedArgs
-                    |> List.filter (\( _, arg ) -> arg /= Identical)
-                    |> CustomChanges newSelected
-
-            _ ->
+        _ ->
+            if oldIR_ == newIR_ then
                 Identical
+
+            else
+                case ( oldIR_, newIR_, irType_ ) of
+                    ( IR.Labelled _ inner1, IR.Labelled _ inner2, IR.LabelledType _ innerType ) ->
+                        diffHelp innerType inner1 inner2
+
+                    ( IR.Bool _, IR.Bool b2, _ ) ->
+                        BoolChange b2
+
+                    ( IR.String _, IR.String b2, _ ) ->
+                        StringChange b2
+
+                    ( IR.Char _, IR.Char b2, _ ) ->
+                        CharChange b2
+
+                    ( IR.Float _, IR.Float b2, _ ) ->
+                        FloatChange b2
+
+                    ( IR.Int _, IR.Int b2, _ ) ->
+                        IntChange b2
+
+                    ( IR.List oldList, IR.List newList, IR.ListType itemType ) ->
+                        ListDiffer.diffWith (areSimilar itemType) oldList newList
+                            |> List.foldl
+                                (\change { idx, out } ->
+                                    case change of
+                                        ListDiffer.Added newItem ->
+                                            { idx = idx
+                                            , out =
+                                                case List.Extra.elemIndex newItem oldList of
+                                                    Just oldIdx ->
+                                                        Just (Moved oldIdx) :: out
+
+                                                    Nothing ->
+                                                        Just (Added (diffHelp itemType (default itemType) newItem)) :: out
+                                            }
+
+                                        ListDiffer.Removed _ ->
+                                            { idx = idx + 1
+                                            , out = Nothing :: out
+                                            }
+
+                                        ListDiffer.Similar _ _ changes_ ->
+                                            { idx = idx + 1
+                                            , out = Just (Updated idx changes_) :: out
+                                            }
+
+                                        ListDiffer.NoChange _ ->
+                                            { idx = idx + 1
+                                            , out = Just (Moved idx) :: out
+                                            }
+                                )
+                                { idx = 0, out = [] }
+                            |> .out
+                            |> List.filterMap identity
+                            |> coalesceForwardMoveSequences
+                            |> coalesceBackwardMoveSequences
+                            |> doRunLengthEncoding
+                            |> ListChanges
+
+                    ( IR.Product fields1, IR.Product fields2, IR.ProductType fieldTypes ) ->
+                        let
+                            changes =
+                                List.map3 diffHelp fieldTypes fields1 fields2
+                                    |> List.indexedMap Tuple.pair
+                                    |> List.filter (\( _, arg ) -> arg /= Identical)
+                        in
+                        case changes of
+                            change :: restChanges ->
+                                ProductChanges change restChanges
+
+                            [] ->
+                                Identical
+
+                    ( IR.Custom oldSelected oldVariant, IR.Custom newSelected newVariant, IR.CustomType firstVariantType restVariantTypes ) ->
+                        let
+                            argsToList variant =
+                                case variant of
+                                    IR.Variant0 ->
+                                        []
+
+                                    IR.Variant1 a ->
+                                        [ a ]
+
+                                    IR.Variant2 a1 a2 ->
+                                        [ a1, a2 ]
+
+                                    IR.Variant3 a1 a2 a3 ->
+                                        [ a1, a2, a3 ]
+
+                                    IR.Variant4 a1 a2 a3 a4 ->
+                                        [ a1, a2, a3, a4 ]
+
+                                    IR.Variant5 a1 a2 a3 a4 a5 ->
+                                        [ a1, a2, a3, a4, a5 ]
+
+                            argTypesToList variantType =
+                                case variantType of
+                                    IR.Variant0Type ->
+                                        []
+
+                                    IR.Variant1Type a ->
+                                        [ a ]
+
+                                    IR.Variant2Type a1 a2 ->
+                                        [ a1, a2 ]
+
+                                    IR.Variant3Type a1 a2 a3 ->
+                                        [ a1, a2, a3 ]
+
+                                    IR.Variant4Type a1 a2 a3 a4 ->
+                                        [ a1, a2, a3, a4 ]
+
+                                    IR.Variant5Type a1 a2 a3 a4 a5 ->
+                                        [ a1, a2, a3, a4, a5 ]
+
+                            newArgs =
+                                argsToList newVariant
+
+                            newArgTypes =
+                                List.Extra.getAt newSelected (firstVariantType :: restVariantTypes)
+                                    |> Maybe.withDefault firstVariantType
+                                    |> argTypesToList
+
+                            diffedArgs =
+                                if oldSelected == newSelected then
+                                    let
+                                        oldArgs =
+                                            argsToList oldVariant
+                                    in
+                                    List.Extra.zip3 oldArgs newArgs newArgTypes
+                                        |> List.indexedMap
+                                            (\idx ( oldArg, newArg, argType ) ->
+                                                ( idx, diffHelp argType oldArg newArg )
+                                            )
+
+                                else
+                                    List.Extra.zip newArgs newArgTypes
+                                        |> List.indexedMap
+                                            (\idx ( newArg, argType ) ->
+                                                ( idx, diffHelp argType (default argType) newArg )
+                                            )
+                        in
+                        diffedArgs
+                            |> List.filter (\( _, arg ) -> arg /= Identical)
+                            |> CustomChanges newSelected
+
+                    _ ->
+                        Identical
 
 
 coalesceForwardMoveSequences : List ListChange -> List ListChange
