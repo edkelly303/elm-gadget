@@ -3,6 +3,29 @@ module TestHelpers exposing (..)
 import Gadget
 
 
+type Tree
+    = Leaf String
+    | Branch Tree Tree
+
+
+treeGadget : Gadget.Gadget Tree
+treeGadget =
+    Gadget.custom
+        (\leaf branch tree ->
+            case tree of
+                Leaf value ->
+                    leaf value
+
+                Branch branch0 branch1 ->
+                    branch branch0 branch1
+        )
+        |> Gadget.variant1 Leaf Gadget.string
+        |> Gadget.variant2 Branch
+            (Gadget.lazy (\() -> treeGadget))
+            (Gadget.lazy (\() -> treeGadget))
+        |> Gadget.endCustom
+
+
 type alias Record =
     { bool : Bool
     , int : Int

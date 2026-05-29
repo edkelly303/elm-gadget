@@ -403,6 +403,9 @@ default irType =
         IR.LabelledType label x ->
             IR.Labelled label (default x)
 
+        IR.LazyType construct ->
+            default (construct ())
+
         IR.BoolType ->
             IR.Bool True
 
@@ -472,6 +475,9 @@ patchHelp changes_ old_ irType_ =
     case ( changes_, old_, irType_ ) of
         ( Identical, _, _ ) ->
             Ok old_
+
+        ( _, _, IR.LazyType constructType ) ->
+            patchHelp changes_ old_ (constructType ())
 
         ( _, IR.Labelled label inner, IR.LabelledType _ innerType ) ->
             patchHelp changes_ inner innerType

@@ -123,6 +123,9 @@ override label codec inputFuzzer =
 fuzzAdapter : Dict.Dict String (Fuzz.Fuzzer IR.IR) -> IR.IRType -> Fuzz.Fuzzer IR.IR
 fuzzAdapter overrides irType =
     case irType of
+        IR.LazyType construct ->
+            Fuzz.lazy (\() -> fuzzAdapter overrides (construct ()))
+
         IR.LabelledType labels innerType ->
             Set.foldl
                 (\label maybe ->

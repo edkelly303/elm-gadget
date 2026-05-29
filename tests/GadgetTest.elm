@@ -13,6 +13,7 @@ irTests : Test
 irTests =
     Test.describe "IR"
         [ roundTrip recordCodec "Record"
+        , roundTrip treeGadget "Tree (recursive custom type)"
         , roundTrip Gadget.int "Int"
         , roundTrip Gadget.float "Float"
         , roundTrip Gadget.char "Char"

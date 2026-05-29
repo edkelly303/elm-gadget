@@ -7,7 +7,7 @@ module Gadget exposing
     , RecordGadgetBuilder, record, field, endRecord
     , CustomGadgetBuilder, custom, variant0, variant1, variant2, variant3
     , variant4, variant5, endCustom
-    , map
+    , map, filterMap, lazy
     , label
     )
 
@@ -96,7 +96,7 @@ If you want to make your own adapters, see the [`Gadget.IR`](Gadget-IR) module.
 
 # Transforming Gadgets
 
-@docs map
+@docs map, filterMap, lazy
 
 
 # Labelling Gadgets
@@ -767,6 +767,98 @@ map aToB bToA (Gadget prev) =
         { fromInput = bToA >> prev.fromInput
         , toOutput = prev.toOutput >> Result.map aToB
         , irType = prev.irType
+        }
+
+
+{-| Convert a Gadget of one type to a Gadget of another type,
+possibly failing the conversion to the more narrow result type.
+
+    import Gadget
+
+    namesGadget =
+        Gadget.list Gadget.string
+            |> Gadget.filterMap
+                (\list ->
+                    case list of
+                        [] ->
+                            Err "must contain at least one name"
+
+                        h :: t ->
+                            Ok ( h, t )
+                )
+                (\( h, t ) -> h :: t)
+
+    namesGadget --: Gadget.Gadget (List String)
+
+Do not use this for overly fine-grained checks (like checking for a fixed set of valid values),
+as this might leave generators and fuzzers scrambling to find any valid values.
+Instead, prefer the constructive approach.
+
+-}
+filterMap :
+    (a -> Result String b)
+    -> (b -> a)
+    -> Gadget a
+    -> Gadget b
+filterMap aToB bToA (Gadget prev) =
+    Gadget
+        { fromInput = bToA >> prev.fromInput
+        , toOutput = prev.toOutput >> Result.andThen aToB
+        , irType = prev.irType
+        }
+
+
+{-| Construct this step lazily to avoid elm complaining about an infinitely recursive value.
+
+    type Tree
+        = Leaf String
+        | Branch Tree Tree
+
+    treeGadget =
+        Gadget.custom
+            (\leaf branch tree ->
+                case tree of
+                    Leaf value ->
+                        leaf value
+
+                    Branch branch0 branch1 ->
+                        branch branch0 branch1
+            )
+            |> Gadget.variant1 Leaf Gadget.string
+            |> Gadget.variant2 Branch
+                (Gadget.lazy (\() -> treeGadget))
+                (Gadget.lazy (\() -> treeGadget))
+            |> Gadget.endCustom
+
+    treeGadget --: Gadget.Gadget Tree
+
+-}
+lazy : (() -> Gadget a) -> Gadget a
+lazy step =
+    Gadget
+        { fromInput =
+            \value ->
+                let
+                    (Gadget gadget) =
+                        step ()
+                in
+                value |> gadget.fromInput
+        , toOutput =
+            \ir ->
+                let
+                    (Gadget gadget) =
+                        step ()
+                in
+                ir |> gadget.toOutput
+        , irType =
+            Gadget.IR.LazyType
+                (\() ->
+                    let
+                        (Gadget gadget) =
+                            step ()
+                    in
+                    gadget.irType
+                )
         }
 
 

@@ -79,6 +79,7 @@ type IRType
     | ProductType (List IRType)
     | ListType IRType
     | LabelledType (Set.Set String) IRType
+    | LazyType (() -> IRType)
 
 
 {-| A type used by the `Custom` constructor of the `IRType` type.

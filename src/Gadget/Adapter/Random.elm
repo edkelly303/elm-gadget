@@ -136,6 +136,9 @@ generatorWithOverridesHelp overridesDict codec =
 randomAdapter : Dict.Dict String (Random.Generator IR.IR) -> IR.IRType -> Random.Generator IR.IR
 randomAdapter overrides irType =
     case irType of
+        IR.LazyType constructType ->
+            randomAdapter overrides (constructType ())
+
         IR.LabelledType labels innerType ->
             Set.foldl
                 (\label maybe ->
