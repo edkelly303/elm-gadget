@@ -12,7 +12,7 @@ import TestHelpers exposing (..)
 diffTests : Test
 diffTests =
     Test.describe "Gadget.String"
-        [ roundTrip recordCodec "Record"
+        [ roundTrip recordGadget "Record"
         , roundTrip Gadget.int "Int"
         , roundTrip Gadget.float "Float"
         , roundTrip Gadget.char "Char"

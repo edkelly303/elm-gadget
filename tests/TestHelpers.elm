@@ -36,15 +36,15 @@ type alias Record =
     }
 
 
-recordCodec : Gadget.Gadget Record
-recordCodec =
+recordGadget : Gadget.Gadget Record
+recordGadget =
     Gadget.record Record
         |> Gadget.field .bool Gadget.bool
         |> Gadget.field .int Gadget.int
         |> Gadget.field .float Gadget.float
         |> Gadget.field .string Gadget.string
         |> Gadget.field .char Gadget.char
-        |> Gadget.field .custom customCodec
+        |> Gadget.field .custom customGadget
         |> Gadget.endRecord
 
 
@@ -57,8 +57,8 @@ type Custom
     | Var5 Bool Bool Bool Bool Bool
 
 
-customCodec : Gadget.Gadget Custom
-customCodec =
+customGadget : Gadget.Gadget Custom
+customGadget =
     Gadget.custom
         (\v0 v1 v2 v3 v4 v5 v ->
             case v of

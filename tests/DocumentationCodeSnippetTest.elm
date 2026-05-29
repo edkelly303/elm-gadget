@@ -120,6 +120,22 @@ tests =
                     ]
                 ]
             , Test.describe
+                "filterMap"
+                [ Test.describe
+                    "code snippet 0"
+                    [ Test.test
+                        "0"
+                        (\() ->
+                            let
+                                unused : Gadget.Gadget ( String.String, List String.String )
+                                unused =
+                                    namesGadget__Gadget__filterMap_0
+                            in
+                            Expect.pass
+                        )
+                    ]
+                ]
+            , Test.describe
                 "label"
                 [ Test.describe
                     "code snippet 0"
@@ -130,6 +146,22 @@ tests =
                                 unused : Gadget.Gadget Basics.Int
                                 unused =
                                     labelled__Gadget__label_0
+                            in
+                            Expect.pass
+                        )
+                    ]
+                ]
+            , Test.describe
+                "lazy"
+                [ Test.describe
+                    "code snippet 0"
+                    [ Test.test
+                        "0"
+                        (\() ->
+                            let
+                                unused : Gadget.Gadget Tree__Gadget__lazy_0
+                                unused =
+                                    treeGadget__Gadget__lazy_0
                             in
                             Expect.pass
                         )
@@ -486,8 +518,45 @@ dictGadget__Gadget__dict_0 =
     Gadget.dict Gadget.int Gadget.string
 
 
+namesGadget__Gadget__filterMap_0 =
+    Gadget.list Gadget.string
+        |> Gadget.filterMap
+            (\list ->
+                case list of
+                    [] ->
+                        Result.Err "must contain at least one name"
+
+                    h :: t ->
+                        Result.Ok ( h, t )
+            )
+            (\( h, t ) -> h :: t)
+
+
 labelled__Gadget__label_0 =
     Gadget.int |> Gadget.label "age"
+
+
+type Tree__Gadget__lazy_0
+    = Leaf__Gadget__lazy_0 String.String
+    | Branch__Gadget__lazy_0 Tree__Gadget__lazy_0 Tree__Gadget__lazy_0
+
+
+treeGadget__Gadget__lazy_0 =
+    Gadget.custom
+        (\leaf branch tree ->
+            case tree of
+                Leaf__Gadget__lazy_0 value ->
+                    leaf value
+
+                Branch__Gadget__lazy_0 branch0 branch1 ->
+                    branch branch0 branch1
+        )
+        |> Gadget.variant1 Leaf__Gadget__lazy_0 Gadget.string
+        |> Gadget.variant2
+            Branch__Gadget__lazy_0
+            (Gadget.lazy (\() -> treeGadget__Gadget__lazy_0))
+            (Gadget.lazy (\() -> treeGadget__Gadget__lazy_0))
+        |> Gadget.endCustom
 
 
 listGadget__Gadget__list_0 =

@@ -12,7 +12,7 @@ import TestHelpers exposing (..)
 irTests : Test
 irTests =
     Test.describe "IR"
-        [ roundTrip recordCodec "Record"
+        [ roundTrip recordGadget "Record"
         , roundTrip treeGadget "Tree (recursive custom type)"
         , roundTrip Gadget.int "Int"
         , roundTrip Gadget.float "Float"

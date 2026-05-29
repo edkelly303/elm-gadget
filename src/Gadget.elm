@@ -788,7 +788,7 @@ possibly failing the conversion to the more narrow result type.
                 )
                 (\( h, t ) -> h :: t)
 
-    namesGadget --: Gadget.Gadget (List String)
+    namesGadget --: Gadget.Gadget ( String, List String )
 
 Do not use this for overly fine-grained checks (like checking for a fixed set of valid values),
 as this might leave generators and fuzzers scrambling to find any valid values.
