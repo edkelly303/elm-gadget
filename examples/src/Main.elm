@@ -9,6 +9,7 @@ import Gadget.Adapter.Html
 import Gadget.Adapter.Json
 import Gadget.Adapter.Random
 import Gadget.Adapter.String
+import Gadget.Adapter.Miner
 import Html
 import Html.Attributes
 import Html.Events
@@ -21,7 +22,7 @@ import Random
 type alias Person =
     { name : String
     , heightInCentimetres : Float
-    , pets : List Pet
+    --, pets : List Pet
     }
 
 
@@ -35,13 +36,15 @@ personGadget =
     Gadget.record Person
         |> Gadget.field .name
             (Gadget.string
-                |> Gadget.label "random-name"
-                |> Gadget.label "fuzz-name"
+                -- |> Gadget.label "random-name"
+                -- |> Gadget.label "fuzz-name"
             )
         |> Gadget.field .heightInCentimetres
-            (Gadget.float |> Gadget.label "heightInCentimetres")
-        |> Gadget.field .pets
-            (Gadget.list petGadget)
+            (Gadget.float 
+                -- |> Gadget.label "heightInCentimetres"
+            )
+        -- |> Gadget.field .pets
+        --     (Gadget.list petGadget)
         |> Gadget.endRecord
 
 
@@ -120,7 +123,7 @@ view ( seed1, seed2 ) =
             Gadget.Adapter.Fuzz.fuzzerWithOverrides fuzzOverrides gadget
 
         fuzzed =
-            Fuzz.examples 1 fuzzer
+            Fuzz.examples 50 fuzzer
 
         randomOverrides =
             [ Gadget.Adapter.Random.override "random-name" Gadget.string (Random.uniform "Bill" [ "George", "Sue" ])
@@ -184,8 +187,10 @@ view ( seed1, seed2 ) =
         , Html.pre [] [ Html.text encoded ]
         , head "JSON decoder (first value)"
         , show decoded
-        , head "Fuzzer"
-        , show fuzzed
+        , head "Fuzzer (first example)"
+        , show (List.head fuzzed)
+        , head "Miner (50 fuzzed examples)"
+        , Gadget.Adapter.Html.view Gadget.Adapter.Miner.obGadget (Gadget.Adapter.Miner.observe gadget fuzzed)
         ]
 
 
