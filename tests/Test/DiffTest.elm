@@ -5,7 +5,6 @@ import Gadget
 import Gadget.Adapter.Diff
 import Gadget.Adapter.Fuzz
 import Test exposing (..)
-import Test.Html.Event exposing (expect)
 import TestHelpers exposing (..)
 
 
