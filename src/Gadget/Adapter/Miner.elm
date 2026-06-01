@@ -11,21 +11,45 @@ import Set exposing (Set)
 
 
 type Ob
+    = P Primitive
+    | C Combinator
+
+
+type Primitive
     = Bool BoolOb
     | Char ()
     | String StringOb
     | Int IntOb
     | Float FloatOb
-    | Custom Int Variant
+
+
+type Combinator
+    = Custom Int Variant
     | Product (List Ob)
     | List { minLength : Int, maxLength : Int } Ob
     | Labelled (Set String) Ob
 
 
-obGadget : Gadget.Gadget Ob
+obGadget : Gadget Ob
 obGadget =
     Gadget.custom
-        (\bool string int float product variant ->
+        (\p c variant ->
+            case variant of
+                P prim ->
+                    p prim
+
+                C cust ->
+                    c cust
+        )
+        |> Gadget.variant1 P primitiveGadget
+        |> Gadget.variant1 C combinatorGadget
+        |> Gadget.endCustom
+
+
+primitiveGadget : Gadget.Gadget Primitive
+primitiveGadget =
+    Gadget.custom
+        (\bool string int float variant ->
             case variant of
                 Bool b ->
                     bool b
@@ -39,9 +63,6 @@ obGadget =
                 Float f ->
                     float f
 
-                Product f ->
-                    product f
-
                 _ ->
                     Debug.todo "oops"
         )
@@ -49,6 +70,20 @@ obGadget =
         |> Gadget.variant1 String stringObGadget
         |> Gadget.variant1 Int intObGadget
         |> Gadget.variant1 Float floatObGadget
+        |> Gadget.endCustom
+
+
+combinatorGadget : Gadget Combinator
+combinatorGadget =
+    Gadget.custom
+        (\product variant ->
+            case variant of
+                Product f ->
+                    product f
+
+                _ ->
+                    Debug.todo "oops"
+        )
         |> Gadget.variant1 Product (Gadget.list (Gadget.lazy (\() -> obGadget)))
         |> Gadget.endCustom
 
@@ -115,37 +150,43 @@ zero gadget =
         help irType =
             case irType of
                 IR.BoolType ->
-                    Bool { true = 0, false = 0 }
+                    P (Bool { true = 0, false = 0 })
 
                 IR.StringType ->
-                    String
-                        { minLength = Random.maxInt
-                        , maxLength = 0
-                        , chars = Nothing
-                        , substrings = Nothing
-                        , common = Just Dict.empty
-                        }
+                    P
+                        (String
+                            { minLength = Random.maxInt
+                            , maxLength = 0
+                            , chars = Nothing
+                            , substrings = Nothing
+                            , common = Just Dict.empty
+                            }
+                        )
 
                 IR.CharType ->
-                    Char ()
+                    P (Char ())
 
                 IR.IntType ->
-                    Int
-                        { min = Random.maxInt
-                        , max = Random.minInt
-                        }
+                    P
+                        (Int
+                            { min = Random.maxInt
+                            , max = Random.minInt
+                            }
+                        )
 
                 IR.FloatType ->
-                    Float
-                        { min = 1 / 0
-                        , max = -1 / 0
-                        }
+                    P
+                        (Float
+                            { min = 1 / 0
+                            , max = -1 / 0
+                            }
+                        )
 
                 IR.CustomType _ _ ->
                     Debug.todo "branch 'CustomType _ _' not implemented"
 
                 IR.ProductType fieldTypes ->
-                    Product (List.map help fieldTypes)
+                    C (Product (List.map help fieldTypes))
 
                 IR.ListType _ ->
                     Debug.todo "branch 'ListType _' not implemented"
@@ -182,45 +223,49 @@ fromValue : IR -> Ob
 fromValue ir =
     case ir of
         IR.Bool i ->
-            Bool <|
-                if i then
-                    { true = 1, false = 0 }
+            P <|
+                Bool <|
+                    if i then
+                        { true = 1, false = 0 }
 
-                else
-                    { true = 0, false = 1 }
+                    else
+                        { true = 0, false = 1 }
 
         IR.Char _ ->
-            Char ()
+            P <| Char ()
 
         IR.String s ->
             let
                 len =
                     String.length s
             in
-            String
-                { minLength = len
-                , maxLength = len
-                , chars =
-                    String.toList s
-                        |> Set.fromList
-                        |> Just
-                , substrings =
-                    Just (Set.singleton s)
-                , common =
-                    Just (Dict.singleton s 1)
-                }
+            P <|
+                String
+                    { minLength = len
+                    , maxLength = len
+                    , chars =
+                        String.toList s
+                            |> Set.fromList
+                            |> Just
+                    , substrings =
+                        Just (Set.singleton s)
+                    , common =
+                        Just (Dict.singleton s 1)
+                    }
 
         IR.Int i ->
-            Int
-                { min = i
-                , max = i
-                }
+            P <|
+                Int
+                    { min = i
+                    , max = i
+                    }
 
         IR.Float f ->
-            Float
-                { min = f
-                , max = f
-                }
+            P <|
+                Float
+                    { min = f
+                    , max = f
+                    }
 
         IR.Custom _ _ ->
             Debug.todo "branch '( Custom _ _, _ )' not implemented"
@@ -228,6 +273,7 @@ fromValue ir =
         IR.Product fields ->
             List.map fromValue fields
                 |> Product
+                |> C
 
         IR.List _ ->
             Debug.todo "branch '( List _, _ )' not implemented"
@@ -239,6 +285,29 @@ fromValue ir =
 append : Ob -> Ob -> Ob
 append ob1 ob2 =
     case ( ob1, ob2 ) of
+        ( P primitive1, P primitive2 ) ->
+            P <| appendPrimitives primitive1 primitive2
+
+        ( C combinator1, C combinator2 ) ->
+            C <| appendCombinators combinator1 combinator2
+
+        _ ->
+            ob1
+
+
+appendCombinators : Combinator -> Combinator -> Combinator
+appendCombinators c1 c2 =
+    case ( c1, c2 ) of
+        ( Product fields1, Product fields2 ) ->
+            Product <| List.map2 append fields1 fields2
+
+        _ ->
+            c1
+
+
+appendPrimitives : Primitive -> Primitive -> Primitive
+appendPrimitives p1 p2 =
+    case ( p1, p2 ) of
         ( Bool b1, Bool b2 ) ->
             Bool
                 { true = b1.true + b2.true
@@ -317,11 +386,8 @@ append ob1 ob2 =
         ( Float f1, Float f2 ) ->
             Float { max = max f1.max f2.max, min = min f1.min f2.min }
 
-        ( Product fields1, Product fields2 ) ->
-            Product <| List.map2 append fields1 fields2
-
         _ ->
-            ob1
+            p1
 
 
 longestCommonSubstring : String -> String -> String
@@ -398,13 +464,16 @@ consIfEqual item1 item2 ( listLen, list ) =
 view : Ob -> H.Html msg
 view ob =
     case ob of
-        Labelled labels inner ->
-            H.div []
-                [ H.strong [] [ H.text "Labelled" ]
-                , H.text (Set.toList labels |> String.join ", ")
-                , view inner
-                ]
+        P primitive ->
+            viewPrimitive primitive
 
+        C combinator ->
+            viewCombinator combinator
+
+
+viewPrimitive : Primitive -> H.Html msg
+viewPrimitive p =
+    case p of
         Bool b ->
             H.div []
                 [ H.strong [] [ H.text "Bool" ]
@@ -488,6 +557,17 @@ view ob =
                     ]
                 ]
 
+
+viewCombinator : Combinator -> H.Html msg
+viewCombinator c =
+    case c of
+        Labelled labels inner ->
+            H.div []
+                [ H.strong [] [ H.text "Labelled" ]
+                , H.text (Set.toList labels |> String.join ", ")
+                , view inner
+                ]
+
         Custom _ _ ->
             H.div [] [ H.strong [] [ H.text "Custom" ] ]
 
@@ -510,5 +590,6 @@ view ob =
             H.div [] [ H.strong [] [ H.text "List" ] ]
 
 
+kv : String -> String -> H.Html msg
 kv k v =
     H.div [] [ H.dt [] [ H.text k ], H.dd [] [ H.text v ] ]
