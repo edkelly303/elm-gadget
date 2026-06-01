@@ -7,9 +7,9 @@ import Gadget.Adapter.Diff
 import Gadget.Adapter.Fuzz
 import Gadget.Adapter.Html
 import Gadget.Adapter.Json
+import Gadget.Adapter.Miner
 import Gadget.Adapter.Random
 import Gadget.Adapter.String
-import Gadget.Adapter.Miner
 import Html
 import Html.Attributes
 import Html.Events
@@ -22,6 +22,7 @@ import Random
 type alias Person =
     { name : String
     , heightInCentimetres : Float
+
     --, pets : List Pet
     }
 
@@ -36,12 +37,12 @@ personGadget =
     Gadget.record Person
         |> Gadget.field .name
             (Gadget.string
-                -- |> Gadget.label "random-name"
-                -- |> Gadget.label "fuzz-name"
+             -- |> Gadget.label "random-name"
+             -- |> Gadget.label "fuzz-name"
             )
         |> Gadget.field .heightInCentimetres
-            (Gadget.float 
-                -- |> Gadget.label "heightInCentimetres"
+            (Gadget.float
+             -- |> Gadget.label "heightInCentimetres"
             )
         -- |> Gadget.field .pets
         --     (Gadget.list petGadget)
@@ -164,6 +165,8 @@ view ( seed1, seed2 ) =
     in
     Html.div []
         [ Html.h1 [] [ Html.text "elm-gadget examples" ]
+        , head "Miner (50 fuzzed examples)"
+        , Gadget.Adapter.Miner.view (Gadget.Adapter.Miner.observe gadget fuzzed)
         , Html.button [ Html.Events.onClick Clicked ] [ Html.text "Click to regenerate!" ]
         , head "Random generator (first value)"
         , show firstValue
@@ -189,8 +192,6 @@ view ( seed1, seed2 ) =
         , show decoded
         , head "Fuzzer (first example)"
         , show (List.head fuzzed)
-        , head "Miner (50 fuzzed examples)"
-        , Gadget.Adapter.Html.view Gadget.Adapter.Miner.obGadget (Gadget.Adapter.Miner.observe gadget fuzzed)
         ]
 
 

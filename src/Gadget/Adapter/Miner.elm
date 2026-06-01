@@ -4,6 +4,7 @@ import Dict exposing (Dict)
 import Gadget
 import Gadget.Adapter.Random
 import Gadget.IR as IR exposing (Gadget, IR, IRType)
+import Html as H
 import List.Extra
 import Random
 import Set exposing (Set)
@@ -175,26 +176,6 @@ observe gadget values =
         |> List.map (IR.fromInput gadget)
         |> List.map fromValue
         |> List.foldl append (zero gadget)
-        |> cleanup
-
-
-cleanup : Ob -> Ob
-cleanup ob =
-    case ob of
-        String o ->
-            String
-                { o
-                    | common =
-                        Maybe.map
-                            (Dict.filter (\_ v -> v > 1))
-                            o.common
-                }
-
-        Product fields ->
-            Product (List.map cleanup fields)
-
-        other ->
-            other
 
 
 fromValue : IR -> Ob
@@ -412,3 +393,122 @@ consIfEqual item1 item2 ( listLen, list ) =
 
     else
         ( listLen, list )
+
+
+view : Ob -> H.Html msg
+view ob =
+    case ob of
+        Labelled labels inner ->
+            H.div []
+                [ H.strong [] [ H.text "Labelled" ]
+                , H.text (Set.toList labels |> String.join ", ")
+                , view inner
+                ]
+
+        Bool b ->
+            H.div []
+                [ H.strong [] [ H.text "Bool" ]
+                , H.dl []
+                    [ kv "True" (String.fromInt b.true)
+                    , kv "False" (String.fromInt b.false)
+                    ]
+                ]
+
+        Char c ->
+            H.div [] [ H.strong [] [ H.text "Char" ] ]
+
+        String s ->
+            H.div []
+                [ H.strong [] [ H.text "String" ]
+                , H.dl []
+                    [ kv "min length" (String.fromInt s.minLength)
+                    , kv "max length" (String.fromInt s.maxLength)
+                    , kv "values that appear frequently"
+                        (case s.common of
+                            Just common ->
+                                if Dict.isEmpty common then
+                                    "[none]"
+
+                                else
+                                    Dict.toList common
+                                        |> List.filter (\( value, count ) -> count > 1)
+                                        |> List.map (\( value, count ) -> "\"" ++ value ++ "\"" ++ ": " ++ String.fromInt count)
+                                        |> String.join ", "
+
+                            Nothing ->
+                                "[more than 100 different values]"
+                        )
+                    , kv "characters present in all values"
+                        (case s.chars of
+                            Just chars ->
+                                if Set.isEmpty chars then
+                                    "[none]"
+
+                                else
+                                    Set.toList chars
+                                        |> List.map String.fromChar
+                                        |> List.map (\str -> "'" ++ str ++ "'")
+                                        |> String.join ", "
+
+                            Nothing ->
+                                "[none]"
+                        )
+                    , kv "substrings present in all values"
+                        (case s.substrings of
+                            Just substrings ->
+                                if Set.isEmpty substrings then
+                                    "[none]"
+
+                                else
+                                    Set.toList substrings
+                                        |> List.map (\str -> "\"" ++ str ++ "\"")
+                                        |> String.join ", "
+
+                            Nothing ->
+                                "[none]"
+                        )
+                    ]
+                ]
+
+        Int i ->
+            H.div []
+                [ H.strong [] [ H.text "Int" ]
+                , H.dl []
+                    [ kv "min" (String.fromInt i.min)
+                    , kv "max" (String.fromInt i.max)
+                    ]
+                ]
+
+        Float f ->
+            H.div []
+                [ H.strong [] [ H.text "Float" ]
+                , H.dl []
+                    [ kv "min" (String.fromFloat f.min)
+                    , kv "max" (String.fromFloat f.max)
+                    ]
+                ]
+
+        Custom _ _ ->
+            H.div [] [ H.strong [] [ H.text "Custom" ] ]
+
+        Product fields ->
+            H.div []
+                [ H.strong [] [ H.text "Product" ]
+                , H.dl []
+                    (List.indexedMap
+                        (\idx field ->
+                            H.div []
+                                [ H.dt [] [ H.text (String.fromInt idx) ]
+                                , H.dd [] [ view field ]
+                                ]
+                        )
+                        fields
+                    )
+                ]
+
+        List _ _ ->
+            H.div [] [ H.strong [] [ H.text "List" ] ]
+
+
+kv k v =
+    H.div [] [ H.dt [] [ H.text k ], H.dd [] [ H.text v ] ]
