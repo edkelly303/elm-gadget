@@ -9,9 +9,9 @@ module Gadget.IR exposing
 To see some examples of how to use this module, look at the source code for the
 various `Gadget.Adapter` modules in this package:
 
-  - The simplest one is probably `Gadget.Adapter.Html`.
-  - For a bidirectional example, try `Gadget.Adapter.Json`.
-  - For an example of how to override Gadgets, see `Gadget.Adapter.Fuzz`.
+  - The simplest one is probably [`Gadget.Adapter.Html`](Gadget-Adapter-Html).
+  - For a bidirectional example, try [`Gadget.Adapter.Json`](Gadget-Adapter-Json).
+  - For an example of how to override Gadgets, see [`Gadget.Adapter.Fuzz`](Gadget-Adapter-Fuzz).
 
 @docs Gadget
 
