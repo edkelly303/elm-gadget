@@ -1,6 +1,19 @@
 module Gadget.Adapter.String exposing (print, parser)
 
-{-| **Warning:** the functions in this module may not do what you expect!
+{-|
+
+
+## ☠️ **Warning:** Not designed for production use! ☠️
+
+The `Gadget.Adapter` modules are included in this package as toy adapters to
+show you what Gadgets are capable of, and provide source-code examples that you
+can use to get started with writing your own adapters. You should probably write
+your own production-grade adapters that are designed for your specific use-case.
+
+
+## Introduction
+
+**Warning:** the functions in this module may not do what you expect!
 
 This is not a full-blown parser and pretty-printer for Elm values. It just
 converts between Elm values and a simple and fairly compact String
@@ -9,6 +22,9 @@ representation.
 If anyone would like to contribute an example of a proper parser/pretty-printer,
 I would be happy to add it to this package. I think it is probably possible with
 judicious (ab)use of [`Gadget.label`](Gadget#label).
+
+
+## API
 
 @docs print, parser
 

@@ -1,7 +1,23 @@
 module Gadget.Adapter.Random exposing (generator, generatorWithOverrides, Override, override)
 
-{-| Use a Gadget to create a `Random.Generator` for use with functions from the
+{-|
+
+
+## ☠️ **Warning:** Not designed for production use! ☠️
+
+The `Gadget.Adapter` modules are included in this package as toy adapters to
+show you what Gadgets are capable of, and provide source-code examples that you
+can use to get started with writing your own adapters. You should probably write
+your own production-grade adapters that are designed for your specific use-case.
+
+
+## Introduction
+
+Use a Gadget to create a `Random.Generator` for use with functions from the
 `elm/random` package.
+
+
+## API
 
 @docs generator, generatorWithOverrides, Override, override
 

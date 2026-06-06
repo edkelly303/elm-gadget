@@ -1,6 +1,19 @@
 module Gadget.Adapter.Diff exposing (Changes, diff, patch)
 
-{-| **Warning:** the functions in this module may not do what you expect!
+{-|
+
+
+## ☠️ **Warning:** Not designed for production use! ☠️
+
+The `Gadget.Adapter` modules are included in this package as toy adapters to
+show you what Gadgets are capable of, and provide source-code examples that you
+can use to get started with writing your own adapters. You should probably write
+your own production-grade adapters that are designed for your specific use-case.
+
+
+## Introduction
+
+**Warning:** the functions in this module may not do what you expect!
 
 The aim of this module is not to create pretty, human-readable diffs for Elm
 values. It's designed to make (fairly) minimal diffs that can be sent over the
@@ -10,6 +23,9 @@ Lamdera application).
 If anyone would like to contribute an example of using Gadgets to create nice
 human-readable diffs, I would be happy to add it to this package. I think it is
 probably possible with judicious (ab)use of [`Gadget.label`](Gadget#label).
+
+
+## Example
 
     import Gadget
     import Gadget.Adapter.Diff
@@ -31,6 +47,9 @@ probably possible with judicious (ab)use of [`Gadget.label`](Gadget#label).
     Gadget.Adapter.Diff.patch gadget changes oldValue
 
     --> Ok [ 1, 2, 3, 4 ]
+
+
+## API
 
 @docs Changes, diff, patch
 

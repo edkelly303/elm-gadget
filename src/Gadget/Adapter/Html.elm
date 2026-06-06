@@ -1,6 +1,22 @@
 module Gadget.Adapter.Html exposing (view)
 
-{-| Use a Gadget to render an Elm value as HTML.
+{-|
+
+
+## ☠️ **Warning:** Not designed for production use! ☠️
+
+The `Gadget.Adapter` modules are included in this package as toy adapters to
+show you what Gadgets are capable of, and provide source-code examples that you
+can use to get started with writing your own adapters. You should probably write
+your own production-grade adapters that are designed for your specific use-case.
+
+
+## Introduction
+
+Use a Gadget to render an Elm value as HTML.
+
+
+## API
 
 @docs view
 
