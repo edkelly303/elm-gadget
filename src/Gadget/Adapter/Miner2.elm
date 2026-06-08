@@ -1,6 +1,7 @@
 module Gadget.Adapter.Miner2 exposing (..)
 
 import Dict exposing (Dict)
+import Dict.Extra
 import Gadget
 import Gadget.IR as IR exposing (IR)
 import List.Extra
@@ -10,7 +11,8 @@ g =
     Gadget.tuple Gadget.string (Gadget.tuple Gadget.string Gadget.string)
 
 
-example =
+exampleTests : List Test
+exampleTests =
     observe g
         [ ( "", ( "", "" ) )
         , ( "", ( "hello", "" ) )
@@ -18,139 +20,183 @@ example =
         ]
 
 
-stringInvs : List IString
-stringInvs =
-    [ String1 "String is empty" String.isEmpty
-    , String1 "String is less than 10 characters" (\s -> String.length s < 10)
+exampleResult : Result (List String) ( String, ( String, String ) )
+exampleResult =
+    test g exampleTests ( "x", ( "", "1234567890" ) )
+
+
+invariants : List Invariant
+invariants =
+    [ string "String is always empty" String.isEmpty
+    , string "String is always less than 10 characters" (\s -> String.length s < 10)
     ]
+
+
+string : String -> (String -> Bool) -> Invariant
+string name f =
+    Unary name
+        (\t ->
+            case t of
+                ObString s ->
+                    Just (f s)
+
+                _ ->
+                    Nothing
+        )
+
+
+stringString : String -> (String -> String -> Bool) -> Invariant
+stringString name f =
+    Binary name
+        (\t1 t2 ->
+            case ( t1, t2 ) of
+                ( ObString s1, ObString s2 ) ->
+                    Just (f s1 s2)
+
+                _ ->
+                    Nothing
+        )
 
 
 type alias Path =
     List Int
 
 
-type alias Primitives s c i f b =
-    { string : Dict Path s
-    , char : Dict Path c
-    , int : Dict Path i
-    , float : Dict Path f
-    , bool : Dict Path b
-    }
+type ObType
+    = ObString String
+    | ObInt Int
 
 
 type alias Ob =
-    Primitives String Char Int Float Bool
+    Dict Path ObType
 
 
-type alias Invariants =
-    Primitives (List IString) (List IChar) (List IInt) (List IFloat) (List IBool)
+type Invariant
+    = Unary String (ObType -> Maybe Bool)
+    | Binary String (ObType -> ObType -> Maybe Bool)
 
 
-type IString
-    = String1 String (String -> Bool)
-    | String2 String (String -> String -> Bool)
+type Test
+    = Test1 String Path (Ob -> Maybe Bool)
 
 
-type IInt
-    = Int1 String (Int -> Bool)
-    | Int2 String (Int -> Int -> Bool)
-
-
-type alias IChar =
-    ()
-
-
-type alias IFloat =
-    ()
-
-
-type alias IBool =
-    ()
-
-
-observe : IR.Gadget a -> List a -> Invariants
+observe : IR.Gadget a -> List a -> List Test
 observe gadget list =
     let
         obs =
             List.map (IR.fromInput gadget >> fromIR) list
     in
-    List.foldl
-        (\ob inv ->
-            { inv
-                | string =
-                    Dict.merge
-                        (\p obV out ->
-                            Dict.insert p
-                                (List.filter
-                                    (\i ->
-                                        case i of
-                                            String1 _ f ->
-                                                f obV
+    List.foldl (prune invariants) Dict.empty obs
+        |> Dict.values
+        |> List.concat
 
-                                            String2 _ f ->
-                                                True
-                                    )
-                                    stringInvs
-                                )
-                                out
+
+test : IR.Gadget a -> List Test -> a -> Result (List String) a
+test gadget tests value =
+    let
+        ob =
+            value
+                |> IR.fromInput gadget
+                |> fromIR
+
+        errs =
+            List.filterMap
+                (\test_ ->
+                    case test_ of
+                        Test1 name path f ->
+                            case f ob of
+                                Just True ->
+                                    Nothing
+
+                                _ ->
+                                    Just
+                                        ("The value at "
+                                            ++ pathToString path
+                                            ++ " is "
+                                            ++ (Dict.get path ob |> Maybe.map obTypeToString |> Maybe.withDefault "")
+                                            ++ ", which breaks the invariant: "
+                                            ++ name
+                                        )
+                )
+                tests
+    in
+    if List.isEmpty errs then
+        Ok value
+
+    else
+        Err errs
+
+
+obTypeToString : ObType -> String
+obTypeToString obType =
+    case obType of
+        ObString s ->
+            "\"" ++ s ++ "\""
+
+        ObInt i ->
+            String.fromInt i
+
+
+pathToString : Path -> String
+pathToString path =
+    path
+        |> List.reverse
+        |> List.map String.fromInt
+        |> String.join "."
+
+
+prune : List Invariant -> Ob -> Dict Path (List Test) -> Dict Path (List Test)
+prune invariants_ ob out =
+    let
+        validUnaries =
+            Dict.map
+                (\path obType ->
+                    List.filterMap
+                        (\inv ->
+                            case inv of
+                                Unary name f ->
+                                    case f obType of
+                                        Just False ->
+                                            Nothing
+
+                                        _ ->
+                                            Just (Test1 name path (\ob_ -> Maybe.andThen f (Dict.get path ob_)))
+
+                                _ ->
+                                    Nothing
                         )
-                        (\p obV invV out ->
-                            Dict.insert p
-                                (List.filter
-                                    (\i ->
-                                        case i of
-                                            String1 _ f ->
-                                                f obV
+                        invariants
+                )
+                ob
 
-                                            String2 _ _ ->
-                                                True
-                                    )
-                                    invV
-                                )
-                                out
-                        )
-                        (\_ _ out -> out)
-                        ob.string
-                        inv.string
-                        zero.string
-            }
-        )
-        zero
-        obs
-
-
-zero : Primitives s c i f b
-zero =
-    { string = Dict.empty
-    , char = Dict.empty
-    , int = Dict.empty
-    , float = Dict.empty
-    , bool = Dict.empty
-    }
+        pathPairs =
+            List.Extra.uniquePairs (Dict.keys ob)
+    in
+    validUnaries
 
 
 fromIR : IR.IR -> Ob
 fromIR ir =
-    fromIRHelp [0] ir zero
+    fromIRHelp [ 0 ] ir Dict.empty
 
 
 fromIRHelp : Path -> IR.IR -> Ob -> Ob
 fromIRHelp path ir ob =
     case ir of
         IR.Bool b ->
-            { ob | bool = Dict.insert path b ob.bool }
+            Debug.todo "case not implemented yet"
 
         IR.Int i ->
-            { ob | int = Dict.insert path i ob.int }
+            Dict.insert path (ObInt i) ob
 
         IR.Float f ->
-            { ob | float = Dict.insert path f ob.float }
+            Debug.todo "case not implemented yet"
 
         IR.Char c ->
-            { ob | char = Dict.insert path c ob.char }
+            Debug.todo "case not implemented yet"
 
         IR.String s ->
-            { ob | string = Dict.insert path s ob.string }
+            Dict.insert path (ObString s) ob
 
         IR.Product fields ->
             List.Extra.indexedFoldl
