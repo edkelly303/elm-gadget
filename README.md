@@ -15,7 +15,7 @@ for free. Instead of writing a JSON encoder and decoder, plus a fuzzer, plus a
 random generator, etc. for each data type, you just define a Gadget once and
 you're all done.
 
-* Check out the [`Gadget`](Gadget) module to learn how to define Gadgets for
+* Check out the [`Gadget`](https://package.elm-lang.org/packages/edkelly303/elm-gadget/1.0.0/Gadget) module to learn how to define Gadgets for
   your data types.
 
 * Check out the `Gadget.Adapter` modules to start using your Gadgets to do cool
@@ -26,7 +26,7 @@ relatively easy to build cool tools, such as JSON encoders/decoders, fuzzers,
 random generators, diff/patchers, parser/printers, and any other bidirectional
 converters.
 
-* Check out the [`Gadget.IR`](Gadget-IR) module docs for the types and functions
+* Check out the [`Gadget.IR`](https://package.elm-lang.org/packages/edkelly303/elm-gadget/1.0.0/Gadget-IR) module docs for the types and functions
   you need to write your own adapters.
 
 * Check out the source code of the `Gadget.Adapter` modules for some examples of
