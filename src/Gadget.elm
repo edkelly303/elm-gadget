@@ -883,10 +883,10 @@ label label_ (Gadget c) =
             \input ->
                 case c.fromInput input of
                     Labelled labels inner ->
-                        Labelled (Set.insert label_ labels) inner
+                        Labelled (label_ :: labels) inner
 
                     other ->
-                        Labelled (Set.singleton label_) other
+                        Labelled [ label_ ] other
         , toOutput =
             \ir ->
                 case ir of
@@ -898,8 +898,8 @@ label label_ (Gadget c) =
         , irType =
             case c.irType of
                 LabelledType labels inner ->
-                    LabelledType (Set.insert label_ labels) inner
+                    LabelledType (label_ :: labels) inner
 
                 other ->
-                    LabelledType (Set.singleton label_) other
+                    LabelledType [ label_ ] other
         }

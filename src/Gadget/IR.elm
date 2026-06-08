@@ -21,8 +21,6 @@ various `Gadget.Adapter` modules in this package:
 
 -}
 
-import Set
-
 
 {-| The core type of this package. Use the functions in this module together
 with an appropriate Gadget to convert values to and from the `IR` type.
@@ -53,7 +51,7 @@ type IR
     | Custom Int Variant
     | Product (List IR)
     | List (List IR)
-    | Labelled (Set.Set String) IR
+    | Labelled (List String) IR
 
 
 {-| A type used by the `Custom` constructor of the `IR` type.
@@ -78,7 +76,7 @@ type IRType
     | CustomType VariantType (List VariantType)
     | ProductType (List IRType)
     | ListType IRType
-    | LabelledType (Set.Set String) IRType
+    | LabelledType (List String) IRType
     | LazyType (() -> IRType)
 
 

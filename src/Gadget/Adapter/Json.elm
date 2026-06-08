@@ -26,7 +26,6 @@ versa.
 import Gadget.IR as IR
 import Json.Decode as JD
 import Json.Encode as JE
-import Set
 
 
 {-| Convert an Elm value into a `Json.Encode.Value`.
@@ -98,7 +97,7 @@ encodeAdapter irValue =
             JE.object
                 [ ( "labelled"
                   , JE.object
-                        [ ( "labels", JE.set JE.string labels )
+                        [ ( "labels", JE.list JE.string labels )
                         , ( "value", encodeAdapter innerValue )
                         ]
                   )
@@ -188,7 +187,7 @@ decodeAdapter : JD.Decoder IR.IR
 decodeAdapter =
     JD.oneOf
         [ JD.field "labelled"
-            (JD.map2 (\labels value -> IR.Labelled (Set.fromList labels) value)
+            (JD.map2 (\labels value -> IR.Labelled labels value)
                 (JD.field "labels" (JD.list JD.string))
                 (JD.field "value" (JD.lazy (\() -> decodeAdapter)))
             )

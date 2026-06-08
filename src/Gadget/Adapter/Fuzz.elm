@@ -31,7 +31,6 @@ Use a Gadget to create a `Fuzz.Fuzzer` for use with functions from the
 import Dict
 import Fuzz
 import Gadget.IR as IR
-import Set
 
 
 {-| Turn a Gadget into a `Fuzz.Fuzzer`.
@@ -143,7 +142,7 @@ fuzzAdapter overrides irType =
             Fuzz.lazy (\() -> fuzzAdapter overrides (construct ()))
 
         IR.LabelledType labels innerType ->
-            Set.foldl
+            List.foldl
                 (\label maybe ->
                     case maybe of
                         Nothing ->

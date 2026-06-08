@@ -25,7 +25,6 @@ Use a Gadget to render an Elm value as HTML.
 import Gadget.IR as IR
 import Html as H
 import Html.Attributes as HA
-import Set
 
 
 {-| Convert a value into an `Html msg`.
@@ -55,7 +54,7 @@ htmlAdapter : IR.IR -> H.Html msg
 htmlAdapter irValue =
     case irValue of
         IR.Labelled labels inner ->
-            labelled (Set.toList labels |> String.join ", ") (htmlAdapter inner)
+            labelled (String.join ", " (List.reverse labels)) (htmlAdapter inner)
 
         IR.Bool b ->
             unquotedPrimitive "Bool"

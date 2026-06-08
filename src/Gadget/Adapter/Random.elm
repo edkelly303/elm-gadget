@@ -31,7 +31,6 @@ import Random.Extra
 import Random.Float
 import Random.Int
 import Random.String
-import Set
 
 
 {-| Turn a Gadget into a `Random.Generator`.
@@ -156,7 +155,7 @@ randomAdapter overrides irType =
             randomAdapter overrides (constructType ())
 
         IR.LabelledType labels innerType ->
-            Set.foldl
+            List.foldl
                 (\label maybe ->
                     case maybe of
                         Nothing ->

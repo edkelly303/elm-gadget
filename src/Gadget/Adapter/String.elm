@@ -32,7 +32,6 @@ judicious (ab)use of [`Gadget.label`](Gadget#label).
 
 import Gadget.IR as IR
 import Parser as P exposing ((|.), (|=), Parser)
-import Set
 
 
 {-| Convert an Elm value into a String.
@@ -73,7 +72,7 @@ printAdapter : IR.IR -> String
 printAdapter irValue =
     case irValue of
         IR.Labelled labels inner ->
-            "x[" ++ (Set.map quoteString labels |> Set.toList |> String.concat) ++ "]" ++ printAdapter inner
+            "x[" ++ (List.map quoteString labels |> String.concat) ++ "]" ++ printAdapter inner
 
         IR.Bool b ->
             primitive "b"
@@ -403,16 +402,14 @@ labelledParser : Parser IR.IR
 labelledParser =
     P.succeed IR.Labelled
         |. P.token "x"
-        |= (P.sequence
-                { start = "["
-                , end = "]"
-                , item = rawStringParser
-                , separator = ""
-                , spaces = P.spaces
-                , trailing = P.Forbidden
-                }
-                |> P.map Set.fromList
-           )
+        |= P.sequence
+            { start = "["
+            , end = "]"
+            , item = rawStringParser
+            , separator = ""
+            , spaces = P.spaces
+            , trailing = P.Forbidden
+            }
         |= P.lazy (\() -> irParser)
 
 
