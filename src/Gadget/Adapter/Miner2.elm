@@ -14,8 +14,8 @@ g =
 exampleTests : List Test
 exampleTests =
     observe g
-        [ ( "", ( "", "" ) )
-        , ( "", ( "hello", "" ) )
+        [ ( "", ( "1", "2" ) )
+        , ( "", ( "hello", "2" ) )
         , ( "", ( "xxxxxxxxxxxxxx", "1" ) )
         ]
 
@@ -29,6 +29,7 @@ invariants : List Invariant
 invariants =
     [ string "String is always empty" String.isEmpty
     , string "String is always less than 10 characters" (\s -> String.length s < 10)
+    , stringString "Arg 1 is always at least as long as arg2" (\s1 s2 -> String.length s1 >= String.length s2)
     ]
 
 
@@ -78,6 +79,7 @@ type Invariant
 
 type Test
     = Test1 String Path (Ob -> Maybe Bool)
+    | Test2 String Path Path (Ob -> Maybe Bool)
 
 
 observe : IR.Gadget a -> List a -> List Test
@@ -108,7 +110,7 @@ test gadget tests value =
                                 Just True ->
                                     Nothing
 
-                                _ ->
+                                Just False ->
                                     Just
                                         ("The value at "
                                             ++ pathToString path
@@ -117,6 +119,31 @@ test gadget tests value =
                                             ++ ", which breaks the invariant: "
                                             ++ name
                                         )
+
+                                Nothing ->
+                                    Nothing
+
+                        Test2 name path1 path2 f ->
+                            case f ob of
+                                Just True ->
+                                    Nothing
+
+                                Just False ->
+                                    Just
+                                        ("The values at "
+                                            ++ pathToString path1
+                                            ++ " and "
+                                            ++ pathToString path2
+                                            ++ " are "
+                                            ++ (Dict.get path1 ob |> Maybe.map obTypeToString |> Maybe.withDefault "")
+                                            ++ " and "
+                                            ++ (Dict.get path2 ob |> Maybe.map obTypeToString |> Maybe.withDefault "")
+                                            ++ ", which breaks the invariant: "
+                                            ++ name
+                                        )
+
+                                Nothing ->
+                                    Nothing
                 )
                 tests
     in
@@ -171,8 +198,53 @@ prune invariants_ ob out =
 
         pathPairs =
             List.Extra.uniquePairs (Dict.keys ob)
+
+        validBinaries =
+            List.foldl
+                (\( path1, path2 ) out_ ->
+                    let
+                        tests =
+                            List.filterMap
+                                (\inv ->
+                                    case inv of
+                                        Binary name f ->
+                                            Maybe.map2
+                                                (\obType1 obType2 ->
+                                                    case f obType1 obType2 of
+                                                        Just False ->
+                                                            Nothing
+
+                                                        _ ->
+                                                            Just
+                                                                (Test2 name
+                                                                    path1
+                                                                    path2
+                                                                    (\ob_ ->
+                                                                        Maybe.map2 f (Dict.get path1 ob_) (Dict.get path2 ob_)
+                                                                            |> Maybe.andThen identity
+                                                                    )
+                                                                )
+                                                )
+                                                (Dict.get path1 ob)
+                                                (Dict.get path2 ob)
+                                                |> Maybe.andThen identity
+
+                                        _ ->
+                                            Nothing
+                                )
+                                invariants
+                    in
+                    Dict.insert path1 tests out_
+                )
+                Dict.empty
+                pathPairs
     in
-    validUnaries
+    Dict.merge (\p u d -> Dict.insert p u d)
+        (\p u b d -> Dict.insert p (u ++ b) d)
+        (\p b d -> Dict.insert p b d)
+        validUnaries
+        validBinaries
+        Dict.empty
 
 
 fromIR : IR.IR -> Ob
