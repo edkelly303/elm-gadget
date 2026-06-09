@@ -29,7 +29,7 @@ invariants : List Invariant
 invariants =
     [ string "String is always empty" String.isEmpty
     , string "String is always less than 10 characters" (\s -> String.length s < 10)
-    , stringString "Arg 1 is always at least as long as arg2" (\s1 s2 -> String.length s1 >= String.length s2)
+    , string2 "Arg 1 is always at least as long as arg2" (\s1 s2 -> String.length s1 >= String.length s2)
     ]
 
 
@@ -46,8 +46,8 @@ string name f =
         )
 
 
-stringString : String -> (String -> String -> Bool) -> Invariant
-stringString name f =
+string2 : String -> (String -> String -> Bool) -> Invariant
+string2 name f =
     Binary name
         (\t1 t2 ->
             case ( t1, t2 ) of
