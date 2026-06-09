@@ -5,6 +5,7 @@ import Dict.Extra
 import Gadget
 import Gadget.IR as IR exposing (IR)
 import List.Extra
+import Set exposing (Set)
 
 
 g =
@@ -59,6 +60,126 @@ string2 name f =
         )
 
 
+gather : List Ob -> Dict Path Stats
+gather obs =
+    let
+        help ob statsDict =
+            Dict.merge
+                (\p o d -> Dict.insert p (zero o) d)
+                (\p o s d -> Dict.insert p (append o s) d)
+                (\p s d -> d)
+                ob
+                statsDict
+                Dict.empty
+
+        zero obType =
+            case obType of
+                ObString s ->
+                    SString
+                        { minLength = String.length s
+                        , maxLength = String.length s
+                        , chars = Set.fromList (String.toList s)
+                        , substrings = Set.singleton s
+                        , common = Just (Dict.singleton s 1)
+                        }
+
+                ObInt i ->
+                    SInt
+                        { min = i
+                        , max = i
+                        , common = Just (Dict.singleton i 1)
+                        }
+
+        append obType statsType =
+            case ( obType, statsType ) of
+                ( ObString s, SString stats ) ->
+                    SString
+                        { stats
+                            | minLength = min (String.length s) stats.minLength
+                            , maxLength = max (String.length s) stats.maxLength
+                            , chars = Set.intersect (Set.fromList (String.toList s)) stats.chars
+                            , substrings = stats.substrings |> Debug.log "TODO"
+                            , common =
+                                Maybe.andThen
+                                    (\common ->
+                                        let
+                                            new =
+                                                Dict.update s
+                                                    (\maybe ->
+                                                        case maybe of
+                                                            Just total ->
+                                                                Just (total + 1)
+
+                                                            Nothing ->
+                                                                Just 1
+                                                    )
+                                                    common
+                                        in
+                                        if Dict.size new > 10 then
+                                            Nothing
+
+                                        else
+                                            Just new
+                                    )
+                                    stats.common
+                        }
+
+                ( ObInt i, SInt stats ) ->
+                    SInt stats
+
+                _ ->
+                    statsType
+    in
+    List.foldl help Dict.empty obs
+
+
+type Stats
+    = SInt IntStats
+    | SString StringStats
+
+
+
+-- | SBool BoolStats
+-- | SFloat FloatStats
+-- | SChar CharStats
+
+
+type alias BoolStats =
+    { true : Int
+    , false : Int
+    }
+
+
+type alias CharStats =
+    { min : Int
+    , max : Int
+    , common : Maybe (Dict Char Int)
+    }
+
+
+type alias StringStats =
+    { minLength : Int
+    , maxLength : Int
+    , chars : Set Char
+    , substrings : Set String
+    , common : Maybe (Dict String Int)
+    }
+
+
+type alias IntStats =
+    { min : Int
+    , max : Int
+    , common : Maybe (Dict Int Int)
+    }
+
+
+type alias FloatStats =
+    { min : Float
+    , max : Float
+    , common : Maybe (Dict Float Int)
+    }
+
+
 type alias Path =
     List Int
 
@@ -91,6 +212,81 @@ observe gadget list =
     List.foldl (prune invariants) Dict.empty obs
         |> Dict.values
         |> List.concat
+
+
+prune : List Invariant -> Ob -> Dict Path (List Test) -> Dict Path (List Test)
+prune invariants_ ob out =
+    let
+        validUnaries =
+            Dict.map
+                (\path obType ->
+                    List.filterMap
+                        (\inv ->
+                            case inv of
+                                Unary name f ->
+                                    case f obType of
+                                        Just False ->
+                                            Nothing
+
+                                        _ ->
+                                            Just (Test1 name path (\ob_ -> Maybe.andThen f (Dict.get path ob_)))
+
+                                _ ->
+                                    Nothing
+                        )
+                        invariants
+                )
+                ob
+
+        pathPairs =
+            List.Extra.uniquePairs (Dict.keys ob)
+
+        validBinaries =
+            List.foldl
+                (\( path1, path2 ) out_ ->
+                    let
+                        tests =
+                            List.filterMap
+                                (\inv ->
+                                    case inv of
+                                        Binary name f ->
+                                            Maybe.map2
+                                                (\obType1 obType2 ->
+                                                    case f obType1 obType2 of
+                                                        Just False ->
+                                                            Nothing
+
+                                                        _ ->
+                                                            Just
+                                                                (Test2 name
+                                                                    path1
+                                                                    path2
+                                                                    (\ob_ ->
+                                                                        Maybe.map2 f (Dict.get path1 ob_) (Dict.get path2 ob_)
+                                                                            |> Maybe.andThen identity
+                                                                    )
+                                                                )
+                                                )
+                                                (Dict.get path1 ob)
+                                                (Dict.get path2 ob)
+                                                |> Maybe.andThen identity
+
+                                        _ ->
+                                            Nothing
+                                )
+                                invariants
+                    in
+                    Dict.insert path1 tests out_
+                )
+                Dict.empty
+                pathPairs
+    in
+    Dict.merge (\p u d -> Dict.insert p u d)
+        (\p u b d -> Dict.insert p (u ++ b) d)
+        (\p b d -> Dict.insert p b d)
+        validUnaries
+        validBinaries
+        Dict.empty
 
 
 test : IR.Gadget a -> List Test -> a -> Result (List String) a
@@ -170,81 +366,6 @@ pathToString path =
         |> List.reverse
         |> List.map String.fromInt
         |> String.join "."
-
-
-prune : List Invariant -> Ob -> Dict Path (List Test) -> Dict Path (List Test)
-prune invariants_ ob out =
-    let
-        validUnaries =
-            Dict.map
-                (\path obType ->
-                    List.filterMap
-                        (\inv ->
-                            case inv of
-                                Unary name f ->
-                                    case f obType of
-                                        Just False ->
-                                            Nothing
-
-                                        _ ->
-                                            Just (Test1 name path (\ob_ -> Maybe.andThen f (Dict.get path ob_)))
-
-                                _ ->
-                                    Nothing
-                        )
-                        invariants
-                )
-                ob
-
-        pathPairs =
-            List.Extra.uniquePairs (Dict.keys ob)
-
-        validBinaries =
-            List.foldl
-                (\( path1, path2 ) out_ ->
-                    let
-                        tests =
-                            List.filterMap
-                                (\inv ->
-                                    case inv of
-                                        Binary name f ->
-                                            Maybe.map2
-                                                (\obType1 obType2 ->
-                                                    case f obType1 obType2 of
-                                                        Just False ->
-                                                            Nothing
-
-                                                        _ ->
-                                                            Just
-                                                                (Test2 name
-                                                                    path1
-                                                                    path2
-                                                                    (\ob_ ->
-                                                                        Maybe.map2 f (Dict.get path1 ob_) (Dict.get path2 ob_)
-                                                                            |> Maybe.andThen identity
-                                                                    )
-                                                                )
-                                                )
-                                                (Dict.get path1 ob)
-                                                (Dict.get path2 ob)
-                                                |> Maybe.andThen identity
-
-                                        _ ->
-                                            Nothing
-                                )
-                                invariants
-                    in
-                    Dict.insert path1 tests out_
-                )
-                Dict.empty
-                pathPairs
-    in
-    Dict.merge (\p u d -> Dict.insert p u d)
-        (\p u b d -> Dict.insert p (u ++ b) d)
-        (\p b d -> Dict.insert p b d)
-        validUnaries
-        validBinaries
-        Dict.empty
 
 
 fromIR : IR.IR -> Ob
