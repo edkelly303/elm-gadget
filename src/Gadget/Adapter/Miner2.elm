@@ -39,7 +39,7 @@ string name f =
     Unary name
         (\t ->
             case t of
-                ObString s ->
+                StringOb s ->
                     Just (f s)
 
                 _ ->
@@ -52,7 +52,7 @@ string2 name f =
     Binary name
         (\t1 t2 ->
             case ( t1, t2 ) of
-                ( ObString s1, ObString s2 ) ->
+                ( StringOb s1, StringOb s2 ) ->
                     Just (f s1 s2)
 
                 _ ->
@@ -60,22 +60,22 @@ string2 name f =
         )
 
 
-gather : List Ob -> Dict Path Stats
+gather : List Ob -> Stats
 gather obs =
     let
         help ob statsDict =
             Dict.merge
-                (\p o d -> Dict.insert p (zero o) d)
-                (\p o s d -> Dict.insert p (append o s) d)
-                (\p s d -> d)
+                (\path obType stats -> Dict.insert path (new obType) stats)
+                (\path obType statsType stats -> Dict.insert path (add obType statsType) stats)
+                (\path statsType stats -> stats)
                 ob
                 statsDict
                 Dict.empty
 
-        zero obType =
+        new obType =
             case obType of
-                ObString s ->
-                    SString
+                StringOb s ->
+                    StringStats_
                         { minLength = String.length s
                         , maxLength = String.length s
                         , chars = Set.fromList (String.toList s)
@@ -83,28 +83,28 @@ gather obs =
                         , common = Just (Dict.singleton s 1)
                         }
 
-                ObInt i ->
-                    SInt
+                IntOb i ->
+                    IntStats_
                         { min = i
                         , max = i
                         , common = Just (Dict.singleton i 1)
                         }
 
-        append obType statsType =
+        add obType statsType =
             case ( obType, statsType ) of
-                ( ObString s, SString stats ) ->
-                    SString
+                ( StringOb str, StringStats_ stats ) ->
+                    StringStats_
                         { stats
-                            | minLength = min (String.length s) stats.minLength
-                            , maxLength = max (String.length s) stats.maxLength
-                            , chars = Set.intersect (Set.fromList (String.toList s)) stats.chars
+                            | minLength = min (String.length str) stats.minLength
+                            , maxLength = max (String.length str) stats.maxLength
+                            , chars = Set.intersect (Set.fromList (String.toList str)) stats.chars
                             , substrings = stats.substrings |> Debug.log "TODO"
                             , common =
                                 Maybe.andThen
                                     (\common ->
                                         let
-                                            new =
-                                                Dict.update s
+                                            newCommon =
+                                                Dict.update str
                                                     (\maybe ->
                                                         case maybe of
                                                             Just total ->
@@ -115,17 +115,17 @@ gather obs =
                                                     )
                                                     common
                                         in
-                                        if Dict.size new > 10 then
+                                        if Dict.size newCommon > 10 then
                                             Nothing
 
                                         else
-                                            Just new
+                                            Just newCommon
                                     )
                                     stats.common
                         }
 
-                ( ObInt i, SInt stats ) ->
-                    SInt stats
+                ( IntOb i, IntStats_ stats ) ->
+                    IntStats_ stats
 
                 _ ->
                     statsType
@@ -133,9 +133,13 @@ gather obs =
     List.foldl help Dict.empty obs
 
 
-type Stats
-    = SInt IntStats
-    | SString StringStats
+type alias Stats =
+    Dict Path StatsType
+
+
+type StatsType
+    = IntStats_ IntStats
+    | StringStats_ StringStats
 
 
 
@@ -185,8 +189,8 @@ type alias Path =
 
 
 type ObType
-    = ObString String
-    | ObInt Int
+    = StringOb String
+    | IntOb Int
 
 
 type alias Ob =
@@ -208,6 +212,9 @@ observe gadget list =
     let
         obs =
             List.map (IR.fromInput gadget >> fromIR) list
+
+        stats =
+            gather obs
     in
     List.foldl (prune invariants) Dict.empty obs
         |> Dict.values
@@ -353,10 +360,10 @@ test gadget tests value =
 obTypeToString : ObType -> String
 obTypeToString obType =
     case obType of
-        ObString s ->
+        StringOb s ->
             "\"" ++ s ++ "\""
 
-        ObInt i ->
+        IntOb i ->
             String.fromInt i
 
 
@@ -380,7 +387,7 @@ fromIRHelp path ir ob =
             Debug.todo "case not implemented yet"
 
         IR.Int i ->
-            Dict.insert path (ObInt i) ob
+            Dict.insert path (IntOb i) ob
 
         IR.Float f ->
             Debug.todo "case not implemented yet"
@@ -389,7 +396,7 @@ fromIRHelp path ir ob =
             Debug.todo "case not implemented yet"
 
         IR.String s ->
-            Dict.insert path (ObString s) ob
+            Dict.insert path (StringOb s) ob
 
         IR.Product fields ->
             List.Extra.indexedFoldl
