@@ -60,8 +60,8 @@ string2 name f =
         )
 
 
-gather : List Ob -> Stats
-gather obs =
+gatherStats : List Ob -> Stats
+gatherStats obs =
     let
         help ob statsDict =
             Dict.merge
@@ -213,12 +213,74 @@ observe gadget list =
         obs =
             List.map (IR.fromInput gadget >> fromIR) list
 
-        stats =
-            gather obs
+        testsFromStats =
+            obs
+                |> gatherStats
+                |> makeTests
+
+        testsFromInvariants =
+            List.foldl (prune invariants) Dict.empty obs
+                |> Dict.values
+                |> List.concat
     in
-    List.foldl (prune invariants) Dict.empty obs
-        |> Dict.values
-        |> List.concat
+    testsFromStats ++ testsFromInvariants
+
+
+makeTests : Stats -> List Test
+makeTests stats =
+    stats
+        |> Dict.toList
+        |> List.concatMap
+            (\( path, stat ) ->
+                case stat of
+                    StringStats_ stringStats ->
+                        stringLengthTests path stringStats
+                            ++ (case stringStats.common of
+                                    Nothing ->
+                                        []
+
+                                    Just common ->
+                                        [ stringTest1 path
+                                            ("Is one of the " ++ String.fromInt (Dict.size common) ++ " Strings observed at this value")
+                                            (\str -> Dict.member str common)
+                                        ]
+                               )
+
+                    IntStats_ s ->
+                        []
+            )
+
+
+stringTest1 : Path -> String -> (String -> Bool) -> Test
+stringTest1 path text predicate =
+    Test1 text
+        path
+        (\ob ->
+            case Dict.get path ob of
+                Just (StringOb str) ->
+                    Just (predicate str)
+
+                _ ->
+                    Nothing
+        )
+
+
+stringLengthTests : Path -> StringStats -> List Test
+stringLengthTests path { maxLength, minLength } =
+    if maxLength == minLength then
+        [ stringTest1 path
+            ("Length is exactly " ++ String.fromInt maxLength)
+            (\str -> String.length str == maxLength)
+        ]
+
+    else
+        [ stringTest1 path
+            ("Length is at most " ++ String.fromInt maxLength)
+            (\str -> String.length str <= maxLength)
+        , stringTest1 path
+            ("Length is at least " ++ String.fromInt minLength)
+            (\str -> String.length str >= minLength)
+        ]
 
 
 prune : List Invariant -> Ob -> Dict Path (List Test) -> Dict Path (List Test)
