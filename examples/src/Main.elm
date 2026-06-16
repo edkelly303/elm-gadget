@@ -82,11 +82,15 @@ main =
         , subscriptions = always Sub.none
         }
 
-view2 _ = 
+
+view2 _ =
     case Gadget.Adapter.Miner2.exampleResult of
-        Err es -> 
-            Html.ul [] (List.map (\item -> Html.li [] [Html.text item]) es)
-        Ok _ -> Html.text "OK!"
+        Err es ->
+            Html.ul [] (List.map (\item -> Html.li [] [ Html.text item ]) es)
+
+        Ok _ ->
+            Html.text "OK!"
+
 
 type Msg
     = Clicked
