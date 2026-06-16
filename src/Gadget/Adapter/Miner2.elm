@@ -8,6 +8,10 @@ import List.Extra
 import Set exposing (Set)
 
 
+const_MAX_COMMON =
+    10
+
+
 g =
     Gadget.tuple Gadget.string (Gadget.tuple Gadget.string Gadget.string)
 
@@ -115,7 +119,7 @@ gatherStats obs =
                                                     )
                                                     common
                                         in
-                                        if Dict.size newCommon > 10 then
+                                        if Dict.size newCommon > const_MAX_COMMON then
                                             Nothing
 
                                         else
@@ -213,21 +217,67 @@ observe gadget list =
         obs =
             List.map (IR.fromInput gadget >> fromIR) list
 
-        testsFromStats =
-            obs
-                |> gatherStats
-                |> makeTests
+        stats =
+            gatherStats obs
+
+        test1sFromStats =
+            makeTest1s stats
+
+        test2sFromStats =
+            makeTest2s obs stats
 
         testsFromInvariants =
             List.foldl (prune invariants) Dict.empty obs
                 |> Dict.values
                 |> List.concat
     in
-    testsFromStats ++ testsFromInvariants
+    test1sFromStats ++ test2sFromStats ++ testsFromInvariants
 
 
-makeTests : Stats -> List Test
-makeTests stats =
+makeTest2s : List Ob -> Stats -> List Test
+makeTest2s obs stats =
+    stats
+        |> Dict.toList
+        |> List.concatMap
+            (\( path, stat ) ->
+                case stat of
+                    StringStats_ stringStats ->
+                        case stringStats.common of
+                            Just common ->
+                                common
+                                    |> Dict.filter (\_ v -> v > 1)
+                                    |> Dict.keys
+                                    |> List.concatMap
+                                        (\commonString ->
+                                            -- now filter obs and check other fields when this field has a fixed value
+                                            List.filter (\ob -> Dict.get path ob == Just (StringOb commonString)) obs
+                                                |> gatherStats
+                                                |> makeTest1s
+                                                |> List.map
+                                                    (\test_ ->
+                                                        let
+                                                            newLabel s =
+                                                                "When " ++ pathToString path ++ " is \"" ++ commonString ++ "\", " ++ s
+                                                        in
+                                                        case test_ of
+                                                            Test1 s p f ->
+                                                                Test1 (newLabel s) p f
+
+                                                            Test2 s p1 p2 f ->
+                                                                Test2 (newLabel s) p1 p2 f
+                                                    )
+                                        )
+
+                            Nothing ->
+                                []
+
+                    _ ->
+                        []
+            )
+
+
+makeTest1s : Stats -> List Test
+makeTest1s stats =
     stats
         |> Dict.toList
         |> List.concatMap

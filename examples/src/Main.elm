@@ -8,6 +8,7 @@ import Gadget.Adapter.Fuzz
 import Gadget.Adapter.Html
 import Gadget.Adapter.Json
 import Gadget.Adapter.Miner
+import Gadget.Adapter.Miner2
 import Gadget.Adapter.Random
 import Gadget.Adapter.String
 import Html
@@ -75,12 +76,17 @@ petGadget =
 main : Program () ( Int, Int ) Msg
 main =
     Browser.element
-        { view = view
+        { view = view2
         , update = update
         , init = init
         , subscriptions = always Sub.none
         }
 
+view2 _ = 
+    case Gadget.Adapter.Miner2.exampleResult of
+        Err es -> 
+            Html.ul [] (List.map (\item -> Html.li [] [Html.text item]) es)
+        Ok _ -> Html.text "OK!"
 
 type Msg
     = Clicked
