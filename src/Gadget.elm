@@ -8,7 +8,7 @@ module Gadget exposing
     , CustomGadgetBuilder, custom, variant0, variant1, variant2, variant3
     , variant4, variant5, endCustom
     , map, filterMap, lazy
-    , label
+    , label, tagWithString, tagWithInt, tagWithFloat
     )
 
 {-| This module is for application developers who want to create Gadgets and use
@@ -101,18 +101,19 @@ If you want to make your own adapters, see the [`Gadget.IR`](Gadget-IR) module.
 
 # Labelling Gadgets
 
-@docs label
+@docs label, tagWithString, tagWithInt, tagWithFloat
 
 -}
 
 import Array
 import Dict
-import Gadget.IR
+import Gadget.IR as IR
     exposing
         ( Error
         , Gadget(..)
         , IR(..)
         , IRType(..)
+        , Metadata
         , Variant(..)
         , VariantType(..)
         )
@@ -124,7 +125,7 @@ import Set
 module to define Gadgets for the types in your application.
 -}
 type alias Gadget a =
-    Gadget.IR.Gadget a
+    IR.Gadget a
 
 
 {-| A type used to build Gadgets for records.
@@ -851,7 +852,7 @@ lazy step =
                 in
                 ir |> gadget.toOutput
         , irType =
-            Gadget.IR.LazyType
+            IR.LazyType
                 (\() ->
                     let
                         (Gadget gadget) =
@@ -877,16 +878,74 @@ For an example of why this might be helpful, see the docs for
 
 -}
 label : String -> Gadget a -> Gadget a
-label label_ (Gadget c) =
+label label_ gadget =
+    metadata label_ (IR.MetaString "") gadget
+
+
+{-| Add metadata to a Gadget - this is a key-value pair where the key is a
+`String` and the value is an `Int`.
+
+    import Gadget
+
+    tagged =
+        Gadget.list Gadget.int
+            |> Gadget.tagWithInt "minLength" 0
+            |> Gadget.tagWithInt "maxLength" 10
+
+    tagged --: Gadget.Gadget (List Int)
+
+-}
+tagWithInt : String -> Int -> Gadget a -> Gadget a
+tagWithInt label_ i =
+    metadata label_ (IR.MetaInt i)
+
+
+{-| Add metadata to a Gadget - this is a key-value pair where the key is a
+`String` and the value is also a `String`.
+
+    import Gadget
+
+    tagged =
+        Gadget.string
+            |> Gadget.tagWithString "prefix" "ABC"
+
+    tagged --: Gadget.Gadget String
+
+-}
+tagWithString : String -> String -> Gadget a -> Gadget a
+tagWithString label_ s =
+    metadata label_ (IR.MetaString s)
+
+
+{-| Add metadata to a Gadget - this is a key-value pair where the key is a
+`String` and the value is a `Float`.
+
+    import Gadget
+
+    tagged =
+        Gadget.float
+            |> Gadget.tagWithFloat "min" 0.0
+            |> Gadget.tagWithFloat "max" 1.0
+
+    tagged --: Gadget.Gadget Float
+
+-}
+tagWithFloat : String -> Float -> Gadget a -> Gadget a
+tagWithFloat label_ f =
+    metadata label_ (IR.MetaFloat f)
+
+
+metadata : String -> Metadata -> Gadget a -> Gadget a
+metadata label_ meta (Gadget c) =
     Gadget
         { fromInput =
             \input ->
                 case c.fromInput input of
                     Labelled labels inner ->
-                        Labelled (label_ :: labels) inner
+                        Labelled (Dict.insert label_ meta labels) inner
 
                     other ->
-                        Labelled [ label_ ] other
+                        Labelled (Dict.singleton label_ meta) other
         , toOutput =
             \ir ->
                 case ir of
@@ -898,8 +957,8 @@ label label_ (Gadget c) =
         , irType =
             case c.irType of
                 LabelledType labels inner ->
-                    LabelledType (label_ :: labels) inner
+                    LabelledType (Dict.insert label_ meta labels) inner
 
                 other ->
-                    LabelledType [ label_ ] other
+                    LabelledType (Dict.singleton label_ meta) other
         }

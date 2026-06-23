@@ -155,17 +155,17 @@ randomAdapter overrides irType =
             randomAdapter overrides (constructType ())
 
         IR.LabelledType labels innerType ->
-            List.foldl
-                (\label maybe ->
-                    case maybe of
-                        Nothing ->
-                            Dict.get label overrides
+            labels
+                |> Dict.foldl
+                    (\label _ maybe ->
+                        case maybe of
+                            Nothing ->
+                                Dict.get label overrides
 
-                        Just override_ ->
-                            Just override_
-                )
-                Nothing
-                labels
+                            Just override_ ->
+                                Just override_
+                    )
+                    Nothing
                 |> Maybe.withDefault (randomAdapter overrides innerType)
                 |> Random.map (IR.Labelled labels)
 

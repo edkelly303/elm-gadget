@@ -2,6 +2,7 @@ module Gadget.IR exposing
     ( Gadget(..)
     , fromInput, irType, toOutput, Error
     , IR(..), Variant(..), IRType(..), VariantType(..)
+    , Metadata(..)
     )
 
 {-| Tools for creating adapters for Gadgets.
@@ -17,9 +18,11 @@ various `Gadget.Adapter` modules in this package:
 
 @docs fromInput, irType, toOutput, Error
 
-@docs IR, Variant, IRType, VariantType
+@docs IR, Variant, IRType, VariantType, Metadata
 
 -}
+
+import Dict exposing (Dict)
 
 
 {-| The core type of this package. Use the functions in this module together
@@ -51,7 +54,15 @@ type IR
     | Custom Int Variant
     | Product (List IR)
     | List (List IR)
-    | Labelled (List String) IR
+    | Labelled (Dict String Metadata) IR
+
+
+{-| A type used to add metadata to labelled `IR` values.
+-}
+type Metadata
+    = MetaString String
+    | MetaInt Int
+    | MetaFloat Float
 
 
 {-| A type used by the `Custom` constructor of the `IR` type.
@@ -76,7 +87,7 @@ type IRType
     | CustomType VariantType (List VariantType)
     | ProductType (List IRType)
     | ListType IRType
-    | LabelledType (List String) IRType
+    | LabelledType (Dict String Metadata) IRType
     | LazyType (() -> IRType)
 
 

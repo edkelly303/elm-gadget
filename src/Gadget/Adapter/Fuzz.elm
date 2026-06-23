@@ -36,7 +36,7 @@ import Gadget.IR as IR
 {-| Turn a Gadget into a `Fuzz.Fuzzer`.
 
     import Gadget
-    import Gadget.Adapter.Random
+    import Gadget.Adapter.Fuzzer
     import Fuzz -- `elm-explorations/test`
 
     type alias Person =
@@ -68,7 +68,7 @@ fuzzer gadget =
 implementations of fuzzers that are defined by this module.
 
     import Gadget
-    import Gadget.Adapter.Random
+    import Gadget.Adapter.Fuzzer
     import Fuzz -- `elm-explorations/test`
 
     type alias Person =
@@ -142,17 +142,17 @@ fuzzAdapter overrides irType =
             Fuzz.lazy (\() -> fuzzAdapter overrides (construct ()))
 
         IR.LabelledType labels innerType ->
-            List.foldl
-                (\label maybe ->
-                    case maybe of
-                        Nothing ->
-                            Dict.get label overrides
+            labels
+                |> Dict.foldl
+                    (\label _ maybe ->
+                        case maybe of
+                            Nothing ->
+                                Dict.get label overrides
 
-                        _ ->
-                            maybe
-                )
-                Nothing
-                labels
+                            _ ->
+                                maybe
+                    )
+                    Nothing
                 |> Maybe.withDefault (fuzzAdapter overrides innerType)
                 |> Fuzz.map (IR.Labelled labels)
 

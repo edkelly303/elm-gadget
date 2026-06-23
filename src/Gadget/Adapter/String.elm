@@ -30,6 +30,7 @@ judicious (ab)use of [`Gadget.label`](Gadget#label).
 
 -}
 
+import Dict
 import Gadget.IR as IR
 import Parser as P exposing ((|.), (|=), Parser)
 
@@ -72,7 +73,7 @@ printAdapter : IR.IR -> String
 printAdapter irValue =
     case irValue of
         IR.Labelled labels inner ->
-            "x[" ++ (List.map quoteString labels |> String.concat) ++ "]" ++ printAdapter inner
+            "x[" ++ printLabels labels ++ "]" ++ printAdapter inner
 
         IR.Bool b ->
             primitive "b"
@@ -149,6 +150,27 @@ printAdapter irValue =
                 items
 
 
+printLabels : Dict.Dict String IR.Metadata -> String
+printLabels labels =
+    Dict.toList labels
+        |> List.map
+            (\( l, m ) ->
+                printAdapter (IR.String l)
+                    ++ ":"
+                    ++ (case m of
+                            IR.MetaString s ->
+                                printAdapter (IR.String s)
+
+                            IR.MetaInt i ->
+                                printAdapter (IR.Int i)
+
+                            IR.MetaFloat f ->
+                                printAdapter (IR.Float f)
+                       )
+            )
+        |> String.join ","
+
+
 {-| Create a Parser that will attempt to convert a String created by `print`
 into an Elm value.
 
@@ -185,7 +207,7 @@ irParser =
         , primitiveParser "f" IR.Float floatParser
         , labelledParser
         , charParser
-        , stringParser
+        , stringParser |> P.map IR.String
         , listParser
         , productParser
         , customParser
@@ -402,14 +424,24 @@ labelledParser : Parser IR.IR
 labelledParser =
     P.succeed IR.Labelled
         |. P.token "x"
-        |= P.sequence
-            { start = "["
-            , end = "]"
-            , item = rawStringParser
-            , separator = ""
-            , spaces = P.spaces
-            , trailing = P.Forbidden
-            }
+        |= (P.sequence
+                { start = "["
+                , end = "]"
+                , item =
+                    P.succeed Tuple.pair
+                        |= stringParser
+                        |. P.token ":"
+                        |= P.oneOf
+                            [ stringParser |> P.map IR.MetaString
+                            , intParser |> P.map IR.MetaInt
+                            , floatParser |> P.map IR.MetaFloat
+                            ]
+                , separator = ","
+                , spaces = P.spaces
+                , trailing = P.Forbidden
+                }
+                |> P.map Dict.fromList
+           )
         |= P.lazy (\() -> irParser)
 
 
@@ -419,9 +451,9 @@ there seems to have a bug with an unguarded `chompWhile` leading to infinite
 looping. This is a fixed version with all the generic stuff taken out so it just
 works for our use case.
 -}
-stringParser : Parser IR.IR
+stringParser : Parser String
 stringParser =
-    P.succeed IR.String
+    P.succeed identity
         |. P.token "s"
         |= rawStringParser
 

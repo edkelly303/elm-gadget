@@ -248,6 +248,54 @@ tests =
                     ]
                 ]
             , Test.describe
+                "tagWithFloat"
+                [ Test.describe
+                    "code snippet 0"
+                    [ Test.test
+                        "0"
+                        (\() ->
+                            let
+                                unused : Gadget.Gadget Basics.Float
+                                unused =
+                                    tagged__Gadget__tagWithFloat_0
+                            in
+                            Expect.pass
+                        )
+                    ]
+                ]
+            , Test.describe
+                "tagWithInt"
+                [ Test.describe
+                    "code snippet 0"
+                    [ Test.test
+                        "0"
+                        (\() ->
+                            let
+                                unused : Gadget.Gadget (List Basics.Int)
+                                unused =
+                                    tagged__Gadget__tagWithInt_0
+                            in
+                            Expect.pass
+                        )
+                    ]
+                ]
+            , Test.describe
+                "tagWithString"
+                [ Test.describe
+                    "code snippet 0"
+                    [ Test.test
+                        "0"
+                        (\() ->
+                            let
+                                unused : Gadget.Gadget String.String
+                                unused =
+                                    tagged__Gadget__tagWithString_0
+                            in
+                            Expect.pass
+                        )
+                    ]
+                ]
+            , Test.describe
                 "triple"
                 [ Test.describe
                     "code snippet 0"
@@ -577,6 +625,20 @@ resultGadget__Gadget__result_0 =
 
 dictGadget__Gadget__set_0 =
     Gadget.set Gadget.int
+
+
+tagged__Gadget__tagWithFloat_0 =
+    Gadget.float |> Gadget.tagWithFloat "min" 0 |> Gadget.tagWithFloat "max" 1
+
+
+tagged__Gadget__tagWithInt_0 =
+    Gadget.list Gadget.int
+        |> Gadget.tagWithInt "minLength" 0
+        |> Gadget.tagWithInt "maxLength" 10
+
+
+tagged__Gadget__tagWithString_0 =
+    Gadget.string |> Gadget.tagWithString "prefix" "ABC"
 
 
 tripleGadget__Gadget__triple_0 =

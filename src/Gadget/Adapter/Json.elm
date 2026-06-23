@@ -97,7 +97,7 @@ encodeAdapter irValue =
             JE.object
                 [ ( "labelled"
                   , JE.object
-                        [ ( "labels", JE.list JE.string labels )
+                        [ ( "labels", JE.dict identity encodeMetadata labels )
                         , ( "value", encodeAdapter innerValue )
                         ]
                   )
@@ -183,12 +183,45 @@ encodeAdapter irValue =
                 ]
 
 
+encodeMetadata : IR.Metadata -> JE.Value
+encodeMetadata m =
+    case m of
+        IR.MetaString s ->
+            JE.object [ ( "tag", JE.string "string" ), ( "value", JE.string s ) ]
+
+        IR.MetaInt i ->
+            JE.object [ ( "tag", JE.string "int" ), ( "value", JE.int i ) ]
+
+        IR.MetaFloat f ->
+            JE.object [ ( "tag", JE.string "float" ), ( "value", JE.float f ) ]
+
+
+metadataDecoder : JD.Decoder IR.Metadata
+metadataDecoder =
+    JD.field "tag" JD.string
+        |> JD.andThen
+            (\tag ->
+                case tag of
+                    "string" ->
+                        JD.field "value" JD.string |> JD.map IR.MetaString
+
+                    "int" ->
+                        JD.field "value" JD.int |> JD.map IR.MetaInt
+
+                    "float" ->
+                        JD.field "value" JD.float |> JD.map IR.MetaFloat
+
+                    _ ->
+                        JD.fail "not a valid type of metadata"
+            )
+
+
 decodeAdapter : JD.Decoder IR.IR
 decodeAdapter =
     JD.oneOf
         [ JD.field "labelled"
             (JD.map2 (\labels value -> IR.Labelled labels value)
-                (JD.field "labels" (JD.list JD.string))
+                (JD.field "labels" (JD.dict metadataDecoder))
                 (JD.field "value" (JD.lazy (\() -> decodeAdapter)))
             )
         , JD.field "bool" JD.bool |> JD.map IR.Bool

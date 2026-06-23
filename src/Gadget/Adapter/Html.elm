@@ -22,6 +22,7 @@ Use a Gadget to render an Elm value as HTML.
 
 -}
 
+import Dict
 import Gadget.IR as IR
 import Html as H
 import Html.Attributes as HA
@@ -54,7 +55,27 @@ htmlAdapter : IR.IR -> H.Html msg
 htmlAdapter irValue =
     case irValue of
         IR.Labelled labels inner ->
-            labelled (String.join ", " (List.reverse labels)) (htmlAdapter inner)
+            labelled
+                (labels
+                    |> Dict.toList
+                    |> List.map
+                        (\( l, m ) ->
+                            l
+                                ++ ": "
+                                ++ (case m of
+                                        IR.MetaString s ->
+                                            "\"" ++ s ++ "\""
+
+                                        IR.MetaInt i ->
+                                            String.fromInt i
+
+                                        IR.MetaFloat f ->
+                                            String.fromFloat f
+                                   )
+                        )
+                    |> String.join "\n"
+                )
+                (htmlAdapter inner)
 
         IR.Bool b ->
             unquotedPrimitive "Bool"
@@ -187,7 +208,7 @@ labelled label inner =
         [ H.div [ HA.class "labelled" ]
             [ H.dt []
                 [ H.em [] [ H.text "Label" ]
-                , H.code [] [ H.text label ]
+                , H.pre [] [ H.text label ]
                 ]
             , H.dd [] [ inner ]
             ]
