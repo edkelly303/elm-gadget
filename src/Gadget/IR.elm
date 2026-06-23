@@ -1,8 +1,7 @@
 module Gadget.IR exposing
     ( Gadget(..)
     , fromInput, irType, toOutput, Error
-    , IR(..), Variant(..), IRType(..), VariantType(..)
-    , Metadata(..)
+    , IR(..), Variant(..), IRType(..), VariantType(..), Metadata(..)
     )
 
 {-| Tools for creating adapters for Gadgets.
