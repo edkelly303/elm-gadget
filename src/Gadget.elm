@@ -771,29 +771,36 @@ map aToB bToA (Gadget prev) =
         }
 
 
-{-| Convert a Gadget of one type to a Gadget of another type,
-possibly failing the conversion to the more narrow result type.
+{-| Convert a Gadget of one type to a Gadget of another type, possibly failing
+the conversion to the output type.
 
     import Gadget
 
-    namesGadget =
-        Gadget.list Gadget.string
+    nonEmptyListGadget a =
+        Gadget.list a
             |> Gadget.filterMap
                 (\list ->
                     case list of
                         [] ->
-                            Err "must contain at least one name"
+                            Err "must contain at least one item"
 
                         h :: t ->
                             Ok ( h, t )
                 )
                 (\( h, t ) -> h :: t)
 
-    namesGadget --: Gadget.Gadget ( String, List String )
+    nonEmptyListGadget --: Gadget.Gadget ( a, List a )
 
-Do not use this for overly fine-grained checks (like checking for a fixed set of valid values),
-as this might leave generators and fuzzers scrambling to find any valid values.
-Instead, prefer the constructive approach.
+Do not use this for fine-grained checks (like checking for a fixed set of valid
+values), as this might leave generators and fuzzers scrambling to find any valid
+values. Instead, prefer a constructive approach, like this:
+
+    import Gadget
+
+    nonEmptyListGadget a =
+        Gadget.tuple a (Gadget.list a)
+
+    nonEmptyListGadget --: Gadget.Gadget ( a, List a )
 
 -}
 filterMap :

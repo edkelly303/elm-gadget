@@ -127,9 +127,22 @@ tests =
                         "0"
                         (\() ->
                             let
-                                unused : Gadget.Gadget ( String.String, List String.String )
+                                unused : Gadget.Gadget ( a, List a )
                                 unused =
-                                    namesGadget__Gadget__filterMap_0
+                                    nonEmptyListGadget__Gadget__filterMap_0
+                            in
+                            Expect.pass
+                        )
+                    ]
+                , Test.describe
+                    "code snippet 1"
+                    [ Test.test
+                        "0"
+                        (\() ->
+                            let
+                                unused : Gadget.Gadget ( a, List a )
+                                unused =
+                                    nonEmptyListGadget__Gadget__filterMap_1
                             in
                             Expect.pass
                         )
@@ -566,18 +579,22 @@ dictGadget__Gadget__dict_0 =
     Gadget.dict Gadget.int Gadget.string
 
 
-namesGadget__Gadget__filterMap_0 =
-    Gadget.list Gadget.string
+nonEmptyListGadget__Gadget__filterMap_0 a =
+    Gadget.list a
         |> Gadget.filterMap
             (\list ->
                 case list of
                     [] ->
-                        Result.Err "must contain at least one name"
+                        Result.Err "must contain at least one item"
 
                     h :: t ->
                         Result.Ok ( h, t )
             )
             (\( h, t ) -> h :: t)
+
+
+nonEmptyListGadget__Gadget__filterMap_1 a =
+    Gadget.tuple a (Gadget.list a)
 
 
 labelled__Gadget__label_0 =
