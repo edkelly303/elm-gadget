@@ -202,9 +202,9 @@ parser gadget =
 irParser : Parser IR.IR
 irParser =
     P.oneOf
-        [ primitiveParser "b" IR.Bool boolParser
-        , primitiveParser "i" IR.Int intParser
-        , primitiveParser "f" IR.Float floatParser
+        [ boolParser |> P.map IR.Bool
+        , intParser |> P.map IR.Int
+        , floatParser |> P.map IR.Float
         , labelledParser
         , charParser
         , stringParser |> P.map IR.String
@@ -212,6 +212,21 @@ irParser =
         , productParser
         , customParser
         ]
+
+
+floatParser : Parser Float
+floatParser =
+    primitiveParser "f" rawFloatParser
+
+
+boolParser : Parser Bool
+boolParser =
+    primitiveParser "b" rawBoolParser
+
+
+intParser : Parser Int
+intParser =
+    primitiveParser "i" rawIntParser
 
 
 listParser : Parser IR.IR
@@ -280,16 +295,16 @@ customParser =
            )
 
 
-primitiveParser : String -> (keep -> IR.IR) -> Parser keep -> Parser IR.IR
-primitiveParser marker ctor innerParser =
-    P.succeed ctor
+primitiveParser : String -> Parser keep -> Parser keep
+primitiveParser marker innerParser =
+    P.succeed identity
         |. P.token (marker ++ "(")
         |= innerParser
         |. P.token ")"
 
 
-boolParser : Parser Bool
-boolParser =
+rawBoolParser : Parser Bool
+rawBoolParser =
     P.int
         |> P.andThen
             (\int ->
@@ -322,8 +337,8 @@ charParser =
             )
 
 
-intParser : Parser Int
-intParser =
+rawIntParser : Parser Int
+rawIntParser =
     P.oneOf
         [ P.succeed negate
             |. P.symbol "-"
@@ -346,8 +361,8 @@ But that's ok in our case, because we don't need to handle Float literals, only
 values produced by `String.fromFloat`.
 
 -}
-floatParser : Parser Float
-floatParser =
+rawFloatParser : Parser Float
+rawFloatParser =
     P.oneOf
         [ P.token "Infinity" |> P.map (\_ -> 1 / 0)
         , P.token "-Infinity" |> P.map (\_ -> -1 / 0)
