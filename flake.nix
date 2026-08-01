@@ -31,7 +31,7 @@
         ];
         shellHook = ''
           DEVDIR="$PWD"
-          echo -e "\n\033[1m*** Entering development shell for elm-ir ***\033[0m\n"
+          echo -e "\n\033[1m*** Entering development shell for elm-gadget ***\033[0m\n"
 
           echo -n "Updating repos... "
           if cd $DEVDIR && git pull --quiet; then
@@ -39,7 +39,7 @@
           else
             echo -e "Failed!\n"
           fi
-          
+
           git config --local core.hooksPath "$DEVDIR/.githooks/"
           chmod +x "$DEVDIR/.githooks/pre-commit"
 
