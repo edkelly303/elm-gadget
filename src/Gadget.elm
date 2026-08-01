@@ -789,7 +789,7 @@ the conversion to the output type.
                 )
                 (\( h, t ) -> h :: t)
 
-    nonEmptyListGadget --: Gadget.Gadget ( a, List a )
+    nonEmptyListGadget --: Gadget.Gadget a -> Gadget.Gadget ( a, List a )
 
 Do not use this for fine-grained checks (like checking for a fixed set of valid
 values), as this might leave generators and fuzzers scrambling to find any valid
@@ -800,7 +800,7 @@ values. Instead, prefer a constructive approach, like this:
     nonEmptyListGadget a =
         Gadget.tuple a (Gadget.list a)
 
-    nonEmptyListGadget --: Gadget.Gadget ( a, List a )
+    nonEmptyListGadget --: Gadget.Gadget a -> Gadget.Gadget ( a, List a )
 
 -}
 filterMap :

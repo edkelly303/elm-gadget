@@ -127,7 +127,9 @@ tests =
                         "0"
                         (\() ->
                             let
-                                unused : Gadget.Gadget ( a, List a )
+                                unused :
+                                    Gadget.Gadget a
+                                    -> Gadget.Gadget ( a, List a )
                                 unused =
                                     nonEmptyListGadget__Gadget__filterMap_0
                             in
@@ -140,7 +142,9 @@ tests =
                         "0"
                         (\() ->
                             let
-                                unused : Gadget.Gadget ( a, List a )
+                                unused :
+                                    Gadget.Gadget a
+                                    -> Gadget.Gadget ( a, List a )
                                 unused =
                                     nonEmptyListGadget__Gadget__filterMap_1
                             in
