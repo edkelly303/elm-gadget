@@ -1,4 +1,7 @@
-module Gadget.Adapter.Random exposing (generator, generatorWithOverrides, Override, override)
+module Gadget.Adapter.Random exposing
+    ( generator, generatorWithOverrides, Override, override
+    , limit
+    )
 
 {-|
 
@@ -19,11 +22,12 @@ Use a Gadget to create a `Random.Generator` for use with functions from the
 
 ## API
 
-@docs generator, generatorWithOverrides, Override, override
+@docs generator, generatorWithOverrides, Override, override, limit
 
 -}
 
 import Dict
+import Gadget
 import Gadget.IR as IR
 import Random
 import Random.Char
@@ -78,6 +82,16 @@ type Override
 override : String -> IR.Gadget a -> Random.Generator a -> Override
 override label gadget inputGenerator =
     Override label (Random.map (IR.fromInput gadget) inputGenerator)
+
+
+{-| Limit the output of a `Random.Generator Int` by setting minimum and maximum
+values for the generator.
+-}
+limit : Int -> Int -> IR.Gadget Int -> IR.Gadget Int
+limit lo hi g =
+    g
+        |> Gadget.tagWithInt "random_int_lo" lo
+        |> Gadget.tagWithInt "random_int_hi" hi
 
 
 {-| Turn a Gadget into a `Random.Generator`, but override some of the default
@@ -166,7 +180,25 @@ randomAdapter overrides irType =
                                 Just override_
                     )
                     Nothing
-                |> Maybe.withDefault (randomAdapter overrides innerType)
+                |> Maybe.withDefault
+                    (case innerType of
+                        IR.IntType ->
+                            case ( Dict.get "random_int_lo" labels, Dict.get "random_int_hi" labels ) of
+                                ( Just (IR.MetaInt lo), Just (IR.MetaInt hi) ) ->
+                                    Random.map IR.Int <| Random.int lo hi
+
+                                ( Just (IR.MetaInt lo), _ ) ->
+                                    Random.map IR.Int <| Random.int lo Random.maxInt
+
+                                ( _, Just (IR.MetaInt hi) ) ->
+                                    Random.map IR.Int <| Random.int Random.maxInt hi
+
+                                _ ->
+                                    randomAdapter overrides innerType
+
+                        _ ->
+                            randomAdapter overrides innerType
+                    )
                 |> Random.map (IR.Labelled labels)
 
         IR.BoolType ->

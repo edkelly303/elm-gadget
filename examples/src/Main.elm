@@ -64,7 +64,10 @@ petGadget =
             )
         |> Gadget.variant2 Robot
             (Gadget.char |> Gadget.label "series")
-            (Gadget.int |> Gadget.label "model")
+            (Gadget.int
+                |> Gadget.label "model"
+                |> Gadget.Adapter.Random.limit 1000 5000
+            )
         |> Gadget.endCustom
 
 
@@ -127,7 +130,6 @@ view ( seed1, seed2 ) =
             , Gadget.Adapter.Random.override "heightInCentimetres" Gadget.float (Random.float 160 196)
             , Gadget.Adapter.Random.override "dogName" Gadget.string (Random.uniform "Fido" [ "Kevin", "Rover", "Fifi" ])
             , Gadget.Adapter.Random.override "series" Gadget.char (Random.uniform 'A' (List.range 66 90 |> List.map Char.fromCode))
-            , Gadget.Adapter.Random.override "model" Gadget.int (Random.uniform 1000 (List.range 2 5 |> List.map (\n -> n * 1000)))
             ]
 
         randomGenerator =
