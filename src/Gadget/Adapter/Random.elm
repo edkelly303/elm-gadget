@@ -1,7 +1,4 @@
-module Gadget.Adapter.Random exposing
-    ( generator, generatorWithOverrides, Override, override
-    , limit
-    )
+module Gadget.Adapter.Random exposing (generator, generatorWithOverrides, Override, override, limit)
 
 {-|
 
