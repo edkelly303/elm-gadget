@@ -148,7 +148,7 @@ fuzzAdapter overrides irType =
         IR.LazyType construct ->
             Fuzz.lazy (\() -> fuzzAdapter overrides (construct ()))
 
-        IR.LabelledType labels innerType ->
+        IR.WithMetadataType labels innerType ->
             labels
                 |> Dict.foldl
                     (\label_ _ maybe ->
@@ -161,7 +161,7 @@ fuzzAdapter overrides irType =
                     )
                     Nothing
                 |> Maybe.withDefault (fuzzAdapter overrides innerType)
-                |> Fuzz.map (IR.Labelled labels)
+                |> Fuzz.map (IR.WithMetadata labels)
 
         IR.BoolType ->
             Fuzz.bool |> Fuzz.map IR.Bool

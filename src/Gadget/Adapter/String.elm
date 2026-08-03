@@ -72,7 +72,7 @@ combinator label meta items =
 printAdapter : IR.IR -> String
 printAdapter irValue =
     case irValue of
-        IR.Labelled labels inner ->
+        IR.WithMetadata labels inner ->
             "x[" ++ printLabels labels ++ "]" ++ printAdapter inner
 
         IR.Bool b ->
@@ -428,7 +428,7 @@ floatParserHelp =
 
 labelledParser : Parser IR.IR
 labelledParser =
-    P.succeed IR.Labelled
+    P.succeed IR.WithMetadata
         |. P.token "x"
         |= (P.sequence
                 { start = "["

@@ -14,7 +14,6 @@ import Gadget.Adapter.Html
 import Gadget.Adapter.Json
 import Gadget.Adapter.Random
 import Gadget.Adapter.String
-import Gadget.IR
 import Html
 import Json.Decode
 import Json.Encode
@@ -448,25 +447,6 @@ tests =
                     ]
                 ]
             ]
-        , Test.describe
-            "Gadget.IR"
-            [ Test.describe
-                "withMetadata"
-                [ Test.describe
-                    "code snippet 0"
-                    [ Test.test
-                        "0"
-                        (\() ->
-                            let
-                                unused : Gadget.Gadget Basics.Int
-                                unused =
-                                    labelled__Gadget_IR__withMetadata_0
-                            in
-                            Expect.pass
-                        )
-                    ]
-                ]
-            ]
         ]
 
 
@@ -783,7 +763,3 @@ printer__Gadget_Adapter_String__print_0 =
 
 printed__Gadget_Adapter_String__print_0 =
     printer__Gadget_Adapter_String__print_0 [ 1, 2, 3 ]
-
-
-labelled__Gadget_IR__withMetadata_0 =
-    Gadget.int |> Gadget.IR.withMetadata "max" (Gadget.IR.Int 1)

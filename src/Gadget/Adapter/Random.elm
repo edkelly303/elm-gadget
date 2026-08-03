@@ -171,7 +171,7 @@ randomAdapter overrides irType =
         IR.LazyType constructType ->
             randomAdapter overrides (constructType ())
 
-        IR.LabelledType labels innerType ->
+        IR.WithMetadataType labels innerType ->
             labels
                 |> Dict.foldl
                     (\label_ _ maybe ->
@@ -202,7 +202,7 @@ randomAdapter overrides irType =
                         _ ->
                             randomAdapter overrides innerType
                     )
-                |> Random.map (IR.Labelled labels)
+                |> Random.map (IR.WithMetadata labels)
 
         IR.BoolType ->
             Random.uniform False [ True ] |> Random.map IR.Bool

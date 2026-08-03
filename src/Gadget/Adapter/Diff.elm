@@ -115,7 +115,7 @@ diffHelp irType_ oldIR_ newIR_ =
 
             else
                 case ( oldIR_, newIR_, irType_ ) of
-                    ( IR.Labelled _ inner1, IR.Labelled _ inner2, IR.LabelledType _ innerType ) ->
+                    ( IR.WithMetadata _ inner1, IR.WithMetadata _ inner2, IR.WithMetadataType _ innerType ) ->
                         diffHelp innerType inner1 inner2
 
                     ( IR.Bool _, IR.Bool b2, _ ) ->
@@ -424,8 +424,8 @@ size changes =
 default : IR.IRType -> IR.IR
 default irType =
     case irType of
-        IR.LabelledType label x ->
-            IR.Labelled label (default x)
+        IR.WithMetadataType label x ->
+            IR.WithMetadata label (default x)
 
         IR.LazyType construct ->
             default (construct ())
@@ -503,9 +503,9 @@ patchHelp changes_ old_ irType_ =
         ( _, _, IR.LazyType constructType ) ->
             patchHelp changes_ old_ (constructType ())
 
-        ( _, IR.Labelled label inner, IR.LabelledType _ innerType ) ->
+        ( _, IR.WithMetadata label inner, IR.WithMetadataType _ innerType ) ->
             patchHelp changes_ inner innerType
-                |> Result.map (IR.Labelled label)
+                |> Result.map (IR.WithMetadata label)
 
         ( BoolChange b, IR.Bool _, _ ) ->
             Ok (IR.Bool b)

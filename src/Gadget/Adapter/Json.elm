@@ -93,7 +93,7 @@ decoder gadget =
 encodeAdapter : IR.IR -> JE.Value
 encodeAdapter irValue =
     case irValue of
-        IR.Labelled labels innerValue ->
+        IR.WithMetadata labels innerValue ->
             JE.object
                 [ ( "labelled"
                   , JE.object
@@ -187,7 +187,7 @@ decodeAdapter : JD.Decoder IR.IR
 decodeAdapter =
     JD.oneOf
         [ JD.field "labelled"
-            (JD.map2 (\labels value -> IR.Labelled labels value)
+            (JD.map2 (\labels value -> IR.WithMetadata labels value)
                 (JD.field "labels" (JD.dict (JD.lazy (\() -> decodeAdapter))))
                 (JD.field "value" (JD.lazy (\() -> decodeAdapter)))
             )

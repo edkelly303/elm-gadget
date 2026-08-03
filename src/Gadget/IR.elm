@@ -56,7 +56,7 @@ type IR
     | Custom Int Variant
     | Product (List IR)
     | List (List IR)
-    | Labelled (Dict String IR) IR
+    | WithMetadata (Dict String IR) IR
 
 
 {-| A type used by the `Custom` constructor of the `IR` type.
@@ -81,7 +81,7 @@ type IRType
     | CustomType VariantType (List VariantType)
     | ProductType (List IRType)
     | ListType IRType
-    | LabelledType (Dict String IR) IRType
+    | WithMetadataType (Dict String IR) IRType
     | LazyType (() -> IRType)
 
 
@@ -120,17 +120,21 @@ toOutput (Gadget c) a =
 
 {-| Add metadata to a Gadget.
 
-For an example of why this might be helpful, see the docs for
-[`Gadget.Adapter.Fuzz.fuzzerWithOverrides`](Gadget-Adapter-Fuzz#fuzzerWithOverrides).
+You can use this to pass additional information to an adapter, for example to
+tweak the output of a fuzzer or generator. See for example the implementation of
+[`Gadget.Adapter.Random.limit`](Gadget-Adapter-Random#limit):
 
-    import Gadget
     import Gadget.IR
 
-    labelled =
-        Gadget.int
-            |> Gadget.IR.withMetadata "max" (Gadget.IR.Int 1)
-
-    labelled --: Gadget.Gadget Int
+    limit : Int -> Int -> IR.Gadget Int -> IR.Gadget Int
+    limit lo hi gadget =
+        gadget
+            |> Gadget.IR.withMetadata
+                "random_int_lo"
+                (Gadget.IR.Int lo)
+            |> Gadget.IR.withMetadata
+                "random_int_hi"
+                (Gadget.IR.Int hi)
 
 -}
 withMetadata : String -> IR -> Gadget a -> Gadget a
@@ -139,24 +143,24 @@ withMetadata label_ meta (Gadget c) =
         { fromInput =
             \input ->
                 case c.fromInput input of
-                    Labelled labels inner ->
-                        Labelled (Dict.insert label_ meta labels) inner
+                    WithMetadata labels inner ->
+                        WithMetadata (Dict.insert label_ meta labels) inner
 
                     other ->
-                        Labelled (Dict.singleton label_ meta) other
+                        WithMetadata (Dict.singleton label_ meta) other
         , toOutput =
             \ir ->
                 case ir of
-                    Labelled _ innerIR ->
+                    WithMetadata _ innerIR ->
                         c.toOutput innerIR
 
                     _ ->
                         c.toOutput ir
         , irType =
             case c.irType of
-                LabelledType labels inner ->
-                    LabelledType (Dict.insert label_ meta labels) inner
+                WithMetadataType labels inner ->
+                    WithMetadataType (Dict.insert label_ meta labels) inner
 
                 other ->
-                    LabelledType (Dict.singleton label_ meta) other
+                    WithMetadataType (Dict.singleton label_ meta) other
         }

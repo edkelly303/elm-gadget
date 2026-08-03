@@ -54,7 +54,7 @@ view gadget value =
 htmlAdapter : IR.IR -> H.Html msg
 htmlAdapter irValue =
     case irValue of
-        IR.Labelled labels inner ->
+        IR.WithMetadata labels inner ->
             labelled
                 (labels
                     |> Dict.toList
