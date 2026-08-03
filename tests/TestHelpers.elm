@@ -13,7 +13,7 @@ treeGadget =
     treeGadgetHelp 100
 
 
-treeGadgetHelp : number -> Gadget.Gadget Tree
+treeGadgetHelp : Int -> Gadget.Gadget Tree
 treeGadgetHelp n =
     let
         limited =
