@@ -2,6 +2,7 @@ module Gadget.IR exposing
     ( Gadget(..)
     , fromInput, irType, toOutput, Error
     , IR(..), Variant(..), IRType(..), VariantType(..)
+    , withMetadata
     )
 
 {-| Tools for creating adapters for Gadgets.
@@ -18,6 +19,8 @@ various `Gadget.Adapter` modules in this package:
 @docs fromInput, irType, toOutput, Error
 
 @docs IR, Variant, IRType, VariantType
+
+@docs withMetadata
 
 -}
 
@@ -113,3 +116,47 @@ value.
 toOutput : Gadget a -> IR -> Result Error a
 toOutput (Gadget c) a =
     c.toOutput a
+
+
+{-| Add metadata to a Gadget.
+
+For an example of why this might be helpful, see the docs for
+[`Gadget.Adapter.Fuzz.fuzzerWithOverrides`](Gadget-Adapter-Fuzz#fuzzerWithOverrides).
+
+    import Gadget
+    import Gadget.IR
+
+    labelled =
+        Gadget.int
+            |> Gadget.IR.withMetadata "max" (Gadget.IR.Int 1)
+
+    labelled --: Gadget.Gadget Int
+
+-}
+withMetadata : String -> IR -> Gadget a -> Gadget a
+withMetadata label_ meta (Gadget c) =
+    Gadget
+        { fromInput =
+            \input ->
+                case c.fromInput input of
+                    Labelled labels inner ->
+                        Labelled (Dict.insert label_ meta labels) inner
+
+                    other ->
+                        Labelled (Dict.singleton label_ meta) other
+        , toOutput =
+            \ir ->
+                case ir of
+                    Labelled _ innerIR ->
+                        c.toOutput innerIR
+
+                    _ ->
+                        c.toOutput ir
+        , irType =
+            case c.irType of
+                LabelledType labels inner ->
+                    LabelledType (Dict.insert label_ meta labels) inner
+
+                other ->
+                    LabelledType (Dict.singleton label_ meta) other
+        }

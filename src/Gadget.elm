@@ -8,7 +8,6 @@ module Gadget exposing
     , CustomGadgetBuilder, custom, variant0, variant1, variant2, variant3
     , variant4, variant5, endCustom
     , map, filterMap, lazy
-    , label, tagWithString, tagWithInt, tagWithFloat
     )
 
 {-| This module is for application developers who want to create Gadgets and use
@@ -97,11 +96,6 @@ If you want to make your own adapters, see the [`Gadget.IR`](Gadget-IR) module.
 # Transforming Gadgets
 
 @docs map, filterMap, lazy
-
-
-# Labelling Gadgets
-
-@docs label, tagWithString, tagWithInt, tagWithFloat
 
 -}
 
@@ -866,105 +860,4 @@ lazy step =
                     in
                     gadget.irType
                 )
-        }
-
-
-{-| Add a label to a Gadget.
-
-For an example of why this might be helpful, see the docs for
-[`Gadget.Adapter.Fuzz.fuzzerWithOverrides`](Gadget-Adapter-Fuzz#fuzzerWithOverrides).
-
-    import Gadget
-
-    labelled =
-        Gadget.int
-            |> Gadget.label "age"
-
-    labelled --: Gadget.Gadget Int
-
--}
-label : String -> Gadget a -> Gadget a
-label label_ gadget =
-    metadata label_ (IR.String "") gadget
-
-
-{-| Add metadata to a Gadget - this is a key-value pair where the key is a
-`String` and the value is an `Int`.
-
-    import Gadget
-
-    tagged =
-        Gadget.list Gadget.int
-            |> Gadget.tagWithInt "minLength" 0
-            |> Gadget.tagWithInt "maxLength" 10
-
-    tagged --: Gadget.Gadget (List Int)
-
--}
-tagWithInt : String -> Int -> Gadget a -> Gadget a
-tagWithInt label_ i =
-    metadata label_ (IR.Int i)
-
-
-{-| Add metadata to a Gadget - this is a key-value pair where the key is a
-`String` and the value is also a `String`.
-
-    import Gadget
-
-    tagged =
-        Gadget.string
-            |> Gadget.tagWithString "prefix" "ABC"
-
-    tagged --: Gadget.Gadget String
-
--}
-tagWithString : String -> String -> Gadget a -> Gadget a
-tagWithString label_ s =
-    metadata label_ (IR.String s)
-
-
-{-| Add metadata to a Gadget - this is a key-value pair where the key is a
-`String` and the value is a `Float`.
-
-    import Gadget
-
-    tagged =
-        Gadget.float
-            |> Gadget.tagWithFloat "min" 0.0
-            |> Gadget.tagWithFloat "max" 1.0
-
-    tagged --: Gadget.Gadget Float
-
--}
-tagWithFloat : String -> Float -> Gadget a -> Gadget a
-tagWithFloat label_ f =
-    metadata label_ (IR.Float f)
-
-
-metadata : String -> IR -> Gadget a -> Gadget a
-metadata label_ meta (Gadget c) =
-    Gadget
-        { fromInput =
-            \input ->
-                case c.fromInput input of
-                    Labelled labels inner ->
-                        Labelled (Dict.insert label_ meta labels) inner
-
-                    other ->
-                        Labelled (Dict.singleton label_ meta) other
-        , toOutput =
-            \ir ->
-                case ir of
-                    Labelled _ innerIR ->
-                        c.toOutput innerIR
-
-                    _ ->
-                        c.toOutput ir
-        , irType =
-            case c.irType of
-                LabelledType labels inner ->
-                    LabelledType (Dict.insert label_ meta labels) inner
-
-                other ->
-                    LabelledType (Dict.singleton label_ meta) other
         }

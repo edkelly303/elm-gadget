@@ -1,6 +1,6 @@
 module Gadget.Adapter.Fuzz exposing
     ( fuzzer
-    , fuzzerWithOverrides, Override, override
+    , fuzzerWithOverrides, Override, label, override
     )
 
 {-|
@@ -24,7 +24,7 @@ Use a Gadget to create a `Fuzz.Fuzzer` for use with functions from the
 
 @docs fuzzer
 
-@docs fuzzerWithOverrides, Override, override
+@docs fuzzerWithOverrides, Override, label, override
 
 -}
 
@@ -84,7 +84,7 @@ implementations of fuzzers that are defined by this module.
 
     nameGadget =
         Gadget.string
-            |> Gadget.label "name"
+            |> Gadget.Adapter.Fuzz.label "name"
 
     personFuzzer =
         Gadget.Adapter.Fuzz.fuzzerWithOverrides
@@ -106,7 +106,7 @@ fuzzerWithOverrides overrides gadget =
     let
         overridesDict =
             overrides
-                |> List.map (\(Override label overrideFuzzer) -> ( label, overrideFuzzer ))
+                |> List.map (\(Override label_ overrideFuzzer) -> ( label_, overrideFuzzer ))
                 |> Dict.fromList
     in
     IR.irType gadget
@@ -128,11 +128,18 @@ type Override
     = Override String (Fuzz.Fuzzer IR.IR)
 
 
+{-| Add a label to a `Gadget` so that it can be overridden.
+-}
+label : String -> IR.Gadget a -> IR.Gadget a
+label l =
+    IR.withMetadata l (IR.String "")
+
+
 {-| Override the default implementation of a `Fuzz.Fuzzer`.
 -}
 override : String -> IR.Gadget a -> Fuzz.Fuzzer a -> Override
-override label gadget inputFuzzer =
-    Override label (Fuzz.map (IR.fromInput gadget) inputFuzzer)
+override label_ gadget inputFuzzer =
+    Override label_ (Fuzz.map (IR.fromInput gadget) inputFuzzer)
 
 
 fuzzAdapter : Dict.Dict String (Fuzz.Fuzzer IR.IR) -> IR.IRType -> Fuzz.Fuzzer IR.IR
@@ -144,10 +151,10 @@ fuzzAdapter overrides irType =
         IR.LabelledType labels innerType ->
             labels
                 |> Dict.foldl
-                    (\label _ maybe ->
+                    (\label_ _ maybe ->
                         case maybe of
                             Nothing ->
-                                Dict.get label overrides
+                                Dict.get label_ overrides
 
                             _ ->
                                 maybe

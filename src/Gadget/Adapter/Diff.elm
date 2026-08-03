@@ -22,7 +22,7 @@ Lamdera application).
 
 If anyone would like to contribute an example of using Gadgets to create nice
 human-readable diffs, I would be happy to add it to this package. I think it is
-probably possible with judicious (ab)use of [`Gadget.label`](Gadget#label).
+probably possible with judicious (ab)use of [`Gadget.IR.withMetadata`](Gadget-IR#withMetadata).
 
 
 ## Example

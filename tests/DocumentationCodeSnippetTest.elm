@@ -14,6 +14,7 @@ import Gadget.Adapter.Html
 import Gadget.Adapter.Json
 import Gadget.Adapter.Random
 import Gadget.Adapter.String
+import Gadget.IR
 import Html
 import Json.Decode
 import Json.Encode
@@ -153,22 +154,6 @@ tests =
                     ]
                 ]
             , Test.describe
-                "label"
-                [ Test.describe
-                    "code snippet 0"
-                    [ Test.test
-                        "0"
-                        (\() ->
-                            let
-                                unused : Gadget.Gadget Basics.Int
-                                unused =
-                                    labelled__Gadget__label_0
-                            in
-                            Expect.pass
-                        )
-                    ]
-                ]
-            , Test.describe
                 "lazy"
                 [ Test.describe
                     "code snippet 0"
@@ -259,54 +244,6 @@ tests =
                                 unused : Gadget.Gadget (Set.Set Basics.Int)
                                 unused =
                                     dictGadget__Gadget__set_0
-                            in
-                            Expect.pass
-                        )
-                    ]
-                ]
-            , Test.describe
-                "tagWithFloat"
-                [ Test.describe
-                    "code snippet 0"
-                    [ Test.test
-                        "0"
-                        (\() ->
-                            let
-                                unused : Gadget.Gadget Basics.Float
-                                unused =
-                                    tagged__Gadget__tagWithFloat_0
-                            in
-                            Expect.pass
-                        )
-                    ]
-                ]
-            , Test.describe
-                "tagWithInt"
-                [ Test.describe
-                    "code snippet 0"
-                    [ Test.test
-                        "0"
-                        (\() ->
-                            let
-                                unused : Gadget.Gadget (List Basics.Int)
-                                unused =
-                                    tagged__Gadget__tagWithInt_0
-                            in
-                            Expect.pass
-                        )
-                    ]
-                ]
-            , Test.describe
-                "tagWithString"
-                [ Test.describe
-                    "code snippet 0"
-                    [ Test.test
-                        "0"
-                        (\() ->
-                            let
-                                unused : Gadget.Gadget String.String
-                                unused =
-                                    tagged__Gadget__tagWithString_0
                             in
                             Expect.pass
                         )
@@ -511,6 +448,25 @@ tests =
                     ]
                 ]
             ]
+        , Test.describe
+            "Gadget.IR"
+            [ Test.describe
+                "withMetadata"
+                [ Test.describe
+                    "code snippet 0"
+                    [ Test.test
+                        "0"
+                        (\() ->
+                            let
+                                unused : Gadget.Gadget Basics.Int
+                                unused =
+                                    labelled__Gadget_IR__withMetadata_0
+                            in
+                            Expect.pass
+                        )
+                    ]
+                ]
+            ]
         ]
 
 
@@ -601,10 +557,6 @@ nonEmptyListGadget__Gadget__filterMap_1 a =
     Gadget.tuple a (Gadget.list a)
 
 
-labelled__Gadget__label_0 =
-    Gadget.int |> Gadget.label "age"
-
-
 type Tree__Gadget__lazy_0
     = Leaf__Gadget__lazy_0 String.String
     | Branch__Gadget__lazy_0 Tree__Gadget__lazy_0 Tree__Gadget__lazy_0
@@ -646,20 +598,6 @@ resultGadget__Gadget__result_0 =
 
 dictGadget__Gadget__set_0 =
     Gadget.set Gadget.int
-
-
-tagged__Gadget__tagWithFloat_0 =
-    Gadget.float |> Gadget.tagWithFloat "min" 0 |> Gadget.tagWithFloat "max" 1
-
-
-tagged__Gadget__tagWithInt_0 =
-    Gadget.list Gadget.int
-        |> Gadget.tagWithInt "minLength" 0
-        |> Gadget.tagWithInt "maxLength" 10
-
-
-tagged__Gadget__tagWithString_0 =
-    Gadget.string |> Gadget.tagWithString "prefix" "ABC"
 
 
 tripleGadget__Gadget__triple_0 =
@@ -722,7 +660,7 @@ personGadget__Gadget_Adapter_Fuzz__fuzzerWithOverrides_0 =
 
 
 nameGadget__Gadget_Adapter_Fuzz__fuzzerWithOverrides_0 =
-    Gadget.string |> Gadget.label "name"
+    Gadget.string |> Gadget.Adapter.Fuzz.label "name"
 
 
 personFuzzer__Gadget_Adapter_Fuzz__fuzzerWithOverrides_0 =
@@ -811,7 +749,7 @@ personGadget__Gadget_Adapter_Random__generatorWithOverrides_0 =
 
 
 nameGadget__Gadget_Adapter_Random__generatorWithOverrides_0 =
-    Gadget.string |> Gadget.label "name"
+    Gadget.string |> Gadget.Adapter.Random.label "name"
 
 
 personGenerator__Gadget_Adapter_Random__generatorWithOverrides_0 =
@@ -845,3 +783,7 @@ printer__Gadget_Adapter_String__print_0 =
 
 printed__Gadget_Adapter_String__print_0 =
     printer__Gadget_Adapter_String__print_0 [ 1, 2, 3 ]
+
+
+labelled__Gadget_IR__withMetadata_0 =
+    Gadget.int |> Gadget.IR.withMetadata "max" (Gadget.IR.Int 1)

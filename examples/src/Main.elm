@@ -9,6 +9,7 @@ import Gadget.Adapter.Html
 import Gadget.Adapter.Json
 import Gadget.Adapter.Random
 import Gadget.Adapter.String
+import Gadget.IR
 import Html
 import Html.Attributes
 import Html.Events
@@ -30,16 +31,20 @@ type Pet
     | Robot Char Int
 
 
+label l =
+    Gadget.IR.withMetadata l (Gadget.IR.String "")
+
+
 personGadget : Gadget.Gadget Person
 personGadget =
     Gadget.record Person
         |> Gadget.field .name
             (Gadget.string
-                |> Gadget.label "random-name"
-                |> Gadget.label "fuzz-name"
+                |> label "random-name"
+                |> label "fuzz-name"
             )
         |> Gadget.field .heightInCentimetres
-            (Gadget.float |> Gadget.label "heightInCentimetres")
+            (Gadget.float |> label "heightInCentimetres")
         |> Gadget.field .pets
             (Gadget.list petGadget)
         |> Gadget.endRecord
@@ -59,13 +64,13 @@ petGadget =
         |> Gadget.variant1 Dog
             (Gadget.record (\name -> { name = name })
                 |> Gadget.field .name
-                    (Gadget.string |> Gadget.label "dogName")
+                    (Gadget.string |> label "dogName")
                 |> Gadget.endRecord
             )
         |> Gadget.variant2 Robot
-            (Gadget.char |> Gadget.label "series")
+            (Gadget.char |> label "series")
             (Gadget.int
-                |> Gadget.label "model"
+                |> label "model"
                 |> Gadget.Adapter.Random.limit 1000 5000
             )
         |> Gadget.endCustom

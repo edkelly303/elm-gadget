@@ -1,4 +1,4 @@
-module Gadget.Adapter.Random exposing (generator, generatorWithOverrides, Override, override, limit)
+module Gadget.Adapter.Random exposing (generator, generatorWithOverrides, Override, label, override, limit)
 
 {-|
 
@@ -19,12 +19,11 @@ Use a Gadget to create a `Random.Generator` for use with functions from the
 
 ## API
 
-@docs generator, generatorWithOverrides, Override, override, limit
+@docs generator, generatorWithOverrides, Override, label, override, limit
 
 -}
 
 import Dict
-import Gadget
 import Gadget.IR as IR
 import Random
 import Random.Char
@@ -77,8 +76,8 @@ type Override
 {-| Override the default implementation of a `Random.Generator`.
 -}
 override : String -> IR.Gadget a -> Random.Generator a -> Override
-override label gadget inputGenerator =
-    Override label (Random.map (IR.fromInput gadget) inputGenerator)
+override label_ gadget inputGenerator =
+    Override label_ (Random.map (IR.fromInput gadget) inputGenerator)
 
 
 {-| Limit the output of a `Random.Generator Int` by setting minimum and maximum
@@ -87,8 +86,15 @@ values for the generator.
 limit : Int -> Int -> IR.Gadget Int -> IR.Gadget Int
 limit lo hi g =
     g
-        |> Gadget.tagWithInt "random_int_lo" lo
-        |> Gadget.tagWithInt "random_int_hi" hi
+        |> IR.withMetadata "random_int_lo" (IR.Int lo)
+        |> IR.withMetadata "random_int_hi" (IR.Int hi)
+
+
+{-| Add a label to a `Gadget` so that it can be overridden.
+-}
+label : String -> IR.Gadget a -> IR.Gadget a
+label l =
+    IR.withMetadata l (IR.String "")
 
 
 {-| Turn a Gadget into a `Random.Generator`, but override some of the default
@@ -111,7 +117,7 @@ implementations of generators that are defined by this module.
 
     nameGadget =
         Gadget.string
-            |> Gadget.label "name"
+            |> Gadget.Adapter.Random.label "name"
 
     personGenerator =
         Gadget.Adapter.Random.generatorWithOverrides
@@ -136,7 +142,7 @@ generatorWithOverrides overrides gadget =
     let
         overridesDict =
             overrides
-                |> List.map (\(Override label generator_) -> ( label, generator_ ))
+                |> List.map (\(Override label_ generator_) -> ( label_, generator_ ))
                 |> Dict.fromList
     in
     generatorWithOverridesHelp overridesDict gadget
@@ -168,10 +174,10 @@ randomAdapter overrides irType =
         IR.LabelledType labels innerType ->
             labels
                 |> Dict.foldl
-                    (\label _ maybe ->
+                    (\label_ _ maybe ->
                         case maybe of
                             Nothing ->
-                                Dict.get label overrides
+                                Dict.get label_ overrides
 
                             Just override_ ->
                                 Just override_

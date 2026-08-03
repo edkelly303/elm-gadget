@@ -21,7 +21,7 @@ representation.
 
 If anyone would like to contribute an example of a proper parser/pretty-printer,
 I would be happy to add it to this package. I think it is probably possible with
-judicious (ab)use of [`Gadget.label`](Gadget#label).
+judicious (ab)use of [`Gadget.IR.withMetadata`](Gadget-IR#withMetadata).
 
 
 ## API
