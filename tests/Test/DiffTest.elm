@@ -31,18 +31,6 @@ roundTrip gadget name =
     <|
         \old new ->
             let
-                _ =
-                    Debug.log "old" old
-
-                _ =
-                    Debug.log "new" new
-
-                _ =
-                    Debug.log "diff" diff
-
-                _ =
-                    Debug.log "expc" expectation
-
                 diff =
                     Gadget.Adapter.Diff.diff gadget old new
 

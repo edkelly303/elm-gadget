@@ -10,6 +10,28 @@ type Tree
 
 treeGadget : Gadget.Gadget Tree
 treeGadget =
+    treeGadgetHelp 100
+
+
+treeGadgetHelp : number -> Gadget.Gadget Tree
+treeGadgetHelp n =
+    let
+        limited =
+            if n == 0 then
+                Gadget.map Leaf
+                    (\leaf ->
+                        case leaf of
+                            Leaf s ->
+                                s
+
+                            _ ->
+                                "oops"
+                    )
+                    Gadget.string
+
+            else
+                Gadget.lazy (\() -> treeGadgetHelp (n - 1))
+    in
     Gadget.custom
         (\leaf branch tree ->
             case tree of
@@ -20,9 +42,7 @@ treeGadget =
                     branch branch0 branch1
         )
         |> Gadget.variant1 Leaf Gadget.string
-        |> Gadget.variant2 Branch
-            (Gadget.lazy (\() -> treeGadget))
-            (Gadget.lazy (\() -> treeGadget))
+        |> Gadget.variant2 Branch limited limited
         |> Gadget.endCustom
 
 
