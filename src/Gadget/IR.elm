@@ -2,7 +2,7 @@ module Gadget.IR exposing
     ( Gadget(..)
     , fromInput, irType, toOutput, Error
     , IR(..), Variant(..), IRType(..), VariantType(..)
-    , withMetadata
+    , Metadata, MetadataTools, makeMetadataTools
     )
 
 {-| Tools for creating adapters for Gadgets.
@@ -20,7 +20,7 @@ various `Gadget.Adapter` modules in this package:
 
 @docs IR, Variant, IRType, VariantType
 
-@docs withMetadata
+@docs Metadata, withMetadata, MetadataTools, makeMetadataTools
 
 -}
 
@@ -56,7 +56,11 @@ type IR
     | Custom Int Variant
     | Product (List IR)
     | List (List IR)
-    | WithMetadata (Dict String IR) IR
+    | WithMetadata Metadata IR
+
+
+type Metadata
+    = Metadata (Dict String (Dict String IR))
 
 
 {-| A type used by the `Custom` constructor of the `IR` type.
@@ -81,7 +85,7 @@ type IRType
     | CustomType VariantType (List VariantType)
     | ProductType (List IRType)
     | ListType IRType
-    | WithMetadataType (Dict String IR) IRType
+    | WithMetadataType Metadata IRType
     | LazyType (() -> IRType)
 
 
@@ -154,30 +158,64 @@ adapter can set the specified lower and upper bounds on the `Int` that it
 generates.
 
 -}
-withMetadata : String -> IR -> Gadget a -> Gadget a
-withMetadata label_ meta (Gadget c) =
-    Gadget
-        { fromInput =
-            \input ->
-                case c.fromInput input of
-                    WithMetadata labels inner ->
-                        WithMetadata (Dict.insert label_ meta labels) inner
+type alias MetadataTools a =
+    { attach : String -> IR -> Gadget a -> Gadget a
+    , get : String -> Metadata -> Maybe IR
+    }
 
-                    other ->
-                        WithMetadata (Dict.singleton label_ meta) other
-        , toOutput =
-            \ir ->
-                case ir of
-                    WithMetadata _ innerIR ->
-                        c.toOutput innerIR
 
-                    _ ->
-                        c.toOutput ir
-        , irType =
-            case c.irType of
-                WithMetadataType labels inner ->
-                    WithMetadataType (Dict.insert label_ meta labels) inner
+makeMetadataTools : String -> MetadataTools a
+makeMetadataTools adapterId =
+    let
+        new =
+            \key value ->
+                Dict.singleton adapterId (Dict.singleton key value)
+                    |> Metadata
 
-                other ->
-                    WithMetadataType (Dict.singleton label_ meta) other
-        }
+        insert =
+            \key value (Metadata m) ->
+                Dict.update adapterId
+                    (\maybe ->
+                        case maybe of
+                            Just adapterDict ->
+                                Just (Dict.insert key value adapterDict)
+
+                            Nothing ->
+                                Just (Dict.singleton key value)
+                    )
+                    m
+                    |> Metadata
+    in
+    { attach =
+        \key value (Gadget c) ->
+            Gadget
+                { fromInput =
+                    \input ->
+                        case c.fromInput input of
+                            WithMetadata metadata inner ->
+                                WithMetadata (insert key value metadata) inner
+
+                            other ->
+                                WithMetadata (new key value) other
+                , toOutput =
+                    \ir ->
+                        case ir of
+                            WithMetadata _ innerIR ->
+                                c.toOutput innerIR
+
+                            _ ->
+                                c.toOutput ir
+                , irType =
+                    case c.irType of
+                        WithMetadataType metadata inner ->
+                            WithMetadataType (insert key value metadata) inner
+
+                        other ->
+                            WithMetadataType (new key value) other
+                }
+    , get =
+        \key (Metadata m) ->
+            m
+                |> Dict.get adapterId
+                |> Maybe.andThen (Dict.get key)
+    }

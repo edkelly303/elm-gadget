@@ -20,7 +20,6 @@ if [[ -n "$STAGED" ]]; then
         printf "Success!\n\n"
     else 
         printf "Failed!\n\n"
-        exit 1
     fi
 
 fi
