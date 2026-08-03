@@ -60,20 +60,12 @@ htmlAdapter irValue =
                     |> Dict.toList
                     |> List.map
                         (\( l, m ) ->
-                            l
-                                ++ ": "
-                                ++ (case m of
-                                        IR.MetaString s ->
-                                            "\"" ++ s ++ "\""
-
-                                        IR.MetaInt i ->
-                                            String.fromInt i
-
-                                        IR.MetaFloat f ->
-                                            String.fromFloat f
-                                   )
+                            H.span []
+                                [ H.text (l ++ ": ")
+                                , htmlAdapter m
+                                ]
                         )
-                    |> String.join "\n"
+                    |> H.div []
                 )
                 (htmlAdapter inner)
 
@@ -202,13 +194,13 @@ primitive quoteHtml valueWrapper typeName value =
         ]
 
 
-labelled : String -> H.Html msg -> H.Html msg
+labelled : H.Html msg -> H.Html msg -> H.Html msg
 labelled label inner =
     H.dl []
         [ H.div [ HA.class "labelled" ]
             [ H.dt []
                 [ H.em [] [ H.text "Label" ]
-                , H.pre [] [ H.text label ]
+                , label
                 ]
             , H.dd [] [ inner ]
             ]

@@ -181,13 +181,13 @@ randomAdapter overrides irType =
                     (case innerType of
                         IR.IntType ->
                             case ( Dict.get "random_int_lo" labels, Dict.get "random_int_hi" labels ) of
-                                ( Just (IR.MetaInt lo), Just (IR.MetaInt hi) ) ->
+                                ( Just (IR.Int lo), Just (IR.Int hi) ) ->
                                     Random.map IR.Int <| Random.int lo hi
 
-                                ( Just (IR.MetaInt lo), _ ) ->
+                                ( Just (IR.Int lo), _ ) ->
                                     Random.map IR.Int <| Random.int lo Random.maxInt
 
-                                ( _, Just (IR.MetaInt hi) ) ->
+                                ( _, Just (IR.Int hi) ) ->
                                     Random.map IR.Int <| Random.int Random.maxInt hi
 
                                 _ ->

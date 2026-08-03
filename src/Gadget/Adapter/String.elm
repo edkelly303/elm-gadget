@@ -150,23 +150,14 @@ printAdapter irValue =
                 items
 
 
-printLabels : Dict.Dict String IR.Metadata -> String
+printLabels : Dict.Dict String IR.IR -> String
 printLabels labels =
     Dict.toList labels
         |> List.map
             (\( l, m ) ->
                 printAdapter (IR.String l)
                     ++ ":"
-                    ++ (case m of
-                            IR.MetaString s ->
-                                printAdapter (IR.String s)
-
-                            IR.MetaInt i ->
-                                printAdapter (IR.Int i)
-
-                            IR.MetaFloat f ->
-                                printAdapter (IR.Float f)
-                       )
+                    ++ printAdapter m
             )
         |> String.join ","
 
@@ -446,11 +437,7 @@ labelledParser =
                     P.succeed Tuple.pair
                         |= stringParser
                         |. P.token ":"
-                        |= P.oneOf
-                            [ stringParser |> P.map IR.MetaString
-                            , intParser |> P.map IR.MetaInt
-                            , floatParser |> P.map IR.MetaFloat
-                            ]
+                        |= P.lazy (\() -> irParser)
                 , separator = ","
                 , spaces = P.spaces
                 , trailing = P.Forbidden

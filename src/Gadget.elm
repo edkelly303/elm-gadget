@@ -113,7 +113,6 @@ import Gadget.IR as IR
         , Gadget(..)
         , IR(..)
         , IRType(..)
-        , Metadata
         , Variant(..)
         , VariantType(..)
         )
@@ -886,7 +885,7 @@ For an example of why this might be helpful, see the docs for
 -}
 label : String -> Gadget a -> Gadget a
 label label_ gadget =
-    metadata label_ (IR.MetaString "") gadget
+    metadata label_ (IR.String "") gadget
 
 
 {-| Add metadata to a Gadget - this is a key-value pair where the key is a
@@ -904,7 +903,7 @@ label label_ gadget =
 -}
 tagWithInt : String -> Int -> Gadget a -> Gadget a
 tagWithInt label_ i =
-    metadata label_ (IR.MetaInt i)
+    metadata label_ (IR.Int i)
 
 
 {-| Add metadata to a Gadget - this is a key-value pair where the key is a
@@ -921,7 +920,7 @@ tagWithInt label_ i =
 -}
 tagWithString : String -> String -> Gadget a -> Gadget a
 tagWithString label_ s =
-    metadata label_ (IR.MetaString s)
+    metadata label_ (IR.String s)
 
 
 {-| Add metadata to a Gadget - this is a key-value pair where the key is a
@@ -939,10 +938,10 @@ tagWithString label_ s =
 -}
 tagWithFloat : String -> Float -> Gadget a -> Gadget a
 tagWithFloat label_ f =
-    metadata label_ (IR.MetaFloat f)
+    metadata label_ (IR.Float f)
 
 
-metadata : String -> Metadata -> Gadget a -> Gadget a
+metadata : String -> IR -> Gadget a -> Gadget a
 metadata label_ meta (Gadget c) =
     Gadget
         { fromInput =
