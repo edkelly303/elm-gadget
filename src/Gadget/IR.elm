@@ -118,23 +118,40 @@ toOutput (Gadget c) a =
     c.toOutput a
 
 
-{-| Add metadata to a Gadget.
+{-| Attach metadata to the `IR` and `IRType` produced by a Gadget.
 
-You can use this to pass additional information to an adapter, for example to
-tweak the output of a fuzzer or generator. See for example the implementation of
+The metadata is stored as `Dict String IR`, and each time `withMetadata` is
+called, it will add a new key and value to the dictionary.
+
+You can use this to pass additional information to an adapter. Why? Perhaps you
+want to tweak the output of a fuzzer or generator, or even override the
+adapter's default fuzzer with a completely different one.
+
+See for example the implementation of
 [`Gadget.Adapter.Random.limit`](Gadget-Adapter-Random#limit):
 
+    import Gadget
     import Gadget.IR
 
     limit : Int -> Int -> IR.Gadget Int -> IR.Gadget Int
-    limit lo hi gadget =
-        gadget
+    limit lo hi intGadget =
+        intGadget
             |> Gadget.IR.withMetadata
                 "random_int_lo"
                 (Gadget.IR.Int lo)
             |> Gadget.IR.withMetadata
                 "random_int_hi"
                 (Gadget.IR.Int hi)
+
+    intBetween1And5 =
+        Gadget.int
+            |> limit 1 5
+
+Then we can write an random generator adapter that interprets the `IRType`
+produced by `intBetween1And5` and checks whether its metadata dictionary
+contains the keys "random\_int\_lo" or "random\_int\_hi". If it does, then the
+adapter can set the specified lower and upper bounds on the `Int` that it
+generates.
 
 -}
 withMetadata : String -> IR -> Gadget a -> Gadget a
