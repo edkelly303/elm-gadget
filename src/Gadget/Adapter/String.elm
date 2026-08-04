@@ -150,8 +150,6 @@ printAdapter irValue =
                 items
 
 
-
-
 {-| Create a Parser that will attempt to convert a String created by `print`
 into an Elm value.
 
@@ -413,7 +411,6 @@ floatParserHelp =
                         Nothing ->
                             P.problem "Not a Float"
             )
-
 
 
 {-| The original version of this function comes from

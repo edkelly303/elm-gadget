@@ -60,13 +60,14 @@ petGadget =
         |> Gadget.variant1 Dog
             (Gadget.record (\name -> { name = name })
                 |> Gadget.field .name
-                    (Gadget.string 
+                    (Gadget.string
                         |> Gadget.Adapter.Fuzz.label "dogName"
-                        |> Gadget.Adapter.Random.label "dogName")
+                        |> Gadget.Adapter.Random.label "dogName"
+                    )
                 |> Gadget.endRecord
             )
         |> Gadget.variant2 Robot
-            (Gadget.char 
+            (Gadget.char
                 |> Gadget.Adapter.Fuzz.label "series"
                 |> Gadget.Adapter.Random.label "series"
             )
