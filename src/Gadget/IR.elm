@@ -163,7 +163,7 @@ type alias MetadataTools a =
     { attach : String -> IR -> Gadget a -> Gadget a
     , get : String -> Metadata -> Maybe IR
     , member : String -> Metadata -> Bool
-    , dump : Metadata -> List ( String, List ( String, IR ) )
+    , export : Metadata -> List ( String, List ( String, IR ) )
     }
 
 
@@ -222,12 +222,12 @@ makeMetadataTools adapterId =
         member key metadata =
             get key metadata /= Nothing
 
-        dump (Metadata m) =
+        export (Metadata m) =
             Dict.map (\k v -> Dict.toList v) m
                 |> Dict.toList
     in
     { attach = attach
     , get = get
     , member = member
-    , dump = dump
+    , export = export
     }

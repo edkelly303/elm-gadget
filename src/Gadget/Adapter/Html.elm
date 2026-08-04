@@ -62,7 +62,7 @@ htmlAdapter irValue =
         IR.WithMetadata metadata inner ->
             withMetadata
                 (metadata
-                    |> meta.dump
+                    |> meta.export
                     |> List.map
                         (\( adapterId, kvs ) ->
                             H.li []
