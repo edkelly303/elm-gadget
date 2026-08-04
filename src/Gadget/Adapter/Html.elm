@@ -31,10 +31,6 @@ type alias IRValue =
     IR.IR IR.Value
 
 
-type alias IRType =
-    IR.IR IR.Type
-
-
 meta : IR.MetadataTools a
 meta =
     IR.makeMetadataTools "html"

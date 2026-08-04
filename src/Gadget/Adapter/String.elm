@@ -38,10 +38,6 @@ type alias IRValue =
     IR.IR IR.Value
 
 
-type alias IRType =
-    IR.IR IR.Type
-
-
 {-| Convert an Elm value into a String.
 
     import Gadget

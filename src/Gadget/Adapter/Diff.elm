@@ -112,7 +112,7 @@ diff gadget old new =
 
 
 diffHelp : IRType -> IRValue -> IRValue -> Changes
-diffHelp ((IR.IR metadata type_) as irType_) ((IR.IR _ oldData) as oldIR_) ((IR.IR _ newData) as newIR_) =
+diffHelp (IR.IR _ type_) ((IR.IR _ oldData) as oldIR_) ((IR.IR _ newData) as newIR_) =
     case type_ of
         IR.LazyType toInnerType ->
             diffHelp (toInnerType ()) oldIR_ newIR_
@@ -498,7 +498,7 @@ patch gadget delta old =
 
 
 patchHelp : Changes -> IRValue -> IRType -> Result String IRValue
-patchHelp changes_ ((IR.IR metadata oldData) as old_) ((IR.IR _ type_) as irType_) =
+patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
     case ( changes_, oldData, type_ ) of
         ( Identical, _, _ ) ->
             Ok old_

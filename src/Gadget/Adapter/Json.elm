@@ -32,10 +32,6 @@ type alias IRValue =
     IR.IR IR.Value
 
 
-type alias IRType =
-    IR.IR IR.Type
-
-
 {-| Convert an Elm value into a `Json.Encode.Value`.
 
     import Gadget
@@ -99,7 +95,7 @@ decoder gadget =
 
 
 encodeAdapter : IRValue -> JE.Value
-encodeAdapter (IR.IR metadata irValue) =
+encodeAdapter (IR.IR _ irValue) =
     case irValue of
         IR.Bool b ->
             JE.object

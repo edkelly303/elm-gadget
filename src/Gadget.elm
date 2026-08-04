@@ -186,8 +186,8 @@ string =
     Gadget
         { fromInput = IR.ir << String
         , toOutput =
-            \(IR _ data) ->
-                case data of
+            \(IR _ value) ->
+                case value of
                     String s ->
                         Ok s
 
@@ -204,8 +204,8 @@ int =
     Gadget
         { fromInput = IR.ir << Int
         , toOutput =
-            \(IR _ data) ->
-                case data of
+            \(IR _ value) ->
+                case value of
                     Int i ->
                         Ok i
 
@@ -222,8 +222,8 @@ float =
     Gadget
         { fromInput = IR.ir << Float
         , toOutput =
-            \(IR _ data) ->
-                case data of
+            \(IR _ value) ->
+                case value of
                     Float s ->
                         Ok s
 
@@ -248,8 +248,8 @@ list (Gadget item) =
     Gadget
         { fromInput = \items -> IR.ir <| List (List.map item.fromInput items)
         , toOutput =
-            \(IR _ data) ->
-                case data of
+            \(IR _ value) ->
+                case value of
                     List items ->
                         List.map item.toOutput items
                             |> Result.Extra.combine
@@ -428,8 +428,8 @@ variant0 ctor (CustomGadgetBuilder prev) =
         { match = prev.match <| IR.ir <| Custom prev.index Variant0
         , index = prev.index + 1
         , fromIR =
-            \((IR _ data) as ir) ->
-                case data of
+            \((IR _ value) as ir) ->
+                case value of
                     Custom selected Variant0 ->
                         if selected == prev.index then
                             Ok ctor
@@ -457,8 +457,8 @@ variant1 ctor (Gadget argfns) (CustomGadgetBuilder prev) =
         { match = prev.match <| \arg -> IR.ir <| Custom prev.index (Variant1 (argfns.fromInput arg))
         , index = prev.index + 1
         , fromIR =
-            \((IR _ data) as ir) ->
-                case data of
+            \((IR _ value) as ir) ->
+                case value of
                     Custom selected (Variant1 arg) ->
                         if selected == prev.index then
                             Result.map ctor (argfns.toOutput arg)
@@ -487,8 +487,8 @@ variant2 ctor (Gadget arg1fns) (Gadget arg2fns) (CustomGadgetBuilder prev) =
         { match = prev.match <| \arg1 arg2 -> IR.ir <| Custom prev.index (Variant2 (arg1fns.fromInput arg1) (arg2fns.fromInput arg2))
         , index = prev.index + 1
         , fromIR =
-            \((IR _ data) as ir) ->
-                case data of
+            \((IR _ value) as ir) ->
+                case value of
                     Custom selected (Variant2 arg1 arg2) ->
                         if selected == prev.index then
                             Result.map2 ctor (arg1fns.toOutput arg1) (arg2fns.toOutput arg2)
@@ -527,8 +527,8 @@ variant3 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (CustomGadgetBu
                             )
         , index = prev.index + 1
         , fromIR =
-            \((IR _ data) as ir) ->
-                case data of
+            \((IR _ value) as ir) ->
+                case value of
                     Custom selected (Variant3 arg1 arg2 arg3) ->
                         if selected == prev.index then
                             Result.map3 ctor
@@ -575,8 +575,8 @@ variant4 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget arg4fns
                             )
         , index = prev.index + 1
         , fromIR =
-            \((IR _ data) as ir) ->
-                case data of
+            \((IR _ value) as ir) ->
+                case value of
                     Custom selected (Variant4 arg1 arg2 arg3 arg4) ->
                         if selected == prev.index then
                             Result.map4 ctor
@@ -627,8 +627,8 @@ variant5 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget arg4fns
                             )
         , index = prev.index + 1
         , fromIR =
-            \((IR _ data) as ir) ->
-                case data of
+            \((IR _ value) as ir) ->
+                case value of
                     Custom selected (Variant5 arg1 arg2 arg3 arg4 arg5) ->
                         if selected == prev.index then
                             Result.map5 ctor
@@ -732,8 +732,8 @@ endRecord (RecordGadgetBuilder builder) =
             \input ->
                 IR.ir <| Product (List.reverse (builder.fromInput input))
         , toOutput =
-            \((IR _ data) as ir) ->
-                case data of
+            \(IR _ value) ->
+                case value of
                     Product fields ->
                         builder.toOutput (List.reverse fields)
 

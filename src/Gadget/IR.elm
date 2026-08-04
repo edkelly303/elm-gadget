@@ -1,9 +1,8 @@
 module Gadget.IR exposing
     ( Gadget(..)
     , fromInput, irType, toOutput, Error
-    , IR(..), Variant(..), Type(..), VariantType(..)
+    , IR(..), ir, Value(..), Variant(..), Type(..), VariantType(..)
     , Metadata, MetadataTools, makeMetadataTools
-    , Value(..), ir
     )
 
 {-| Tools for creating adapters for Gadgets.
@@ -19,7 +18,7 @@ various `Gadget.Adapter` modules in this package:
 
 @docs fromInput, irType, toOutput, Error
 
-@docs IR, Data, Variant, Type, VariantType
+@docs IR, ir, Value, Variant, Type, VariantType
 
 @docs Metadata, MetadataTools, makeMetadataTools
 
@@ -52,6 +51,8 @@ type IR a
     = IR Metadata a
 
 
+{-| TODO docs
+-}
 type Value
     = Bool Bool
     | Char Char
@@ -149,10 +150,6 @@ type alias MetadataTools a =
 makeMetadataTools : String -> MetadataTools a
 makeMetadataTools adapterId =
     let
-        new key value =
-            Dict.singleton adapterId (Dict.singleton key value)
-                |> Metadata
-
         insert key value (Metadata m) =
             Dict.update adapterId
                 (\maybe ->
