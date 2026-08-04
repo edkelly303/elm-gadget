@@ -65,12 +65,12 @@ htmlAdapter irValue =
                     |> meta.dump
                     |> List.map
                         (\( adapterId, kvs ) ->
-                            H.span []
+                            H.li []
                                 [ H.text (adapterId ++ ": ")
-                                , H.ul [] (List.map (\( k, v ) -> H.li [] [ H.text k, htmlAdapter v ]) kvs)
+                                , H.ol [] (List.map (\( k, v ) -> H.li [] [ H.text k, htmlAdapter v ]) kvs)
                                 ]
                         )
-                    |> H.div []
+                    |> H.ol []
                 )
                 (htmlAdapter inner)
 
@@ -241,7 +241,6 @@ combinator typeName typeInfo items =
                 [ H.strong [] [ H.text typeName ]
                 , H.text (" " ++ typeInfo)
                 ]
-            , H.ol
-                []
+            , H.ol []
                 (List.map (\item -> H.li [] [ htmlAdapter item ]) items)
             ]
