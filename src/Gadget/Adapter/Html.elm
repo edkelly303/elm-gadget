@@ -65,20 +65,32 @@ view gadget value =
 
 htmlAdapter : IRValue -> H.Html msg
 htmlAdapter (IR.IR metadata irValue) =
-    withMetadata
-        (metadata
-            |> meta.export
-            |> List.map
-                (\( adapterId, kvs ) ->
-                    H.li []
-                        [ H.text (adapterId ++ ": ")
-                        , H.ol [] (List.map (\( k, v ) -> H.li [] [ H.text k, htmlAdapterHelper v ]) kvs)
+    let
+        dataHtml =
+            htmlAdapterHelper irValue
+    in
+    case meta.export metadata of
+        [] ->
+            dataHtml
+
+        items ->
+            H.dl []
+                [ H.div [ HA.class "with-metadata" ]
+                    [ H.dt []
+                        [ H.em [] [ H.text "Metadata" ]
+                        , items
+                            |> List.map
+                                (\( adapterId, kvs ) ->
+                                    H.li []
+                                        [ H.text (adapterId ++ ": ")
+                                        , H.ol [] (List.map (\( k, v ) -> H.li [] [ H.text k, htmlAdapterHelper v ]) kvs)
+                                        ]
+                                )
+                            |> H.ol []
                         ]
-                )
-            |> H.ol []
-        )
-    <|
-        htmlAdapterHelper irValue
+                    , H.dd [] [ dataHtml ]
+                    ]
+                ]
 
 
 htmlAdapterHelper : IR.Value -> H.Html msg
@@ -205,22 +217,6 @@ primitive quoteHtml valueWrapper typeName value =
         [ H.div [ HA.class "primitive", HA.class typeName ]
             [ H.dt [] [ H.em [] [ H.text typeName ] ]
             , H.dd [] [ H.span [] [ quoteHtml, valueWrapper value, quoteHtml ] ]
-            ]
-        ]
-
-
-withMetadata : H.Html msg -> H.Html msg -> H.Html msg
-withMetadata metadataHtml valueHtml =
-    H.dl []
-        [ H.div [ HA.class "with-metadata" ]
-            [ H.dt []
-                [ H.em [] [ H.text "Metadata" ]
-                , metadataHtml
-                ]
-            , H.dd []
-                [ H.strong [] [ H.text "Value" ]
-                , valueHtml
-                ]
             ]
         ]
 
