@@ -31,7 +31,6 @@ Use a Gadget to create a `Fuzz.Fuzzer` for use with functions from the
 import Dict
 import Fuzz
 import Gadget.IR as IR
-import Maybe.Extra
 
 
 meta : IR.MetadataTools a

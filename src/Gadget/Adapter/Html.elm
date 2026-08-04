@@ -22,7 +22,6 @@ Use a Gadget to render an Elm value as HTML.
 
 -}
 
-import Dict
 import Gadget.IR as IR
 import Html as H
 import Html.Attributes as HA

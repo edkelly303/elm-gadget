@@ -21,7 +21,7 @@ representation.
 
 If anyone would like to contribute an example of a proper parser/pretty-printer,
 I would be happy to add it to this package. I think it is probably possible with
-judicious (ab)use of [`Gadget.IR.withMetadata`](Gadget-IR#withMetadata).
+judicious (ab)use of [`Gadget.IR.Metadata`](Gadget-IR#Metadata).
 
 
 ## API
@@ -30,7 +30,6 @@ judicious (ab)use of [`Gadget.IR.withMetadata`](Gadget-IR#withMetadata).
 
 -}
 
-import Dict
 import Gadget.IR as IR
 import Parser as P exposing ((|.), (|=), Parser)
 
@@ -72,7 +71,7 @@ combinator typeTag typeInfo items =
 printAdapter : IR.IR -> String
 printAdapter irValue =
     case irValue of
-        IR.WithMetadata metadata inner ->
+        IR.WithMetadata _ inner ->
             printAdapter inner
 
         IR.Bool b ->

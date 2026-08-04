@@ -28,11 +28,6 @@ import Json.Decode as JD
 import Json.Encode as JE
 
 
-meta : IR.MetadataTools a
-meta =
-    IR.makeMetadataTools "json"
-
-
 {-| Convert an Elm value into a `Json.Encode.Value`.
 
     import Gadget
@@ -98,7 +93,7 @@ decoder gadget =
 encodeAdapter : IR.IR -> JE.Value
 encodeAdapter irValue =
     case irValue of
-        IR.WithMetadata metadata innerValue ->
+        IR.WithMetadata _ innerValue ->
             encodeAdapter innerValue
 
         IR.Bool b ->
