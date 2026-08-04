@@ -1,4 +1,4 @@
-module Gadget.Adapter.Random exposing (generator, generatorWithOverrides, Override, label, override, limit)
+module Gadget.Adapter.Random exposing (generator, generatorWithOverrides, Override, label, override, intRange)
 
 {-|
 
@@ -19,11 +19,12 @@ Use a Gadget to create a `Random.Generator` for use with functions from the
 
 ## API
 
-@docs generator, generatorWithOverrides, Override, label, override, limit
+@docs generator, generatorWithOverrides, Override, label, override, range
 
 -}
 
 import Dict
+import Gadget
 import Gadget.IR as IR
 import Random
 import Random.Char
@@ -96,8 +97,8 @@ override label_ gadget inputGenerator =
 {-| Limit the output of a `Random.Generator Int` by setting minimum and maximum
 values for the generator.
 -}
-limit : Int -> Int -> IR.Gadget Int -> IR.Gadget Int
-limit lo hi g =
+intRange : Int -> Int -> IR.Gadget Int -> IR.Gadget Int
+intRange lo hi g =
     g
         |> meta.attach "int_lo" (IR.Int lo)
         |> meta.attach "int_hi" (IR.Int hi)

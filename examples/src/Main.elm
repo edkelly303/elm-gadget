@@ -73,7 +73,7 @@ petGadget =
             )
             (Gadget.int
                 |> Gadget.Adapter.Fuzz.label "model"
-                |> Gadget.Adapter.Random.limit 1000 5000
+                |> Gadget.Adapter.Random.intRange 1000 5000
             )
         |> Gadget.endCustom
 
