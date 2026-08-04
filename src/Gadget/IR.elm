@@ -1,8 +1,9 @@
 module Gadget.IR exposing
     ( Gadget(..)
     , fromInput, irType, toOutput, Error
-    , IR(..), Variant(..), IRType(..), VariantType(..)
+    , IR(..), Variant(..), Type(..), VariantType(..)
     , Metadata, MetadataTools, makeMetadataTools
+    , Value(..), ir
     )
 
 {-| Tools for creating adapters for Gadgets.
@@ -18,7 +19,7 @@ various `Gadget.Adapter` modules in this package:
 
 @docs fromInput, irType, toOutput, Error
 
-@docs IR, Variant, IRType, VariantType
+@docs IR, Data, Variant, Type, VariantType
 
 @docs Metadata, MetadataTools, makeMetadataTools
 
@@ -32,9 +33,9 @@ with an appropriate Gadget to convert values to and from the `IR` type.
 -}
 type Gadget a
     = Gadget
-        { fromInput : a -> IR
-        , toOutput : IR -> Result Error a
-        , irType : IRType
+        { fromInput : a -> IR Value
+        , toOutput : IR Value -> Result Error a
+        , irType : IR Type
         }
 
 
@@ -47,65 +48,67 @@ type alias Error =
 {-| `IR` values are variants of this type. All Elm values (as long as they don't
 contain functions) should be able to be encoded as a value of this type.
 -}
-type IR
+type IR a
+    = IR Metadata a
+
+
+type Value
     = Bool Bool
     | Char Char
     | String String
     | Int Int
     | Float Float
     | Custom Int Variant
-    | Product (List IR)
-    | List (List IR)
-    | WithMetadata Metadata IR
+    | Product (List (IR Value))
+    | List (List (IR Value))
 
 
 {-| A type used by the `Custom` constructor of the `IR` type.
 -}
 type Variant
     = Variant0
-    | Variant1 IR
-    | Variant2 IR IR
-    | Variant3 IR IR IR
-    | Variant4 IR IR IR IR
-    | Variant5 IR IR IR IR IR
+    | Variant1 (IR Value)
+    | Variant2 (IR Value) (IR Value)
+    | Variant3 (IR Value) (IR Value) (IR Value)
+    | Variant4 (IR Value) (IR Value) (IR Value) (IR Value)
+    | Variant5 (IR Value) (IR Value) (IR Value) (IR Value) (IR Value)
 
 
-{-| Any IR value will have a "type" that is a variant of `IRType`.
+{-| Any IR value will have a "type" that is a variant of `IR Type`.
 -}
-type IRType
+type Type
     = BoolType
     | CharType
     | StringType
     | IntType
     | FloatType
     | CustomType VariantType (List VariantType)
-    | ProductType (List IRType)
-    | ListType IRType
-    | WithMetadataType Metadata IRType
-    | LazyType (() -> IRType)
+    | ProductType (List (IR Type))
+    | ListType (IR Type)
+    | LazyType (() -> IR Type)
 
 
-{-| A type used by the `Custom` constructor of the `IRType` type.
+{-| A type used by the `Custom` constructor of the `IR Type` type.
 -}
 type VariantType
     = Variant0Type
-    | Variant1Type IRType
-    | Variant2Type IRType IRType
-    | Variant3Type IRType IRType IRType
-    | Variant4Type IRType IRType IRType IRType
-    | Variant5Type IRType IRType IRType IRType IRType
+    | Variant1Type (IR Type)
+    | Variant2Type (IR Type) (IR Type)
+    | Variant3Type (IR Type) (IR Type) (IR Type)
+    | Variant4Type (IR Type) (IR Type) (IR Type) (IR Type)
+    | Variant5Type (IR Type) (IR Type) (IR Type) (IR Type) (IR Type)
 
 
 {-| Use an appropriate Gadget to convert an Elm value into an `IR` value.
 -}
-fromInput : Gadget a -> a -> IR
+fromInput : Gadget a -> a -> IR Value
 fromInput (Gadget c) input =
     c.fromInput input
 
 
-{-| Use an appropriate Gadget to extract the `IRType` of an Elm value.
+{-| Use an appropriate Gadget to extract the `IR Type` of an Elm value.
 -}
-irType : Gadget a -> IRType
+irType : Gadget a -> IR Type
 irType (Gadget c) =
     c.irType
 
@@ -113,25 +116,31 @@ irType (Gadget c) =
 {-| Use an appropriate Gadget to attempt to convert an `IR` value into an Elm
 value.
 -}
-toOutput : Gadget a -> IR -> Result Error a
+toOutput : Gadget a -> IR Value -> Result Error a
 toOutput (Gadget c) a =
     c.toOutput a
 
 
-{-| A type used to carry metadata for IR values
+{-| A type used to carry metadata for `IR` nodes
 -}
 type Metadata
-    = Metadata (Dict String (Dict String IR))
+    = Metadata (Dict String (Dict String Value))
 
 
-{-| Tools for work with `Metadata` attached to the `IR` and `IRType` produced by
-a Gadget.
+{-| A helper for making new `IR` nodes
+-}
+ir : a -> IR a
+ir =
+    IR (Metadata Dict.empty)
+
+
+{-| Tools for working with `Metadata` attached to the `IR` produced by a Gadget.
 -}
 type alias MetadataTools a =
-    { attach : String -> IR -> Gadget a -> Gadget a
-    , get : String -> Metadata -> Maybe IR
+    { attach : String -> Value -> Gadget a -> Gadget a
+    , get : String -> Metadata -> Maybe Value
     , member : String -> Metadata -> Bool
-    , export : Metadata -> List ( String, List ( String, IR ) )
+    , export : Metadata -> List ( String, List ( String, Value ) )
     }
 
 
@@ -161,27 +170,20 @@ makeMetadataTools adapterId =
             Gadget
                 { fromInput =
                     \input ->
-                        case c.fromInput input of
-                            WithMetadata metadata inner ->
-                                WithMetadata (insert key value metadata) inner
-
-                            other ->
-                                WithMetadata (new key value) other
+                        let
+                            (IR metadata inner) =
+                                c.fromInput input
+                        in
+                        IR (insert key value metadata) inner
                 , toOutput =
-                    \ir ->
-                        case ir of
-                            WithMetadata _ innerIR ->
-                                c.toOutput innerIR
-
-                            _ ->
-                                c.toOutput ir
+                    \ir_ ->
+                        c.toOutput ir_
                 , irType =
-                    case c.irType of
-                        WithMetadataType metadata inner ->
-                            WithMetadataType (insert key value metadata) inner
-
-                        other ->
-                            WithMetadataType (new key value) other
+                    let
+                        (IR metadata inner) =
+                            c.irType
+                    in
+                    IR (insert key value metadata) inner
                 }
 
         get key (Metadata m) =

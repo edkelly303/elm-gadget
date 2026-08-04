@@ -34,6 +34,14 @@ import Gadget.IR as IR
 import Parser as P exposing ((|.), (|=), Parser)
 
 
+type alias IRValue =
+    IR.IR IR.Value
+
+
+type alias IRType =
+    IR.IR IR.Type
+
+
 {-| Convert an Elm value into a String.
 
     import Gadget
@@ -59,7 +67,7 @@ primitive typeTag typeInfo =
     typeTag ++ "(" ++ typeInfo ++ ")"
 
 
-combinator : String -> String -> List IR.IR -> String
+combinator : String -> String -> List IRValue -> String
 combinator typeTag typeInfo items =
     typeTag
         ++ typeInfo
@@ -68,12 +76,9 @@ combinator typeTag typeInfo items =
         ++ "]"
 
 
-printAdapter : IR.IR -> String
-printAdapter irValue =
+printAdapter : IRValue -> String
+printAdapter (IR.IR _ irValue) =
     case irValue of
-        IR.WithMetadata _ inner ->
-            printAdapter inner
-
         IR.Bool b ->
             primitive "b"
                 (if b then
@@ -166,6 +171,7 @@ into an Elm value.
 parser : IR.Gadget a -> Parser a
 parser gadget =
     irParser
+        |> P.map IR.ir
         |> P.andThen
             (\ir ->
                 case IR.toOutput gadget ir of
@@ -177,7 +183,7 @@ parser gadget =
             )
 
 
-irParser : Parser IR.IR
+irParser : Parser IR.Value
 irParser =
     P.oneOf
         [ boolParser |> P.map IR.Bool
@@ -206,11 +212,11 @@ intParser =
     primitiveParser "i" rawIntParser
 
 
-listParser : Parser IR.IR
+listParser : Parser IR.Value
 listParser =
     P.sequence
         { start = "l["
-        , item = P.lazy (\() -> irParser)
+        , item = P.lazy (\() -> irParser) |> P.map IR.ir
         , end = "]"
         , separator = ","
         , spaces = P.spaces
@@ -219,11 +225,11 @@ listParser =
         |> P.map IR.List
 
 
-productParser : Parser IR.IR
+productParser : Parser IR.Value
 productParser =
     P.sequence
         { start = "p["
-        , item = P.lazy (\() -> irParser)
+        , item = P.lazy (\() -> irParser) |> P.map IR.ir
         , end = "]"
         , separator = ","
         , spaces = P.spaces
@@ -232,14 +238,14 @@ productParser =
         |> P.map IR.Product
 
 
-customParser : Parser IR.IR
+customParser : Parser IR.Value
 customParser =
     P.succeed IR.Custom
         |. P.token "u"
         |= P.int
         |= (P.sequence
                 { start = "["
-                , item = P.lazy (\() -> irParser)
+                , item = P.lazy (\() -> irParser) |> P.map IR.ir
                 , end = "]"
                 , separator = ","
                 , spaces = P.spaces
@@ -297,7 +303,7 @@ rawBoolParser =
             )
 
 
-charParser : Parser IR.IR
+charParser : Parser IR.Value
 charParser =
     (P.succeed identity
         |. P.token "c"

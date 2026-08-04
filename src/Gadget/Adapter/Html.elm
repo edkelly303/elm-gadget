@@ -27,6 +27,14 @@ import Html as H
 import Html.Attributes as HA
 
 
+type alias IRValue =
+    IR.IR IR.Value
+
+
+type alias IRType =
+    IR.IR IR.Type
+
+
 meta : IR.MetadataTools a
 meta =
     IR.makeMetadataTools "html"
@@ -55,24 +63,27 @@ view gadget value =
         |> H.article [ HA.class "elm-gadget" ]
 
 
-htmlAdapter : IR.IR -> H.Html msg
-htmlAdapter irValue =
-    case irValue of
-        IR.WithMetadata metadata inner ->
-            withMetadata
-                (metadata
-                    |> meta.export
-                    |> List.map
-                        (\( adapterId, kvs ) ->
-                            H.li []
-                                [ H.text (adapterId ++ ": ")
-                                , H.ol [] (List.map (\( k, v ) -> H.li [] [ H.text k, htmlAdapter v ]) kvs)
-                                ]
-                        )
-                    |> H.ol []
+htmlAdapter : IRValue -> H.Html msg
+htmlAdapter (IR.IR metadata irValue) =
+    withMetadata
+        (metadata
+            |> meta.export
+            |> List.map
+                (\( adapterId, kvs ) ->
+                    H.li []
+                        [ H.text (adapterId ++ ": ")
+                        , H.ol [] (List.map (\( k, v ) -> H.li [] [ H.text k, htmlAdapterHelper v ]) kvs)
+                        ]
                 )
-                (htmlAdapter inner)
+            |> H.ol []
+        )
+    <|
+        htmlAdapterHelper irValue
 
+
+htmlAdapterHelper : IR.Value -> H.Html msg
+htmlAdapterHelper irValue =
+    case irValue of
         IR.Bool b ->
             unquotedPrimitive "Bool"
                 (if b then
@@ -224,7 +235,7 @@ unquotedPrimitive =
     primitive (H.text "") (\value -> H.code [] [ H.text value ])
 
 
-combinator : String -> String -> List IR.IR -> H.Html msg
+combinator : String -> String -> List IRValue -> H.Html msg
 combinator typeName typeInfo items =
     if List.isEmpty items then
         H.div [ HA.class "combinator", HA.class typeName ]

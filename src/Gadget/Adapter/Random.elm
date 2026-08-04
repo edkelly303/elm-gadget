@@ -38,6 +38,14 @@ meta =
     IR.makeMetadataTools "random"
 
 
+type alias IRValue =
+    IR.IR IR.Value
+
+
+type alias IRType =
+    IR.IR IR.Type
+
+
 {-| Turn a Gadget into a `Random.Generator`.
 
     import Gadget
@@ -75,7 +83,7 @@ generator gadget =
 {-| A type used to represent overrides.
 -}
 type Override
-    = Override String (Random.Generator IR.IR)
+    = Override String (Random.Generator IRValue)
 
 
 {-| Override the default implementation of a `Random.Generator`.
@@ -163,124 +171,132 @@ generatorWithOverrides overrides gadget =
             )
 
 
-generatorWithOverridesHelp : Dict.Dict String (Random.Generator IR.IR) -> IR.Gadget a -> Random.Generator (Result IR.Error a)
+generatorWithOverridesHelp : Dict.Dict String (Random.Generator IRValue) -> IR.Gadget a -> Random.Generator (Result IR.Error a)
 generatorWithOverridesHelp overridesDict gadget =
     IR.irType gadget
         |> randomAdapter overridesDict
         |> Random.map (IR.toOutput gadget)
 
 
-randomAdapter : Dict.Dict String (Random.Generator IR.IR) -> IR.IRType -> Random.Generator IR.IR
-randomAdapter overrides irType =
-    case irType of
-        IR.LazyType constructType ->
-            randomAdapter overrides (constructType ())
+randomAdapter : Dict.Dict String (Random.Generator IRValue) -> IRType -> Random.Generator IRValue
+randomAdapter overrides (IR.IR metadata irType) =
+    case
+        overrides
+            |> Dict.foldl
+                (\key thisOverride maybePrevOverride ->
+                    case maybePrevOverride of
+                        Just prevOverride ->
+                            Just prevOverride
 
-        IR.WithMetadataType metadata innerType ->
-            overrides
-                |> Dict.foldl
-                    (\key thisOverride maybePrevOverride ->
-                        case maybePrevOverride of
-                            Just prevOverride ->
-                                Just prevOverride
+                        Nothing ->
+                            if meta.member key metadata then
+                                Just thisOverride
 
-                            Nothing ->
-                                if meta.member key metadata then
-                                    Just thisOverride
+                            else
+                                Nothing
+                )
+                Nothing
+    of
+        Just thisOverride ->
+            thisOverride
 
-                                else
-                                    Nothing
-                    )
-                    Nothing
-                |> Maybe.withDefault
-                    (case innerType of
-                        IR.IntType ->
+        Nothing ->
+            case irType of
+                IR.LazyType constructType ->
+                    randomAdapter overrides (constructType ())
+
+                IR.BoolType ->
+                    Random.uniform False [ True ]
+                        |> Random.map IR.Bool
+                        |> Random.map (IR.IR metadata)
+
+                IR.CharType ->
+                    Random.Char.basicLatin
+                        |> Random.map IR.Char
+                        |> Random.map (IR.IR metadata)
+
+                IR.StringType ->
+                    Random.String.rangeLengthString 0 10 Random.Char.basicLatin
+                        |> Random.map IR.String
+                        |> Random.map (IR.IR metadata)
+
+                IR.IntType ->
+                    Random.map (IR.IR metadata) <|
+                        Random.map IR.Int <|
                             case ( meta.get "int_lo" metadata, meta.get "int_hi" metadata ) of
                                 ( Just (IR.Int lo), Just (IR.Int hi) ) ->
-                                    Random.map IR.Int <| Random.int lo hi
+                                    Random.int lo hi
 
                                 ( Just (IR.Int lo), _ ) ->
-                                    Random.map IR.Int <| Random.int lo Random.maxInt
+                                    Random.int lo Random.maxInt
 
                                 ( _, Just (IR.Int hi) ) ->
-                                    Random.map IR.Int <| Random.int Random.maxInt hi
+                                    Random.int Random.maxInt hi
 
                                 _ ->
-                                    randomAdapter overrides innerType
+                                    Random.Int.anyInt
 
-                        _ ->
-                            randomAdapter overrides innerType
-                    )
-                |> Random.map (IR.WithMetadata metadata)
+                IR.FloatType ->
+                    Random.Float.anyFloat
+                        |> Random.map IR.Float
+                        |> Random.map (IR.IR metadata)
 
-        IR.BoolType ->
-            Random.uniform False [ True ] |> Random.map IR.Bool
+                IR.CustomType firstVariant restVariants ->
+                    let
+                        variantTypeToGenerator idx variant =
+                            case variant of
+                                IR.Variant0Type ->
+                                    Random.constant
+                                        (IR.Custom idx IR.Variant0)
 
-        IR.CharType ->
-            Random.Char.basicLatin |> Random.map IR.Char
+                                IR.Variant1Type arg ->
+                                    Random.map
+                                        (\a -> IR.Custom idx (IR.Variant1 a))
+                                        (randomAdapter overrides arg)
 
-        IR.StringType ->
-            Random.String.rangeLengthString 0 10 Random.Char.basicLatin |> Random.map IR.String
+                                IR.Variant2Type arg1 arg2 ->
+                                    Random.map2
+                                        (\a1 a2 -> IR.Custom idx (IR.Variant2 a1 a2))
+                                        (randomAdapter overrides arg1)
+                                        (randomAdapter overrides arg2)
 
-        IR.IntType ->
-            Random.Int.anyInt |> Random.map IR.Int
+                                IR.Variant3Type arg1 arg2 arg3 ->
+                                    Random.map3
+                                        (\a1 a2 a3 -> IR.Custom idx (IR.Variant3 a1 a2 a3))
+                                        (randomAdapter overrides arg1)
+                                        (randomAdapter overrides arg2)
+                                        (randomAdapter overrides arg3)
 
-        IR.FloatType ->
-            Random.Float.anyFloat |> Random.map IR.Float
+                                IR.Variant4Type arg1 arg2 arg3 arg4 ->
+                                    Random.map4
+                                        (\a1 a2 a3 a4 -> IR.Custom idx (IR.Variant4 a1 a2 a3 a4))
+                                        (randomAdapter overrides arg1)
+                                        (randomAdapter overrides arg2)
+                                        (randomAdapter overrides arg3)
+                                        (randomAdapter overrides arg4)
 
-        IR.CustomType firstVariant restVariants ->
-            let
-                variantTypeToGenerator idx variant =
-                    case variant of
-                        IR.Variant0Type ->
-                            Random.constant
-                                (IR.Custom idx IR.Variant0)
+                                IR.Variant5Type arg1 arg2 arg3 arg4 arg5 ->
+                                    Random.map5
+                                        (\a1 a2 a3 a4 a5 -> IR.Custom idx (IR.Variant5 a1 a2 a3 a4 a5))
+                                        (randomAdapter overrides arg1)
+                                        (randomAdapter overrides arg2)
+                                        (randomAdapter overrides arg3)
+                                        (randomAdapter overrides arg4)
+                                        (randomAdapter overrides arg5)
+                    in
+                    Random.Extra.choices
+                        (variantTypeToGenerator 0 firstVariant)
+                        (List.indexedMap (\idx v -> variantTypeToGenerator (idx + 1) v) restVariants)
+                        |> Random.map (IR.IR metadata)
 
-                        IR.Variant1Type arg ->
-                            Random.map
-                                (\a -> IR.Custom idx (IR.Variant1 a))
-                                (randomAdapter overrides arg)
+                IR.ProductType fields ->
+                    fields
+                        |> Random.Extra.traverse (randomAdapter overrides)
+                        |> Random.map IR.Product
+                        |> Random.map (IR.IR metadata)
 
-                        IR.Variant2Type arg1 arg2 ->
-                            Random.map2
-                                (\a1 a2 -> IR.Custom idx (IR.Variant2 a1 a2))
-                                (randomAdapter overrides arg1)
-                                (randomAdapter overrides arg2)
-
-                        IR.Variant3Type arg1 arg2 arg3 ->
-                            Random.map3
-                                (\a1 a2 a3 -> IR.Custom idx (IR.Variant3 a1 a2 a3))
-                                (randomAdapter overrides arg1)
-                                (randomAdapter overrides arg2)
-                                (randomAdapter overrides arg3)
-
-                        IR.Variant4Type arg1 arg2 arg3 arg4 ->
-                            Random.map4
-                                (\a1 a2 a3 a4 -> IR.Custom idx (IR.Variant4 a1 a2 a3 a4))
-                                (randomAdapter overrides arg1)
-                                (randomAdapter overrides arg2)
-                                (randomAdapter overrides arg3)
-                                (randomAdapter overrides arg4)
-
-                        IR.Variant5Type arg1 arg2 arg3 arg4 arg5 ->
-                            Random.map5
-                                (\a1 a2 a3 a4 a5 -> IR.Custom idx (IR.Variant5 a1 a2 a3 a4 a5))
-                                (randomAdapter overrides arg1)
-                                (randomAdapter overrides arg2)
-                                (randomAdapter overrides arg3)
-                                (randomAdapter overrides arg4)
-                                (randomAdapter overrides arg5)
-            in
-            Random.Extra.choices
-                (variantTypeToGenerator 0 firstVariant)
-                (List.indexedMap (\idx v -> variantTypeToGenerator (idx + 1) v) restVariants)
-
-        IR.ProductType fields ->
-            fields
-                |> Random.Extra.traverse (randomAdapter overrides)
-                |> Random.map IR.Product
-
-        IR.ListType itemType ->
-            Random.int 0 10
-                |> Random.andThen (\int -> Random.list int (randomAdapter overrides itemType))
-                |> Random.map IR.List
+                IR.ListType itemType ->
+                    Random.int 0 10
+                        |> Random.andThen (\int -> Random.list int (randomAdapter overrides itemType))
+                        |> Random.map IR.List
+                        |> Random.map (IR.IR metadata)
