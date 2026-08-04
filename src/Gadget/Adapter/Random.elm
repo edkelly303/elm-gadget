@@ -19,7 +19,7 @@ Use a Gadget to create a `Random.Generator` for use with functions from the
 
 ## API
 
-@docs generator, generatorWithOverrides, Override, label, override, range
+@docs generator, generatorWithOverrides, Override, label, override, intRange
 
 -}
 
