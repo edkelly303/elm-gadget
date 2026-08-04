@@ -4,7 +4,6 @@ import Expect
 import Gadget
 import Gadget.Adapter.Fuzz
 import Gadget.Adapter.String
-import Gadget.IR
 import Parser
 import Test exposing (..)
 import TestHelpers exposing (..)
@@ -18,7 +17,7 @@ diffTests =
         , roundTrip Gadget.int "Int"
         , roundTrip Gadget.float "Float"
         , roundTrip Gadget.char "Char"
-        , roundTrip (Gadget.string |> Gadget.IR.withMetadata "String" (Gadget.IR.String "")) "String"
+        , roundTrip (Gadget.string |> Gadget.Adapter.Fuzz.label "String") "String"
         , roundTrip (Gadget.list Gadget.bool) "List Bool"
         ]
 

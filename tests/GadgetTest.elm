@@ -17,7 +17,7 @@ irTests =
         , roundTrip Gadget.int "Int"
         , roundTrip Gadget.float "Float"
         , roundTrip Gadget.char "Char"
-        , roundTrip (Gadget.string |> Gadget.IR.withMetadata "fuzz-override" (Gadget.IR.String "")) "String"
+        , roundTrip (Gadget.string |> Gadget.Adapter.Fuzz.label "override") "String"
         , roundTrip (Gadget.list Gadget.bool) "List Bool"
         ]
 
@@ -26,7 +26,7 @@ roundTrip : Gadget.Gadget input -> String -> Test
 roundTrip gadget name =
     fuzz
         (Gadget.Adapter.Fuzz.fuzzerWithOverrides
-            [ Gadget.Adapter.Fuzz.override "fuzz-override" Gadget.string (Fuzz.stringOfLengthBetween 0 6)
+            [ Gadget.Adapter.Fuzz.override "override" Gadget.string (Fuzz.stringOfLengthBetween 0 6)
             ]
             gadget
         )

@@ -20,7 +20,7 @@ various `Gadget.Adapter` modules in this package:
 
 @docs IR, Variant, IRType, VariantType
 
-@docs Metadata, withMetadata, MetadataTools, makeMetadataTools
+@docs Metadata, MetadataTools, makeMetadataTools
 
 -}
 
@@ -60,6 +60,8 @@ type IR
     | WithMetadata Metadata IR
 
 
+{-| A type used to carry metadata for IR values
+-}
 type Metadata
     = Metadata (Dict String (Dict String IR))
 
@@ -167,6 +169,8 @@ type alias MetadataTools a =
     }
 
 
+{-| Make some tools for storing and accessing `Metadata` for a specific adapter.
+-}
 makeMetadataTools : String -> MetadataTools a
 makeMetadataTools adapterId =
     let

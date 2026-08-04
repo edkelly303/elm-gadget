@@ -147,7 +147,7 @@ generatorWithOverrides overrides gadget =
     let
         overridesDict =
             overrides
-                |> List.map (\(Override label_ generator_) -> ( label_, generator_ ))
+                |> List.map (\(Override key generator_) -> ( key, generator_ ))
                 |> Dict.fromList
     in
     generatorWithOverridesHelp overridesDict gadget
