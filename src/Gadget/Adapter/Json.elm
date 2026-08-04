@@ -28,6 +28,11 @@ import Json.Decode as JD
 import Json.Encode as JE
 
 
+meta : IR.MetadataTools a
+meta =
+    IR.makeMetadataTools "json"
+
+
 {-| Convert an Elm value into a `Json.Encode.Value`.
 
     import Gadget
@@ -93,15 +98,8 @@ decoder gadget =
 encodeAdapter : IR.IR -> JE.Value
 encodeAdapter irValue =
     case irValue of
-        IR.WithMetadata labels innerValue ->
-            JE.object
-                [ ( "labelled"
-                  , JE.object
-                        [ ( "labels", JE.dict identity encodeAdapter labels )
-                        , ( "value", encodeAdapter innerValue )
-                        ]
-                  )
-                ]
+        IR.WithMetadata metadata innerValue ->
+            encodeAdapter innerValue
 
         IR.Bool b ->
             JE.object
@@ -186,12 +184,7 @@ encodeAdapter irValue =
 decodeAdapter : JD.Decoder IR.IR
 decodeAdapter =
     JD.oneOf
-        [ JD.field "labelled"
-            (JD.map2 (\labels value -> IR.WithMetadata labels value)
-                (JD.field "labels" (JD.dict (JD.lazy (\() -> decodeAdapter))))
-                (JD.field "value" (JD.lazy (\() -> decodeAdapter)))
-            )
-        , JD.field "bool" JD.bool |> JD.map IR.Bool
+        [ JD.field "bool" JD.bool |> JD.map IR.Bool
         , JD.field "char" JD.string
             |> JD.andThen
                 (\s ->

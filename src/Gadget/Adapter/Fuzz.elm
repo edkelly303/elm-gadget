@@ -31,6 +31,12 @@ Use a Gadget to create a `Fuzz.Fuzzer` for use with functions from the
 import Dict
 import Fuzz
 import Gadget.IR as IR
+import Maybe.Extra
+
+
+meta : IR.MetadataTools a
+meta =
+    IR.makeMetadataTools "fuzzer"
 
 
 {-| Turn a Gadget into a `Fuzz.Fuzzer`.
@@ -132,7 +138,7 @@ type Override
 -}
 label : String -> IR.Gadget a -> IR.Gadget a
 label l =
-    IR.withMetadata l (IR.String "")
+    meta.attach l (IR.String "")
 
 
 {-| Override the default implementation of a `Fuzz.Fuzzer`.
@@ -148,20 +154,24 @@ fuzzAdapter overrides irType =
         IR.LazyType construct ->
             Fuzz.lazy (\() -> fuzzAdapter overrides (construct ()))
 
-        IR.WithMetadataType labels innerType ->
-            labels
+        IR.WithMetadataType metadata innerType ->
+            overrides
                 |> Dict.foldl
-                    (\label_ _ maybe ->
-                        case maybe of
-                            Nothing ->
-                                Dict.get label_ overrides
+                    (\key thisOverride maybePrevOverride ->
+                        case maybePrevOverride of
+                            Just prevOverride ->
+                                Just prevOverride
 
-                            _ ->
-                                maybe
+                            Nothing ->
+                                if meta.member key metadata then
+                                    Just thisOverride
+
+                                else
+                                    Nothing
                     )
                     Nothing
                 |> Maybe.withDefault (fuzzAdapter overrides innerType)
-                |> Fuzz.map (IR.WithMetadata labels)
+                |> Fuzz.map (IR.WithMetadata metadata)
 
         IR.BoolType ->
             Fuzz.bool |> Fuzz.map IR.Bool

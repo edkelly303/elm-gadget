@@ -25,6 +25,7 @@ various `Gadget.Adapter` modules in this package:
 -}
 
 import Dict exposing (Dict)
+import Maybe.Extra
 
 
 {-| The core type of this package. Use the functions in this module together
@@ -161,33 +162,32 @@ generates.
 type alias MetadataTools a =
     { attach : String -> IR -> Gadget a -> Gadget a
     , get : String -> Metadata -> Maybe IR
+    , member : String -> Metadata -> Bool
+    , dump : Metadata -> List ( String, List ( String, IR ) )
     }
 
 
 makeMetadataTools : String -> MetadataTools a
 makeMetadataTools adapterId =
     let
-        new =
-            \key value ->
-                Dict.singleton adapterId (Dict.singleton key value)
-                    |> Metadata
+        new key value =
+            Dict.singleton adapterId (Dict.singleton key value)
+                |> Metadata
 
-        insert =
-            \key value (Metadata m) ->
-                Dict.update adapterId
-                    (\maybe ->
-                        case maybe of
-                            Just adapterDict ->
-                                Just (Dict.insert key value adapterDict)
+        insert key value (Metadata m) =
+            Dict.update adapterId
+                (\maybe ->
+                    case maybe of
+                        Just adapterDict ->
+                            Just (Dict.insert key value adapterDict)
 
-                            Nothing ->
-                                Just (Dict.singleton key value)
-                    )
-                    m
-                    |> Metadata
-    in
-    { attach =
-        \key value (Gadget c) ->
+                        Nothing ->
+                            Just (Dict.singleton key value)
+                )
+                m
+                |> Metadata
+
+        attach key value (Gadget c) =
             Gadget
                 { fromInput =
                     \input ->
@@ -213,9 +213,21 @@ makeMetadataTools adapterId =
                         other ->
                             WithMetadataType (new key value) other
                 }
-    , get =
-        \key (Metadata m) ->
+
+        get key (Metadata m) =
             m
                 |> Dict.get adapterId
                 |> Maybe.andThen (Dict.get key)
+
+        member key metadata =
+            get key metadata /= Nothing
+
+        dump (Metadata m) =
+            Dict.map (\k v -> Dict.toList v) m
+                |> Dict.toList
+    in
+    { attach = attach
+    , get = get
+    , member = member
+    , dump = dump
     }

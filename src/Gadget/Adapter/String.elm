@@ -56,14 +56,14 @@ print gadget value =
 
 
 primitive : String -> String -> String
-primitive label value =
-    label ++ "(" ++ value ++ ")"
+primitive typeTag typeInfo =
+    typeTag ++ "(" ++ typeInfo ++ ")"
 
 
 combinator : String -> String -> List IR.IR -> String
-combinator label meta items =
-    label
-        ++ meta
+combinator typeTag typeInfo items =
+    typeTag
+        ++ typeInfo
         ++ "["
         ++ String.join "," (List.map printAdapter items)
         ++ "]"
@@ -72,8 +72,8 @@ combinator label meta items =
 printAdapter : IR.IR -> String
 printAdapter irValue =
     case irValue of
-        IR.WithMetadata labels inner ->
-            "x[" ++ printLabels labels ++ "]" ++ printAdapter inner
+        IR.WithMetadata metadata inner ->
+            printAdapter inner
 
         IR.Bool b ->
             primitive "b"
@@ -150,16 +150,6 @@ printAdapter irValue =
                 items
 
 
-printLabels : Dict.Dict String IR.IR -> String
-printLabels labels =
-    Dict.toList labels
-        |> List.map
-            (\( l, m ) ->
-                printAdapter (IR.String l)
-                    ++ ":"
-                    ++ printAdapter m
-            )
-        |> String.join ","
 
 
 {-| Create a Parser that will attempt to convert a String created by `print`
@@ -196,7 +186,6 @@ irParser =
         [ boolParser |> P.map IR.Bool
         , intParser |> P.map IR.Int
         , floatParser |> P.map IR.Float
-        , labelledParser
         , charParser
         , stringParser |> P.map IR.String
         , listParser
@@ -425,26 +414,6 @@ floatParserHelp =
                             P.problem "Not a Float"
             )
 
-
-labelledParser : Parser IR.IR
-labelledParser =
-    P.succeed IR.WithMetadata
-        |. P.token "x"
-        |= (P.sequence
-                { start = "["
-                , end = "]"
-                , item =
-                    P.succeed Tuple.pair
-                        |= stringParser
-                        |. P.token ":"
-                        |= P.lazy (\() -> irParser)
-                , separator = ","
-                , spaces = P.spaces
-                , trailing = P.Forbidden
-                }
-                |> P.map Dict.fromList
-           )
-        |= P.lazy (\() -> irParser)
 
 
 {-| The original version of this function comes from

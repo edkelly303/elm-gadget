@@ -33,6 +33,11 @@ import Random.Int
 import Random.String
 
 
+meta : IR.MetadataTools a
+meta =
+    IR.makeMetadataTools "random"
+
+
 {-| Turn a Gadget into a `Random.Generator`.
 
     import Gadget
@@ -86,15 +91,15 @@ values for the generator.
 limit : Int -> Int -> IR.Gadget Int -> IR.Gadget Int
 limit lo hi g =
     g
-        |> IR.withMetadata "random_int_lo" (IR.Int lo)
-        |> IR.withMetadata "random_int_hi" (IR.Int hi)
+        |> meta.attach "int_lo" (IR.Int lo)
+        |> meta.attach "int_hi" (IR.Int hi)
 
 
 {-| Add a label to a `Gadget` so that it can be overridden.
 -}
 label : String -> IR.Gadget a -> IR.Gadget a
 label l =
-    IR.withMetadata l (IR.String "")
+    meta.attach l (IR.String "")
 
 
 {-| Turn a Gadget into a `Random.Generator`, but override some of the default
@@ -171,22 +176,26 @@ randomAdapter overrides irType =
         IR.LazyType constructType ->
             randomAdapter overrides (constructType ())
 
-        IR.WithMetadataType labels innerType ->
-            labels
+        IR.WithMetadataType metadata innerType ->
+            overrides
                 |> Dict.foldl
-                    (\label_ _ maybe ->
-                        case maybe of
-                            Nothing ->
-                                Dict.get label_ overrides
+                    (\key thisOverride maybePrevOverride ->
+                        case maybePrevOverride of
+                            Just prevOverride ->
+                                Just prevOverride
 
-                            Just override_ ->
-                                Just override_
+                            Nothing ->
+                                if meta.member key metadata then
+                                    Just thisOverride
+
+                                else
+                                    Nothing
                     )
                     Nothing
                 |> Maybe.withDefault
                     (case innerType of
                         IR.IntType ->
-                            case ( Dict.get "random_int_lo" labels, Dict.get "random_int_hi" labels ) of
+                            case ( meta.get "int_lo" metadata, meta.get "int_hi" metadata ) of
                                 ( Just (IR.Int lo), Just (IR.Int hi) ) ->
                                     Random.map IR.Int <| Random.int lo hi
 
@@ -202,7 +211,7 @@ randomAdapter overrides irType =
                         _ ->
                             randomAdapter overrides innerType
                     )
-                |> Random.map (IR.WithMetadata labels)
+                |> Random.map (IR.WithMetadata metadata)
 
         IR.BoolType ->
             Random.uniform False [ True ] |> Random.map IR.Bool

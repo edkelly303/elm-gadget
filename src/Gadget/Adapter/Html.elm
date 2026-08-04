@@ -28,6 +28,11 @@ import Html as H
 import Html.Attributes as HA
 
 
+meta : IR.MetadataTools a
+meta =
+    IR.makeMetadataTools "html"
+
+
 {-| Convert a value into an `Html msg`.
 
     import Gadget
@@ -54,15 +59,15 @@ view gadget value =
 htmlAdapter : IR.IR -> H.Html msg
 htmlAdapter irValue =
     case irValue of
-        IR.WithMetadata labels inner ->
-            labelled
-                (labels
-                    |> Dict.toList
+        IR.WithMetadata metadata inner ->
+            withMetadata
+                (metadata
+                    |> meta.dump
                     |> List.map
-                        (\( l, m ) ->
+                        (\( adapterId, kvs ) ->
                             H.span []
-                                [ H.text (l ++ ": ")
-                                , htmlAdapter m
+                                [ H.text (adapterId ++ ": ")
+                                , H.ul [] (List.map (\( k, v ) -> H.li [] [ H.text k, htmlAdapter v ]) kvs)
                                 ]
                         )
                     |> H.div []
@@ -194,15 +199,18 @@ primitive quoteHtml valueWrapper typeName value =
         ]
 
 
-labelled : H.Html msg -> H.Html msg -> H.Html msg
-labelled label inner =
+withMetadata : H.Html msg -> H.Html msg -> H.Html msg
+withMetadata metadataHtml valueHtml =
     H.dl []
-        [ H.div [ HA.class "labelled" ]
+        [ H.div [ HA.class "with-metadata" ]
             [ H.dt []
-                [ H.em [] [ H.text "Label" ]
-                , label
+                [ H.em [] [ H.text "Metadata" ]
+                , metadataHtml
                 ]
-            , H.dd [] [ inner ]
+            , H.dd []
+                [ H.strong [] [ H.text "Value" ]
+                , valueHtml
+                ]
             ]
         ]
 
@@ -218,12 +226,12 @@ unquotedPrimitive =
 
 
 combinator : String -> String -> List IR.IR -> H.Html msg
-combinator typeName meta items =
+combinator typeName typeInfo items =
     if List.isEmpty items then
         H.div [ HA.class "combinator", HA.class typeName ]
             [ H.summary []
                 [ H.strong [] [ H.text typeName ]
-                , H.text (" " ++ meta)
+                , H.text (" " ++ typeInfo)
                 ]
             ]
 
@@ -231,7 +239,7 @@ combinator typeName meta items =
         H.details [ HA.class "combinator", HA.class typeName ]
             [ H.summary []
                 [ H.strong [] [ H.text typeName ]
-                , H.text (" " ++ meta)
+                , H.text (" " ++ typeInfo)
                 ]
             , H.ol
                 []
