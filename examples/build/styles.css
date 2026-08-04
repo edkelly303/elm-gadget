@@ -82,7 +82,7 @@ button {
         }
     }
 
-    & .labelled {
+    & .with-metadata {
         border: solid black 1px;
         border-radius: 5px;
         padding: 5px;
@@ -95,13 +95,8 @@ button {
         & dt {
             display: flex;
             flex-direction: column;
-
-
-            font-size: 11pt;
-
-            & em {
-                font-size: 8pt;
-            }
+            font-size: 8pt;
+            filter: opacity(70%);
         }
 
         & dd {

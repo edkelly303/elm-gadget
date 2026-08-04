@@ -22,7 +22,7 @@ Lamdera application).
 
 If anyone would like to contribute an example of using Gadgets to create nice
 human-readable diffs, I would be happy to add it to this package. I think it is
-probably possible with judicious (ab)use of [`Gadget.label`](Gadget#label).
+probably possible with judicious (ab)use of [`Gadget.IR.Metadata`](Gadget-IR#Metadata).
 
 
 ## Example
@@ -61,6 +61,14 @@ import Gadget.IR as IR
 import List.Extra
 import Maybe.Extra
 import Result.Extra
+
+
+type alias IRValue =
+    IR.IR IR.Value
+
+
+type alias IRType =
+    IR.IR IR.Type
 
 
 {-| A set of changes that captures the differences between two Elm values.
@@ -103,21 +111,18 @@ diff gadget old new =
     diffHelp irType oldIR newIR
 
 
-diffHelp : IR.IRType -> IR.IR -> IR.IR -> Changes
-diffHelp irType_ oldIR_ newIR_ =
-    case irType_ of
+diffHelp : IRType -> IRValue -> IRValue -> Changes
+diffHelp (IR.IR _ type_) ((IR.IR _ oldData) as oldIR_) ((IR.IR _ newData) as newIR_) =
+    case type_ of
         IR.LazyType toInnerType ->
             diffHelp (toInnerType ()) oldIR_ newIR_
 
         _ ->
-            if oldIR_ == newIR_ then
+            if oldData == newData then
                 Identical
 
             else
-                case ( oldIR_, newIR_, irType_ ) of
-                    ( IR.Labelled _ inner1, IR.Labelled _ inner2, IR.LabelledType _ innerType ) ->
-                        diffHelp innerType inner1 inner2
-
+                case ( oldData, newData, type_ ) of
                     ( IR.Bool _, IR.Bool b2, _ ) ->
                         BoolChange b2
 
@@ -350,7 +355,7 @@ doRunLengthEncoding list =
         list
 
 
-areSimilar : IR.IRType -> IR.IR -> IR.IR -> Maybe Changes
+areSimilar : IRType -> IRValue -> IRValue -> Maybe Changes
 areSimilar irType old new =
     let
         oldNewDiff =
@@ -421,57 +426,55 @@ size changes =
             1
 
 
-default : IR.IRType -> IR.IR
-default irType =
+default : IRType -> IRValue
+default (IR.IR metadata irType) =
     case irType of
-        IR.LabelledType label x ->
-            IR.Labelled label (default x)
-
         IR.LazyType construct ->
             default (construct ())
 
         IR.BoolType ->
-            IR.Bool True
+            IR.IR metadata <| IR.Bool True
 
         IR.CharType ->
-            IR.Char ' '
+            IR.IR metadata <| IR.Char ' '
 
         IR.StringType ->
-            IR.String ""
+            IR.IR metadata <| IR.String ""
 
         IR.IntType ->
-            IR.Int 0
+            IR.IR metadata <| IR.Int 0
 
         IR.FloatType ->
-            IR.Float 0.0
+            IR.IR metadata <| IR.Float 0.0
 
         IR.ListType _ ->
-            IR.List []
+            IR.IR metadata <| IR.List []
 
         IR.CustomType firstVariantType _ ->
-            IR.Custom 0
-                (case firstVariantType of
-                    IR.Variant0Type ->
-                        IR.Variant0
+            IR.IR metadata <|
+                IR.Custom 0
+                    (case firstVariantType of
+                        IR.Variant0Type ->
+                            IR.Variant0
 
-                    IR.Variant1Type arg ->
-                        IR.Variant1 (default arg)
+                        IR.Variant1Type arg ->
+                            IR.Variant1 (default arg)
 
-                    IR.Variant2Type arg1 arg2 ->
-                        IR.Variant2 (default arg1) (default arg2)
+                        IR.Variant2Type arg1 arg2 ->
+                            IR.Variant2 (default arg1) (default arg2)
 
-                    IR.Variant3Type arg1 arg2 arg3 ->
-                        IR.Variant3 (default arg1) (default arg2) (default arg3)
+                        IR.Variant3Type arg1 arg2 arg3 ->
+                            IR.Variant3 (default arg1) (default arg2) (default arg3)
 
-                    IR.Variant4Type arg1 arg2 arg3 arg4 ->
-                        IR.Variant4 (default arg1) (default arg2) (default arg3) (default arg4)
+                        IR.Variant4Type arg1 arg2 arg3 arg4 ->
+                            IR.Variant4 (default arg1) (default arg2) (default arg3) (default arg4)
 
-                    IR.Variant5Type arg1 arg2 arg3 arg4 arg5 ->
-                        IR.Variant5 (default arg1) (default arg2) (default arg3) (default arg4) (default arg5)
-                )
+                        IR.Variant5Type arg1 arg2 arg3 arg4 arg5 ->
+                            IR.Variant5 (default arg1) (default arg2) (default arg3) (default arg4) (default arg5)
+                    )
 
         IR.ProductType fieldTypes ->
-            IR.Product (List.map default fieldTypes)
+            IR.IR metadata <| IR.Product (List.map default fieldTypes)
 
 
 {-| Use a set of [Changes](#Changes) to patch a value.
@@ -494,33 +497,29 @@ patch gadget delta old =
             Err e
 
 
-patchHelp : Changes -> IR.IR -> IR.IRType -> Result String IR.IR
-patchHelp changes_ old_ irType_ =
-    case ( changes_, old_, irType_ ) of
+patchHelp : Changes -> IRValue -> IRType -> Result String IRValue
+patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
+    case ( changes_, oldData, type_ ) of
         ( Identical, _, _ ) ->
             Ok old_
 
         ( _, _, IR.LazyType constructType ) ->
             patchHelp changes_ old_ (constructType ())
 
-        ( _, IR.Labelled label inner, IR.LabelledType _ innerType ) ->
-            patchHelp changes_ inner innerType
-                |> Result.map (IR.Labelled label)
-
         ( BoolChange b, IR.Bool _, _ ) ->
-            Ok (IR.Bool b)
+            Ok (IR.IR metadata <| IR.Bool b)
 
         ( CharChange b, IR.Char _, _ ) ->
-            Ok (IR.Char b)
+            Ok (IR.IR metadata <| IR.Char b)
 
         ( StringChange b, IR.String _, _ ) ->
-            Ok (IR.String b)
+            Ok (IR.IR metadata <| IR.String b)
 
         ( IntChange b, IR.Int _, _ ) ->
-            Ok (IR.Int b)
+            Ok (IR.IR metadata <| IR.Int b)
 
         ( FloatChange b, IR.Float _, _ ) ->
-            Ok (IR.Float b)
+            Ok (IR.IR metadata <| IR.Float b)
 
         ( ListChanges cs, IR.List oldList, IR.ListType itemType ) ->
             Ok
@@ -533,6 +532,7 @@ patchHelp changes_ old_ irType_ =
                     |> List.filterMap identity
                     |> List.concat
                     |> IR.List
+                    |> IR.IR metadata
                 )
 
         ( ProductChanges fieldChange restFieldChanges, IR.Product oldFields, IR.ProductType fieldTypes ) ->
@@ -552,6 +552,7 @@ patchHelp changes_ old_ irType_ =
                     )
                 |> Result.Extra.combine
                 |> Result.map IR.Product
+                |> Result.map (IR.IR metadata)
 
         ( CustomChanges diffSelected diffVariant, IR.Custom oldSelected oldVariant, IR.CustomType firstVariantType restVariantTypes ) ->
             let
@@ -743,12 +744,13 @@ patchHelp changes_ old_ irType_ =
                                     Result.map5 IR.Variant5 arg1Diff arg2Diff arg3Diff arg4Diff arg5Diff
                     )
                 |> Result.map (IR.Custom diffSelected)
+                |> Result.map (IR.IR metadata)
 
         _ ->
             Err "mismatch between diff and value"
 
 
-listPatchHelp : ListChange -> List IR.IR -> IR.IRType -> Maybe (List IR.IR)
+listPatchHelp : ListChange -> List IRValue -> IRType -> Maybe (List IRValue)
 listPatchHelp change oldList itemType =
     case change of
         Added itemDiff ->

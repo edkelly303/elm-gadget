@@ -28,6 +28,10 @@ import Json.Decode as JD
 import Json.Encode as JE
 
 
+type alias IRValue =
+    IR.IR IR.Value
+
+
 {-| Convert an Elm value into a `Json.Encode.Value`.
 
     import Gadget
@@ -90,19 +94,9 @@ decoder gadget =
             )
 
 
-encodeAdapter : IR.IR -> JE.Value
-encodeAdapter irValue =
+encodeAdapter : IRValue -> JE.Value
+encodeAdapter (IR.IR _ irValue) =
     case irValue of
-        IR.Labelled labels innerValue ->
-            JE.object
-                [ ( "labelled"
-                  , JE.object
-                        [ ( "labels", JE.list JE.string labels )
-                        , ( "value", encodeAdapter innerValue )
-                        ]
-                  )
-                ]
-
         IR.Bool b ->
             JE.object
                 [ ( "bool", JE.bool b ) ]
@@ -183,72 +177,68 @@ encodeAdapter irValue =
                 ]
 
 
-decodeAdapter : JD.Decoder IR.IR
+decodeAdapter : JD.Decoder IRValue
 decodeAdapter =
-    JD.oneOf
-        [ JD.field "labelled"
-            (JD.map2 (\labels value -> IR.Labelled labels value)
-                (JD.field "labels" (JD.list JD.string))
-                (JD.field "value" (JD.lazy (\() -> decodeAdapter)))
-            )
-        , JD.field "bool" JD.bool |> JD.map IR.Bool
-        , JD.field "char" JD.string
-            |> JD.andThen
-                (\s ->
-                    case String.uncons s of
-                        Nothing ->
-                            JD.fail "not a char"
-
-                        Just ( c, _ ) ->
-                            JD.succeed (IR.Char c)
-                )
-        , JD.field "string" JD.string |> JD.map IR.String
-        , JD.field "int" JD.int |> JD.map IR.Int
-        , JD.field "float" JD.float |> JD.map IR.Float
-        , JD.field "custom"
-            (JD.map2
-                (\selected args ->
-                    Maybe.map (IR.Custom selected) <|
-                        case args of
-                            [] ->
-                                Just IR.Variant0
-
-                            [ arg ] ->
-                                Just (IR.Variant1 arg)
-
-                            [ arg1, arg2 ] ->
-                                Just (IR.Variant2 arg1 arg2)
-
-                            [ arg1, arg2, arg3 ] ->
-                                Just (IR.Variant3 arg1 arg2 arg3)
-
-                            [ arg1, arg2, arg3, arg4 ] ->
-                                Just (IR.Variant4 arg1 arg2 arg3 arg4)
-
-                            [ arg1, arg2, arg3, arg4, arg5 ] ->
-                                Just (IR.Variant5 arg1 arg2 arg3 arg4 arg5)
-
-                            _ ->
-                                Nothing
-                )
-                (JD.field "tag" JD.int)
-                (JD.field "args" (JD.list (JD.lazy (\() -> decodeAdapter))))
+    JD.map IR.ir <|
+        JD.oneOf
+            [ JD.field "bool" JD.bool |> JD.map IR.Bool
+            , JD.field "char" JD.string
                 |> JD.andThen
-                    (\maybeIR ->
-                        case maybeIR of
+                    (\s ->
+                        case String.uncons s of
                             Nothing ->
-                                JD.fail ""
+                                JD.fail "not a char"
 
-                            Just ir ->
-                                JD.succeed ir
+                            Just ( c, _ ) ->
+                                JD.succeed (IR.Char c)
                     )
-            )
-        , JD.field "product"
-            (JD.list (JD.lazy (\() -> decodeAdapter))
-                |> JD.map IR.Product
-            )
-        , JD.field "list"
-            (JD.list (JD.lazy (\() -> decodeAdapter))
-                |> JD.map IR.List
-            )
-        ]
+            , JD.field "string" JD.string |> JD.map IR.String
+            , JD.field "int" JD.int |> JD.map IR.Int
+            , JD.field "float" JD.float |> JD.map IR.Float
+            , JD.field "custom"
+                (JD.map2
+                    (\selected args ->
+                        Maybe.map (IR.Custom selected) <|
+                            case args of
+                                [] ->
+                                    Just IR.Variant0
+
+                                [ arg ] ->
+                                    Just (IR.Variant1 arg)
+
+                                [ arg1, arg2 ] ->
+                                    Just (IR.Variant2 arg1 arg2)
+
+                                [ arg1, arg2, arg3 ] ->
+                                    Just (IR.Variant3 arg1 arg2 arg3)
+
+                                [ arg1, arg2, arg3, arg4 ] ->
+                                    Just (IR.Variant4 arg1 arg2 arg3 arg4)
+
+                                [ arg1, arg2, arg3, arg4, arg5 ] ->
+                                    Just (IR.Variant5 arg1 arg2 arg3 arg4 arg5)
+
+                                _ ->
+                                    Nothing
+                    )
+                    (JD.field "tag" JD.int)
+                    (JD.field "args" (JD.list (JD.lazy (\() -> decodeAdapter))))
+                    |> JD.andThen
+                        (\maybeIR ->
+                            case maybeIR of
+                                Nothing ->
+                                    JD.fail ""
+
+                                Just ir ->
+                                    JD.succeed ir
+                        )
+                )
+            , JD.field "product"
+                (JD.list (JD.lazy (\() -> decodeAdapter))
+                    |> JD.map IR.Product
+                )
+            , JD.field "list"
+                (JD.list (JD.lazy (\() -> decodeAdapter))
+                    |> JD.map IR.List
+                )
+            ]

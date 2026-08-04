@@ -8,7 +8,6 @@ module Gadget exposing
     , CustomGadgetBuilder, custom, variant0, variant1, variant2, variant3
     , variant4, variant5, endCustom
     , map, filterMap, lazy
-    , label
     )
 
 {-| This module is for application developers who want to create Gadgets and use
@@ -98,21 +97,17 @@ If you want to make your own adapters, see the [`Gadget.IR`](Gadget-IR) module.
 
 @docs map, filterMap, lazy
 
-
-# Labelling Gadgets
-
-@docs label
-
 -}
 
 import Array
 import Dict
-import Gadget.IR
+import Gadget.IR as IR
     exposing
         ( Error
         , Gadget(..)
         , IR(..)
-        , IRType(..)
+        , Type(..)
+        , Value(..)
         , Variant(..)
         , VariantType(..)
         )
@@ -124,16 +119,16 @@ import Set
 module to define Gadgets for the types in your application.
 -}
 type alias Gadget a =
-    Gadget.IR.Gadget a
+    IR.Gadget a
 
 
 {-| A type used to build Gadgets for records.
 -}
 type RecordGadgetBuilder input output
     = RecordGadgetBuilder
-        { fromInput : input -> List IR
-        , toOutput : List IR -> Result Error output
-        , irType : List IRType
+        { fromInput : input -> List (IR Value)
+        , toOutput : List (IR Value) -> Result Error output
+        , irType : List (IR Type)
         }
 
 
@@ -142,7 +137,7 @@ type RecordGadgetBuilder input output
 type CustomGadgetBuilder input hasAtLeastOneVariant output
     = CustomGadgetBuilder
         { match : input
-        , fromIR : IR -> Result Error output
+        , fromIR : IR Value -> Result Error output
         , variantTypes : List VariantType
         , index : Int
         }
@@ -153,16 +148,16 @@ type CustomGadgetBuilder input hasAtLeastOneVariant output
 bool : Gadget Bool
 bool =
     Gadget
-        { fromInput = Bool
+        { fromInput = IR.ir << Bool
         , toOutput =
-            \ir ->
+            \(IR _ ir) ->
                 case ir of
                     Bool b ->
                         Ok b
 
                     _ ->
                         Err "bool toOutput failed"
-        , irType = BoolType
+        , irType = IR.ir BoolType
         }
 
 
@@ -171,16 +166,16 @@ bool =
 char : Gadget Char
 char =
     Gadget
-        { fromInput = Char
+        { fromInput = IR.ir << Char
         , toOutput =
-            \ir ->
+            \(IR _ ir) ->
                 case ir of
                     Char c ->
                         Ok c
 
                     _ ->
                         Err "char toOutput failed"
-        , irType = CharType
+        , irType = IR.ir CharType
         }
 
 
@@ -189,16 +184,16 @@ char =
 string : Gadget String
 string =
     Gadget
-        { fromInput = String
+        { fromInput = IR.ir << String
         , toOutput =
-            \ir ->
-                case ir of
+            \(IR _ value) ->
+                case value of
                     String s ->
                         Ok s
 
                     _ ->
                         Err "string toOutput failed"
-        , irType = StringType
+        , irType = IR.ir StringType
         }
 
 
@@ -207,16 +202,16 @@ string =
 int : Gadget Int
 int =
     Gadget
-        { fromInput = Int
+        { fromInput = IR.ir << Int
         , toOutput =
-            \ir ->
-                case ir of
+            \(IR _ value) ->
+                case value of
                     Int i ->
                         Ok i
 
                     _ ->
                         Err "int toOutput failed"
-        , irType = IntType
+        , irType = IR.ir IntType
         }
 
 
@@ -225,16 +220,16 @@ int =
 float : Gadget Float
 float =
     Gadget
-        { fromInput = Float
+        { fromInput = IR.ir << Float
         , toOutput =
-            \ir ->
-                case ir of
+            \(IR _ value) ->
+                case value of
                     Float s ->
                         Ok s
 
                     _ ->
                         Err "float toOutput failed"
-        , irType = FloatType
+        , irType = IR.ir <| FloatType
         }
 
 
@@ -251,17 +246,17 @@ float =
 list : Gadget a -> Gadget (List a)
 list (Gadget item) =
     Gadget
-        { fromInput = \items -> List (List.map item.fromInput items)
+        { fromInput = \items -> IR.ir <| List (List.map item.fromInput items)
         , toOutput =
-            \ir ->
-                case ir of
+            \(IR _ value) ->
+                case value of
                     List items ->
                         List.map item.toOutput items
                             |> Result.Extra.combine
 
                     _ ->
                         Err "list toOutput failed"
-        , irType = ListType item.irType
+        , irType = IR.ir <| ListType item.irType
         }
 
 
@@ -426,15 +421,15 @@ custom match =
 -}
 variant0 :
     output
-    -> CustomGadgetBuilder (IR -> input) variantType output
+    -> CustomGadgetBuilder (IR Value -> input) variantType output
     -> CustomGadgetBuilder input () output
 variant0 ctor (CustomGadgetBuilder prev) =
     CustomGadgetBuilder
-        { match = prev.match <| Custom prev.index Variant0
+        { match = prev.match <| IR.ir <| Custom prev.index Variant0
         , index = prev.index + 1
         , fromIR =
-            \ir ->
-                case ir of
+            \((IR _ value) as ir) ->
+                case value of
                     Custom selected Variant0 ->
                         if selected == prev.index then
                             Ok ctor
@@ -455,15 +450,15 @@ variant0 ctor (CustomGadgetBuilder prev) =
 variant1 :
     (arg1 -> output)
     -> Gadget arg1
-    -> CustomGadgetBuilder ((arg1 -> IR) -> input) variantType output
+    -> CustomGadgetBuilder ((arg1 -> IR Value) -> input) variantType output
     -> CustomGadgetBuilder input () output
 variant1 ctor (Gadget argfns) (CustomGadgetBuilder prev) =
     CustomGadgetBuilder
-        { match = prev.match <| \arg -> Custom prev.index (Variant1 (argfns.fromInput arg))
+        { match = prev.match <| \arg -> IR.ir <| Custom prev.index (Variant1 (argfns.fromInput arg))
         , index = prev.index + 1
         , fromIR =
-            \ir ->
-                case ir of
+            \((IR _ value) as ir) ->
+                case value of
                     Custom selected (Variant1 arg) ->
                         if selected == prev.index then
                             Result.map ctor (argfns.toOutput arg)
@@ -485,15 +480,15 @@ variant2 :
     (arg1 -> arg2 -> output)
     -> Gadget arg1
     -> Gadget arg2
-    -> CustomGadgetBuilder ((arg1 -> arg2 -> IR) -> input) variantType output
+    -> CustomGadgetBuilder ((arg1 -> arg2 -> IR Value) -> input) variantType output
     -> CustomGadgetBuilder input () output
 variant2 ctor (Gadget arg1fns) (Gadget arg2fns) (CustomGadgetBuilder prev) =
     CustomGadgetBuilder
-        { match = prev.match <| \arg1 arg2 -> Custom prev.index (Variant2 (arg1fns.fromInput arg1) (arg2fns.fromInput arg2))
+        { match = prev.match <| \arg1 arg2 -> IR.ir <| Custom prev.index (Variant2 (arg1fns.fromInput arg1) (arg2fns.fromInput arg2))
         , index = prev.index + 1
         , fromIR =
-            \ir ->
-                case ir of
+            \((IR _ value) as ir) ->
+                case value of
                     Custom selected (Variant2 arg1 arg2) ->
                         if selected == prev.index then
                             Result.map2 ctor (arg1fns.toOutput arg1) (arg2fns.toOutput arg2)
@@ -516,23 +511,24 @@ variant3 :
     -> Gadget arg1
     -> Gadget arg2
     -> Gadget arg3
-    -> CustomGadgetBuilder ((arg1 -> arg2 -> arg3 -> IR) -> input) variantType output
+    -> CustomGadgetBuilder ((arg1 -> arg2 -> arg3 -> IR Value) -> input) variantType output
     -> CustomGadgetBuilder input () output
 variant3 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (CustomGadgetBuilder prev) =
     CustomGadgetBuilder
         { match =
             prev.match <|
                 \arg1 arg2 arg3 ->
-                    Custom prev.index
-                        (Variant3
-                            (arg1fns.fromInput arg1)
-                            (arg2fns.fromInput arg2)
-                            (arg3fns.fromInput arg3)
-                        )
+                    IR.ir <|
+                        Custom prev.index
+                            (Variant3
+                                (arg1fns.fromInput arg1)
+                                (arg2fns.fromInput arg2)
+                                (arg3fns.fromInput arg3)
+                            )
         , index = prev.index + 1
         , fromIR =
-            \ir ->
-                case ir of
+            \((IR _ value) as ir) ->
+                case value of
                     Custom selected (Variant3 arg1 arg2 arg3) ->
                         if selected == prev.index then
                             Result.map3 ctor
@@ -562,24 +558,25 @@ variant4 :
     -> Gadget arg2
     -> Gadget arg3
     -> Gadget arg4
-    -> CustomGadgetBuilder ((arg1 -> arg2 -> arg3 -> arg4 -> IR) -> input) variantType output
+    -> CustomGadgetBuilder ((arg1 -> arg2 -> arg3 -> arg4 -> IR Value) -> input) variantType output
     -> CustomGadgetBuilder input () output
 variant4 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget arg4fns) (CustomGadgetBuilder prev) =
     CustomGadgetBuilder
         { match =
             prev.match <|
                 \arg1 arg2 arg3 arg4 ->
-                    Custom prev.index
-                        (Variant4
-                            (arg1fns.fromInput arg1)
-                            (arg2fns.fromInput arg2)
-                            (arg3fns.fromInput arg3)
-                            (arg4fns.fromInput arg4)
-                        )
+                    IR.ir <|
+                        Custom prev.index
+                            (Variant4
+                                (arg1fns.fromInput arg1)
+                                (arg2fns.fromInput arg2)
+                                (arg3fns.fromInput arg3)
+                                (arg4fns.fromInput arg4)
+                            )
         , index = prev.index + 1
         , fromIR =
-            \ir ->
-                case ir of
+            \((IR _ value) as ir) ->
+                case value of
                     Custom selected (Variant4 arg1 arg2 arg3 arg4) ->
                         if selected == prev.index then
                             Result.map4 ctor
@@ -612,25 +609,26 @@ variant5 :
     -> Gadget arg3
     -> Gadget arg4
     -> Gadget arg5
-    -> CustomGadgetBuilder ((arg1 -> arg2 -> arg3 -> arg4 -> arg5 -> IR) -> input) variantType output
+    -> CustomGadgetBuilder ((arg1 -> arg2 -> arg3 -> arg4 -> arg5 -> IR Value) -> input) variantType output
     -> CustomGadgetBuilder input () output
 variant5 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget arg4fns) (Gadget arg5fns) (CustomGadgetBuilder prev) =
     CustomGadgetBuilder
         { match =
             prev.match <|
                 \arg1 arg2 arg3 arg4 arg5 ->
-                    Custom prev.index
-                        (Variant5
-                            (arg1fns.fromInput arg1)
-                            (arg2fns.fromInput arg2)
-                            (arg3fns.fromInput arg3)
-                            (arg4fns.fromInput arg4)
-                            (arg5fns.fromInput arg5)
-                        )
+                    IR.ir <|
+                        Custom prev.index
+                            (Variant5
+                                (arg1fns.fromInput arg1)
+                                (arg2fns.fromInput arg2)
+                                (arg3fns.fromInput arg3)
+                                (arg4fns.fromInput arg4)
+                                (arg5fns.fromInput arg5)
+                            )
         , index = prev.index + 1
         , fromIR =
-            \ir ->
-                case ir of
+            \((IR _ value) as ir) ->
+                case value of
                     Custom selected (Variant5 arg1 arg2 arg3 arg4 arg5) ->
                         if selected == prev.index then
                             Result.map5 ctor
@@ -658,24 +656,25 @@ variant5 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget arg4fns
 
 {-| Complete the definition of a custom type.
 -}
-endCustom : CustomGadgetBuilder (a -> IR) () a -> Gadget a
+endCustom : CustomGadgetBuilder (a -> IR Value) () a -> Gadget a
 endCustom (CustomGadgetBuilder prev) =
     Gadget
         { fromInput = prev.match
         , toOutput = prev.fromIR
         , irType =
-            case List.reverse prev.variantTypes of
-                [] ->
-                    -- we know this can't happen, because if the second type
-                    -- variable of CustomGadgetBuilder is `()`, then we know
-                    -- that we've used at least one `variantX` function, so the
-                    -- list of variants can't be empty. So it's ok to use a
-                    -- spurious Variant0Type here, because this will never get
-                    -- produced.
-                    CustomType Variant0Type []
+            IR.ir <|
+                case List.reverse prev.variantTypes of
+                    [] ->
+                        -- we know this can't happen, because if the second type
+                        -- variable of CustomGadgetBuilder is `()`, then we know
+                        -- that we've used at least one `variantX` function, so the
+                        -- list of variants can't be empty. So it's ok to use a
+                        -- spurious Variant0Type here, because this will never get
+                        -- produced.
+                        CustomType Variant0Type []
 
-                firstVariantType :: restVariantTypes ->
-                    CustomType firstVariantType restVariantTypes
+                    firstVariantType :: restVariantTypes ->
+                        CustomType firstVariantType restVariantTypes
         }
 
 
@@ -731,16 +730,16 @@ endRecord (RecordGadgetBuilder builder) =
     Gadget
         { fromInput =
             \input ->
-                Product (List.reverse (builder.fromInput input))
+                IR.ir <| Product (List.reverse (builder.fromInput input))
         , toOutput =
-            \ir ->
-                case ir of
+            \(IR _ value) ->
+                case value of
                     Product fields ->
                         builder.toOutput (List.reverse fields)
 
                     _ ->
                         Err "expecting a Product"
-        , irType = ProductType (List.reverse builder.irType)
+        , irType = IR.ir <| ProductType (List.reverse builder.irType)
         }
 
 
@@ -770,29 +769,36 @@ map aToB bToA (Gadget prev) =
         }
 
 
-{-| Convert a Gadget of one type to a Gadget of another type,
-possibly failing the conversion to the more narrow result type.
+{-| Convert a Gadget of one type to a Gadget of another type, possibly failing
+the conversion to the output type.
 
     import Gadget
 
-    namesGadget =
-        Gadget.list Gadget.string
+    nonEmptyListGadget a =
+        Gadget.list a
             |> Gadget.filterMap
                 (\list ->
                     case list of
                         [] ->
-                            Err "must contain at least one name"
+                            Err "must contain at least one item"
 
                         h :: t ->
                             Ok ( h, t )
                 )
                 (\( h, t ) -> h :: t)
 
-    namesGadget --: Gadget.Gadget ( String, List String )
+    nonEmptyListGadget --: Gadget.Gadget a -> Gadget.Gadget ( a, List a )
 
-Do not use this for overly fine-grained checks (like checking for a fixed set of valid values),
-as this might leave generators and fuzzers scrambling to find any valid values.
-Instead, prefer the constructive approach.
+Do not use this for fine-grained checks (like checking for a fixed set of valid
+values), as this might leave generators and fuzzers scrambling to find any valid
+values. Instead, prefer a constructive approach, like this:
+
+    import Gadget
+
+    nonEmptyListGadget a =
+        Gadget.tuple a (Gadget.list a)
+
+    nonEmptyListGadget --: Gadget.Gadget a -> Gadget.Gadget ( a, List a )
 
 -}
 filterMap :
@@ -851,55 +857,13 @@ lazy step =
                 in
                 ir |> gadget.toOutput
         , irType =
-            Gadget.IR.LazyType
-                (\() ->
-                    let
-                        (Gadget gadget) =
-                            step ()
-                    in
-                    gadget.irType
-                )
-        }
-
-
-{-| Add a label to a Gadget.
-
-For an example of why this might be helpful, see the docs for
-[`Gadget.Adapter.Fuzz.fuzzerWithOverrides`](Gadget-Adapter-Fuzz#fuzzerWithOverrides).
-
-    import Gadget
-
-    labelled =
-        Gadget.int
-            |> Gadget.label "age"
-
-    labelled --: Gadget.Gadget Int
-
--}
-label : String -> Gadget a -> Gadget a
-label label_ (Gadget c) =
-    Gadget
-        { fromInput =
-            \input ->
-                case c.fromInput input of
-                    Labelled labels inner ->
-                        Labelled (label_ :: labels) inner
-
-                    other ->
-                        Labelled [ label_ ] other
-        , toOutput =
-            \ir ->
-                case ir of
-                    Labelled _ innerIR ->
-                        c.toOutput innerIR
-
-                    _ ->
-                        c.toOutput ir
-        , irType =
-            case c.irType of
-                LabelledType labels inner ->
-                    LabelledType (label_ :: labels) inner
-
-                other ->
-                    LabelledType [ label_ ] other
+            IR.ir <|
+                IR.LazyType
+                    (\() ->
+                        let
+                            (Gadget gadget) =
+                                step ()
+                        in
+                        gadget.irType
+                    )
         }

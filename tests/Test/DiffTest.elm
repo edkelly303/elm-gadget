@@ -13,7 +13,7 @@ diffTests =
     Test.describe "Gadget.Diff"
         [ roundTrip recordGadget "Record"
         , roundTrip treeGadget "Tree"
-        , roundTrip (Gadget.int |> Gadget.label "label") "Int"
+        , roundTrip (Gadget.int |> Gadget.Adapter.Fuzz.label "int") "Int"
         , roundTrip Gadget.float "Float"
         , roundTrip Gadget.char "Char"
         , roundTrip Gadget.string "String"
@@ -30,18 +30,6 @@ roundTrip gadget name =
     <|
         \old new ->
             let
-                _ =
-                    Debug.log "old" old
-
-                _ =
-                    Debug.log "new" new
-
-                _ =
-                    Debug.log "diff" diff
-
-                _ =
-                    Debug.log "expc" expectation
-
                 diff =
                     Gadget.Adapter.Diff.diff gadget old new
 

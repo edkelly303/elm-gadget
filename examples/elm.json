@@ -5,7 +5,7 @@
         "../src",
         "../tests"
     ],
-    "elm-version": "0.19.1",
+    "elm-version": "0.19.2",
     "dependencies": {
         "direct": {
             "edkelly303/elm-exhaustive-generators": "1.0.0",

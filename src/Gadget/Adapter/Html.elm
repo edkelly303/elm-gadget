@@ -27,6 +27,15 @@ import Html as H
 import Html.Attributes as HA
 
 
+type alias IRValue =
+    IR.IR IR.Value
+
+
+meta : IR.MetadataTools a
+meta =
+    IR.makeMetadataTools "html"
+
+
 {-| Convert a value into an `Html msg`.
 
     import Gadget
@@ -50,12 +59,39 @@ view gadget value =
         |> H.article [ HA.class "elm-gadget" ]
 
 
-htmlAdapter : IR.IR -> H.Html msg
-htmlAdapter irValue =
-    case irValue of
-        IR.Labelled labels inner ->
-            labelled (String.join ", " (List.reverse labels)) (htmlAdapter inner)
+htmlAdapter : IRValue -> H.Html msg
+htmlAdapter (IR.IR metadata irValue) =
+    let
+        dataHtml =
+            htmlAdapterHelper irValue
+    in
+    case meta.export metadata of
+        [] ->
+            dataHtml
 
+        items ->
+            H.dl []
+                [ H.div [ HA.class "with-metadata" ]
+                    [ H.dt []
+                        [ H.em [] [ H.text "Metadata" ]
+                        , items
+                            |> List.map
+                                (\( adapterId, kvs ) ->
+                                    H.li []
+                                        [ H.text (adapterId ++ ": ")
+                                        , H.ol [] (List.map (\( k, v ) -> H.li [] [ H.text k, htmlAdapterHelper v ]) kvs)
+                                        ]
+                                )
+                            |> H.ol []
+                        ]
+                    , H.dd [] [ dataHtml ]
+                    ]
+                ]
+
+
+htmlAdapterHelper : IR.Value -> H.Html msg
+htmlAdapterHelper irValue =
+    case irValue of
         IR.Bool b ->
             unquotedPrimitive "Bool"
                 (if b then
@@ -181,19 +217,6 @@ primitive quoteHtml valueWrapper typeName value =
         ]
 
 
-labelled : String -> H.Html msg -> H.Html msg
-labelled label inner =
-    H.dl []
-        [ H.div [ HA.class "labelled" ]
-            [ H.dt []
-                [ H.em [] [ H.text "Label" ]
-                , H.code [] [ H.text label ]
-                ]
-            , H.dd [] [ inner ]
-            ]
-        ]
-
-
 quotedPrimitive : String -> String -> String -> H.Html msg
 quotedPrimitive quote =
     primitive (H.span [ HA.class "quote" ] [ H.text quote ]) (\value -> H.code [] [ H.text value ])
@@ -204,13 +227,13 @@ unquotedPrimitive =
     primitive (H.text "") (\value -> H.code [] [ H.text value ])
 
 
-combinator : String -> String -> List IR.IR -> H.Html msg
-combinator typeName meta items =
+combinator : String -> String -> List IRValue -> H.Html msg
+combinator typeName typeInfo items =
     if List.isEmpty items then
         H.div [ HA.class "combinator", HA.class typeName ]
             [ H.summary []
                 [ H.strong [] [ H.text typeName ]
-                , H.text (" " ++ meta)
+                , H.text (" " ++ typeInfo)
                 ]
             ]
 
@@ -218,9 +241,8 @@ combinator typeName meta items =
         H.details [ HA.class "combinator", HA.class typeName ]
             [ H.summary []
                 [ H.strong [] [ H.text typeName ]
-                , H.text (" " ++ meta)
+                , H.text (" " ++ typeInfo)
                 ]
-            , H.ol
-                []
+            , H.ol []
                 (List.map (\item -> H.li [] [ htmlAdapter item ]) items)
             ]

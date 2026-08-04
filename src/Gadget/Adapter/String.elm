@@ -21,7 +21,7 @@ representation.
 
 If anyone would like to contribute an example of a proper parser/pretty-printer,
 I would be happy to add it to this package. I think it is probably possible with
-judicious (ab)use of [`Gadget.label`](Gadget#label).
+judicious (ab)use of [`Gadget.IR.Metadata`](Gadget-IR#Metadata).
 
 
 ## API
@@ -32,6 +32,10 @@ judicious (ab)use of [`Gadget.label`](Gadget#label).
 
 import Gadget.IR as IR
 import Parser as P exposing ((|.), (|=), Parser)
+
+
+type alias IRValue =
+    IR.IR IR.Value
 
 
 {-| Convert an Elm value into a String.
@@ -55,25 +59,22 @@ print gadget value =
 
 
 primitive : String -> String -> String
-primitive label value =
-    label ++ "(" ++ value ++ ")"
+primitive typeTag typeInfo =
+    typeTag ++ "(" ++ typeInfo ++ ")"
 
 
-combinator : String -> String -> List IR.IR -> String
-combinator label meta items =
-    label
-        ++ meta
+combinator : String -> String -> List IRValue -> String
+combinator typeTag typeInfo items =
+    typeTag
+        ++ typeInfo
         ++ "["
         ++ String.join "," (List.map printAdapter items)
         ++ "]"
 
 
-printAdapter : IR.IR -> String
-printAdapter irValue =
+printAdapter : IRValue -> String
+printAdapter (IR.IR _ irValue) =
     case irValue of
-        IR.Labelled labels inner ->
-            "x[" ++ (List.map quoteString labels |> String.concat) ++ "]" ++ printAdapter inner
-
         IR.Bool b ->
             primitive "b"
                 (if b then
@@ -166,6 +167,7 @@ into an Elm value.
 parser : IR.Gadget a -> Parser a
 parser gadget =
     irParser
+        |> P.map IR.ir
         |> P.andThen
             (\ir ->
                 case IR.toOutput gadget ir of
@@ -177,26 +179,40 @@ parser gadget =
             )
 
 
-irParser : Parser IR.IR
+irParser : Parser IR.Value
 irParser =
     P.oneOf
-        [ primitiveParser "b" IR.Bool boolParser
-        , primitiveParser "i" IR.Int intParser
-        , primitiveParser "f" IR.Float floatParser
-        , labelledParser
+        [ boolParser |> P.map IR.Bool
+        , intParser |> P.map IR.Int
+        , floatParser |> P.map IR.Float
         , charParser
-        , stringParser
+        , stringParser |> P.map IR.String
         , listParser
         , productParser
         , customParser
         ]
 
 
-listParser : Parser IR.IR
+floatParser : Parser Float
+floatParser =
+    primitiveParser "f" rawFloatParser
+
+
+boolParser : Parser Bool
+boolParser =
+    primitiveParser "b" rawBoolParser
+
+
+intParser : Parser Int
+intParser =
+    primitiveParser "i" rawIntParser
+
+
+listParser : Parser IR.Value
 listParser =
     P.sequence
         { start = "l["
-        , item = P.lazy (\() -> irParser)
+        , item = P.lazy (\() -> irParser) |> P.map IR.ir
         , end = "]"
         , separator = ","
         , spaces = P.spaces
@@ -205,11 +221,11 @@ listParser =
         |> P.map IR.List
 
 
-productParser : Parser IR.IR
+productParser : Parser IR.Value
 productParser =
     P.sequence
         { start = "p["
-        , item = P.lazy (\() -> irParser)
+        , item = P.lazy (\() -> irParser) |> P.map IR.ir
         , end = "]"
         , separator = ","
         , spaces = P.spaces
@@ -218,14 +234,14 @@ productParser =
         |> P.map IR.Product
 
 
-customParser : Parser IR.IR
+customParser : Parser IR.Value
 customParser =
     P.succeed IR.Custom
         |. P.token "u"
         |= P.int
         |= (P.sequence
                 { start = "["
-                , item = P.lazy (\() -> irParser)
+                , item = P.lazy (\() -> irParser) |> P.map IR.ir
                 , end = "]"
                 , separator = ","
                 , spaces = P.spaces
@@ -258,16 +274,16 @@ customParser =
            )
 
 
-primitiveParser : String -> (keep -> IR.IR) -> Parser keep -> Parser IR.IR
-primitiveParser marker ctor innerParser =
-    P.succeed ctor
+primitiveParser : String -> Parser keep -> Parser keep
+primitiveParser marker innerParser =
+    P.succeed identity
         |. P.token (marker ++ "(")
         |= innerParser
         |. P.token ")"
 
 
-boolParser : Parser Bool
-boolParser =
+rawBoolParser : Parser Bool
+rawBoolParser =
     P.int
         |> P.andThen
             (\int ->
@@ -283,7 +299,7 @@ boolParser =
             )
 
 
-charParser : Parser IR.IR
+charParser : Parser IR.Value
 charParser =
     (P.succeed identity
         |. P.token "c"
@@ -300,8 +316,8 @@ charParser =
             )
 
 
-intParser : Parser Int
-intParser =
+rawIntParser : Parser Int
+rawIntParser =
     P.oneOf
         [ P.succeed negate
             |. P.symbol "-"
@@ -324,8 +340,8 @@ But that's ok in our case, because we don't need to handle Float literals, only
 values produced by `String.fromFloat`.
 
 -}
-floatParser : Parser Float
-floatParser =
+rawFloatParser : Parser Float
+rawFloatParser =
     P.oneOf
         [ P.token "Infinity" |> P.map (\_ -> 1 / 0)
         , P.token "-Infinity" |> P.map (\_ -> -1 / 0)
@@ -398,30 +414,15 @@ floatParserHelp =
             )
 
 
-labelledParser : Parser IR.IR
-labelledParser =
-    P.succeed IR.Labelled
-        |. P.token "x"
-        |= P.sequence
-            { start = "["
-            , end = "]"
-            , item = rawStringParser
-            , separator = ""
-            , spaces = P.spaces
-            , trailing = P.Forbidden
-            }
-        |= P.lazy (\() -> irParser)
-
-
 {-| The original version of this function comes from
 <https://github.com/myrho/elm-parser-extras/tree/1.0.1> but the implementation
 there seems to have a bug with an unguarded `chompWhile` leading to infinite
 looping. This is a fixed version with all the generic stuff taken out so it just
 works for our use case.
 -}
-stringParser : Parser IR.IR
+stringParser : Parser String
 stringParser =
-    P.succeed IR.String
+    P.succeed identity
         |. P.token "s"
         |= rawStringParser
 

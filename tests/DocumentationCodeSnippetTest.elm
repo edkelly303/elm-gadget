@@ -127,25 +127,26 @@ tests =
                         "0"
                         (\() ->
                             let
-                                unused : Gadget.Gadget ( String.String, List String.String )
+                                unused :
+                                    Gadget.Gadget a
+                                    -> Gadget.Gadget ( a, List a )
                                 unused =
-                                    namesGadget__Gadget__filterMap_0
+                                    nonEmptyListGadget__Gadget__filterMap_0
                             in
                             Expect.pass
                         )
                     ]
-                ]
-            , Test.describe
-                "label"
-                [ Test.describe
-                    "code snippet 0"
+                , Test.describe
+                    "code snippet 1"
                     [ Test.test
                         "0"
                         (\() ->
                             let
-                                unused : Gadget.Gadget Basics.Int
+                                unused :
+                                    Gadget.Gadget a
+                                    -> Gadget.Gadget ( a, List a )
                                 unused =
-                                    labelled__Gadget__label_0
+                                    nonEmptyListGadget__Gadget__filterMap_1
                             in
                             Expect.pass
                         )
@@ -518,13 +519,13 @@ dictGadget__Gadget__dict_0 =
     Gadget.dict Gadget.int Gadget.string
 
 
-namesGadget__Gadget__filterMap_0 =
-    Gadget.list Gadget.string
+nonEmptyListGadget__Gadget__filterMap_0 a =
+    Gadget.list a
         |> Gadget.filterMap
             (\list ->
                 case list of
                     [] ->
-                        Result.Err "must contain at least one name"
+                        Result.Err "must contain at least one item"
 
                     h :: t ->
                         Result.Ok ( h, t )
@@ -532,8 +533,8 @@ namesGadget__Gadget__filterMap_0 =
             (\( h, t ) -> h :: t)
 
 
-labelled__Gadget__label_0 =
-    Gadget.int |> Gadget.label "age"
+nonEmptyListGadget__Gadget__filterMap_1 a =
+    Gadget.tuple a (Gadget.list a)
 
 
 type Tree__Gadget__lazy_0
@@ -639,7 +640,7 @@ personGadget__Gadget_Adapter_Fuzz__fuzzerWithOverrides_0 =
 
 
 nameGadget__Gadget_Adapter_Fuzz__fuzzerWithOverrides_0 =
-    Gadget.string |> Gadget.label "name"
+    Gadget.string |> Gadget.Adapter.Fuzz.label "name"
 
 
 personFuzzer__Gadget_Adapter_Fuzz__fuzzerWithOverrides_0 =
@@ -728,7 +729,7 @@ personGadget__Gadget_Adapter_Random__generatorWithOverrides_0 =
 
 
 nameGadget__Gadget_Adapter_Random__generatorWithOverrides_0 =
-    Gadget.string |> Gadget.label "name"
+    Gadget.string |> Gadget.Adapter.Random.label "name"
 
 
 personGenerator__Gadget_Adapter_Random__generatorWithOverrides_0 =
