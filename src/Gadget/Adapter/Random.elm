@@ -96,6 +96,26 @@ generator gadget =
 
 {-| Limit the output of a Gadget's `Random.Generator` by setting minimum and maximum
 values for the `Int` that it generates.
+
+    import Gadget
+    import Gadget.Adapter.Random
+    import Random -- `elm/random`
+
+    intGadget =
+        Gadget.int
+            |> Gadget.Adapter.Random.intRange 5 10
+
+    intGenerator =
+        Gadget.Adapter.Random.generator intGadget
+
+    randomInt =
+        Random.step
+            intGenerator
+            (Random.initialSeed 0)
+            |> Tuple.first
+
+    randomInt --> 6
+
 -}
 intRange : Int -> Int -> IR.Gadget a -> IR.Gadget a
 intRange lo hi g =
@@ -106,6 +126,14 @@ intRange lo hi g =
 
 {-| Limit the output of a Gadget's `Random.Generator` by setting minimum and maximum
 values for the `Float` that it generates.
+
+    import Gadget
+    import Gadget.Adapter.Random
+
+    floatGadget =
+        Gadget.float
+            |> Gadget.Adapter.Random.floatRange 0.0 1.0
+
 -}
 floatRange : Float -> Float -> IR.Gadget a -> IR.Gadget a
 floatRange lo hi g =
@@ -116,6 +144,26 @@ floatRange lo hi g =
 
 {-| Limit the output of a Gadget's `Random.Generator` by setting minimum and maximum
 values for the length of the `List` that it generates.
+
+    import Gadget
+    import Gadget.Adapter.Random
+    import Random -- `elm/random`
+
+    listGadget =
+        Gadget.list Gadget.bool
+            |> Gadget.Adapter.Random.listLength 2 4
+
+    listGenerator =
+        Gadget.Adapter.Random.generator listGadget
+
+    randomList =
+        Random.step
+            listGenerator
+            (Random.initialSeed 0)
+            |> Tuple.first
+
+    randomList --> [ True, False, False ]
+
 -}
 listLength : Int -> Int -> IR.Gadget a -> IR.Gadget a
 listLength lo hi g =
@@ -125,6 +173,8 @@ listLength lo hi g =
 
 
 {-| Add a label to a `Gadget` so that it can be overridden.
+
+See [`generatorWithOverrides`](#generatorWithOverrides) for a usage example.
 -}
 label : String -> IR.Gadget a -> IR.Gadget a
 label l =
@@ -138,6 +188,8 @@ type Override
 
 
 {-| Override the default implementation of a `Random.Generator`.
+
+See [`generatorWithOverrides`](#generatorWithOverrides) for a usage example.
 -}
 override : String -> IR.Gadget a -> Random.Generator a -> Override
 override label_ gadget inputGenerator =
