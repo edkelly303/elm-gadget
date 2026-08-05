@@ -35,7 +35,7 @@ import Random.String
 
 meta : IR.MetadataTools a
 meta =
-    IR.makeMetadataTools "random"
+    IR.makeMetadataTools "Gadget.Adapter.Random"
 
 
 type alias IRValue =

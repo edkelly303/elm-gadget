@@ -33,7 +33,7 @@ type alias IRValue =
 
 meta : IR.MetadataTools a
 meta =
-    IR.makeMetadataTools "html"
+    IR.makeMetadataTools "Gadget.Adapter.Html"
 
 
 {-| Convert a value into an `Html msg`.

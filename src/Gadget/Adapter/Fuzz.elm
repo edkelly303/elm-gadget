@@ -43,7 +43,7 @@ type alias IRType =
 
 meta : IR.MetadataTools a
 meta =
-    IR.makeMetadataTools "fuzzer"
+    IR.makeMetadataTools "Gadget.Adapter.Fuzz"
 
 
 {-| Turn a Gadget into a `Fuzz.Fuzzer`.
