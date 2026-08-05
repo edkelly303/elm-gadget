@@ -1,4 +1,8 @@
-module Gadget.Adapter.Random exposing (generator, generatorWithOverrides, Override, label, override, intRange)
+module Gadget.Adapter.Random exposing
+    ( generator
+    , intRange, floatRange, listLength
+    , Override, generatorWithOverrides, label, override
+    )
 
 {-|
 
@@ -19,7 +23,17 @@ Use a Gadget to create a `Random.Generator` for use with functions from the
 
 ## API
 
-@docs generator, generatorWithOverrides, Override, label, override, intRange
+@docs generator
+
+
+### Configuring generators
+
+@docs intRange, floatRange, listLength
+
+
+### Overriding generators
+
+@docs Override, generatorWithOverrides, label, override
 
 -}
 
@@ -80,6 +94,43 @@ generator gadget =
     generatorWithOverrides [] gadget
 
 
+{-| Limit the output of a Gadget's `Random.Generator` by setting minimum and maximum
+values for the `Int` that it generates.
+-}
+intRange : Int -> Int -> IR.Gadget a -> IR.Gadget a
+intRange lo hi g =
+    g
+        |> meta.attach "int_lo" (IR.Int lo)
+        |> meta.attach "int_hi" (IR.Int hi)
+
+
+{-| Limit the output of a Gadget's `Random.Generator` by setting minimum and maximum
+values for the `Float` that it generates.
+-}
+floatRange : Float -> Float -> IR.Gadget a -> IR.Gadget a
+floatRange lo hi g =
+    g
+        |> meta.attach "float_lo" (IR.Float lo)
+        |> meta.attach "float_hi" (IR.Float hi)
+
+
+{-| Limit the output of a Gadget's `Random.Generator` by setting minimum and maximum
+values for the length of the `List` that it generates.
+-}
+listLength : Int -> Int -> IR.Gadget a -> IR.Gadget a
+listLength lo hi g =
+    g
+        |> meta.attach "list_lo" (IR.Int lo)
+        |> meta.attach "list_hi" (IR.Int hi)
+
+
+{-| Add a label to a `Gadget` so that it can be overridden.
+-}
+label : String -> IR.Gadget a -> IR.Gadget a
+label l =
+    meta.attach l (IR.String "")
+
+
 {-| A type used to represent overrides.
 -}
 type Override
@@ -91,23 +142,6 @@ type Override
 override : String -> IR.Gadget a -> Random.Generator a -> Override
 override label_ gadget inputGenerator =
     Override label_ (Random.map (IR.fromInput gadget) inputGenerator)
-
-
-{-| Limit the output of a `Random.Generator Int` by setting minimum and maximum
-values for the generator.
--}
-intRange : Int -> Int -> IR.Gadget a -> IR.Gadget a
-intRange lo hi g =
-    g
-        |> meta.attach "int_lo" (IR.Int lo)
-        |> meta.attach "int_hi" (IR.Int hi)
-
-
-{-| Add a label to a `Gadget` so that it can be overridden.
--}
-label : String -> IR.Gadget a -> IR.Gadget a
-label l =
-    meta.attach l (IR.String "")
 
 
 {-| Turn a Gadget into a `Random.Generator`, but override some of the default
@@ -237,9 +271,20 @@ randomAdapter overrides (IR.IR metadata irType) =
                                     Random.Int.anyInt
 
                 IR.FloatType ->
-                    Random.Float.anyFloat
-                        |> Random.map IR.Float
-                        |> Random.map (IR.IR metadata)
+                    Random.map (IR.IR metadata) <|
+                        Random.map IR.Float <|
+                            case ( meta.get "float_lo" metadata, meta.get "float_hi" metadata ) of
+                                ( Just (IR.Float lo), Just (IR.Float hi) ) ->
+                                    Random.float lo hi
+
+                                ( Just (IR.Float lo), _ ) ->
+                                    Random.float lo (toFloat Random.maxInt)
+
+                                ( _, Just (IR.Float hi) ) ->
+                                    Random.float (toFloat Random.maxInt) hi
+
+                                _ ->
+                                    Random.Float.anyFloat
 
                 IR.CustomType firstVariant restVariants ->
                     let
@@ -296,7 +341,24 @@ randomAdapter overrides (IR.IR metadata irType) =
                         |> Random.map (IR.IR metadata)
 
                 IR.ListType itemType ->
-                    Random.int 0 10
+                    let
+                        min =
+                            case meta.get "list_lo" metadata of
+                                Just (IR.Int lo) ->
+                                    lo
+
+                                _ ->
+                                    0
+
+                        max =
+                            case meta.get "list_hi" metadata of
+                                Just (IR.Int lo) ->
+                                    lo
+
+                                _ ->
+                                    10
+                    in
+                    Random.int min max
                         |> Random.andThen (\int -> Random.list int (randomAdapter overrides itemType))
                         |> Random.map IR.List
                         |> Random.map (IR.IR metadata)
