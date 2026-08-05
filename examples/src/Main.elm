@@ -40,7 +40,7 @@ personGadget =
                 |> Gadget.Adapter.Fuzz.label "name"
             )
         |> Gadget.field .heightInCentimetres
-            (Gadget.float |> Gadget.Adapter.Fuzz.label "heightInCentimetres")
+            (Gadget.float |> Gadget.Adapter.Random.floatRange 100 180)
         |> Gadget.field .pets
             (Gadget.list petGadget)
         |> Gadget.endRecord
@@ -120,7 +120,6 @@ view ( seed1, seed2 ) =
 
         fuzzOverrides =
             [ Gadget.Adapter.Fuzz.override "name" Gadget.string (Fuzz.oneOf (List.map Fuzz.constant [ "Ed", "Mario", "Leonardo", "Jeroen" ]))
-            , Gadget.Adapter.Fuzz.override "heightInCentimetres" Gadget.float (Fuzz.floatRange 160 196)
             , Gadget.Adapter.Fuzz.override "dogName" Gadget.string (Fuzz.oneOf (List.map Fuzz.constant [ "Fido", "Kevin", "Rover", "Fifi" ]))
             , Gadget.Adapter.Fuzz.override "series" Gadget.char (Fuzz.oneOf (List.range 65 90 |> List.map Char.fromCode |> List.map Fuzz.constant))
             , Gadget.Adapter.Fuzz.override "model" Gadget.int (Fuzz.oneOf (List.range 1 5 |> List.map (\n -> n * 1000) |> List.map Fuzz.constant))
@@ -134,8 +133,7 @@ view ( seed1, seed2 ) =
 
         randomOverrides =
             [ Gadget.Adapter.Random.override "name" Gadget.string (Random.uniform "Bill" [ "George", "Sue" ])
-            , Gadget.Adapter.Random.override "heightInCentimetres" Gadget.float (Random.float 160 196)
-            , Gadget.Adapter.Random.override "dogName" Gadget.string (Random.uniform "Fido" [ "Kevin", "Rover", "Fifi" ])
+            , Gadget.Adapter.Random.override "dogName" Gadget.string (Random.uniform "Max" [ "Archie", "Finch" ])
             , Gadget.Adapter.Random.override "series" Gadget.char (Random.uniform 'A' (List.range 66 90 |> List.map Char.fromCode))
             ]
 
