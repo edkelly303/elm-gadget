@@ -42,7 +42,7 @@ personGadget =
         |> Gadget.field .heightInCentimetres
             (Gadget.float |> Gadget.Adapter.Random.floatRange 100 180)
         |> Gadget.field .pets
-            (Gadget.list petGadget)
+            (Gadget.list petGadget |> Gadget.Adapter.Random.listLength 0 3)
         |> Gadget.endRecord
 
 
@@ -51,8 +51,8 @@ petGadget =
     Gadget.custom
         (\dog robot variant ->
             case variant of
-                Dog rec ->
-                    dog rec
+                Dog name ->
+                    dog name
 
                 Robot series model ->
                     robot series model
