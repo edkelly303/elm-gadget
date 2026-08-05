@@ -483,7 +483,8 @@ tests =
                         "0"
                         (\() ->
                             value__Gadget_IR__MetadataTools_0
-                                |> Expect.equal (Maybe.Just (Gadget.IR.Int 0))
+                                |> Expect.equal
+                                    (Maybe.Just (Gadget.IR.IntValue 0))
                         )
                     , Test.test
                         "1"
@@ -497,8 +498,8 @@ tests =
                             allValues__Gadget_IR__MetadataTools_0
                                 |> Expect.equal
                                     [ ( "MyAdapter"
-                                      , [ ( "int_hi", Gadget.IR.Int 10 )
-                                        , ( "int_lo", Gadget.IR.Int 0 )
+                                      , [ ( "int_hi", Gadget.IR.IntValue 10 )
+                                        , ( "int_lo", Gadget.IR.IntValue 0 )
                                         ]
                                       )
                                     ]
@@ -877,8 +878,12 @@ tools__Gadget_IR__MetadataTools_0 =
 
 intRange__Gadget_IR__MetadataTools_0 lo hi gadget =
     gadget
-        |> tools__Gadget_IR__MetadataTools_0.attach "int_lo" (Gadget.IR.Int lo)
-        |> tools__Gadget_IR__MetadataTools_0.attach "int_hi" (Gadget.IR.Int hi)
+        |> tools__Gadget_IR__MetadataTools_0.attach
+            "int_lo"
+            (Gadget.IR.IntValue lo)
+        |> tools__Gadget_IR__MetadataTools_0.attach
+            "int_hi"
+            (Gadget.IR.IntValue hi)
 
 
 metadata__Gadget_IR__MetadataTools_0 =

@@ -75,7 +75,7 @@ combinator typeTag typeInfo items =
 printAdapter : IRValue -> String
 printAdapter (IR.IR _ irValue) =
     case irValue of
-        IR.Bool b ->
+        IR.BoolValue b ->
             primitive "b"
                 (if b then
                     "1"
@@ -84,47 +84,47 @@ printAdapter (IR.IR _ irValue) =
                     "0"
                 )
 
-        IR.Char c ->
+        IR.CharValue c ->
             "c" ++ quoteString (String.fromChar c)
 
-        IR.String s ->
+        IR.StringValue s ->
             "s" ++ quoteString s
 
-        IR.Int i ->
+        IR.IntValue i ->
             primitive "i" (String.fromInt i)
 
-        IR.Float f ->
+        IR.FloatValue f ->
             primitive "f" (String.fromFloat f)
 
-        IR.Custom selected variant ->
+        IR.CustomValue selected variant ->
             let
                 args =
                     case variant of
-                        IR.Variant0 ->
+                        IR.Variant0Value ->
                             []
 
-                        IR.Variant1 arg ->
+                        IR.Variant1Value arg ->
                             [ arg ]
 
-                        IR.Variant2 arg1 arg2 ->
+                        IR.Variant2Value arg1 arg2 ->
                             [ arg1
                             , arg2
                             ]
 
-                        IR.Variant3 arg1 arg2 arg3 ->
+                        IR.Variant3Value arg1 arg2 arg3 ->
                             [ arg1
                             , arg2
                             , arg3
                             ]
 
-                        IR.Variant4 arg1 arg2 arg3 arg4 ->
+                        IR.Variant4Value arg1 arg2 arg3 arg4 ->
                             [ arg1
                             , arg2
                             , arg3
                             , arg4
                             ]
 
-                        IR.Variant5 arg1 arg2 arg3 arg4 arg5 ->
+                        IR.Variant5Value arg1 arg2 arg3 arg4 arg5 ->
                             [ arg1
                             , arg2
                             , arg3
@@ -137,13 +137,13 @@ printAdapter (IR.IR _ irValue) =
                 (String.fromInt selected)
                 args
 
-        IR.Product fields ->
+        IR.ProductValue fields ->
             combinator
                 "p"
                 ""
                 fields
 
-        IR.List items ->
+        IR.ListValue items ->
             combinator
                 "l"
                 ""
@@ -182,11 +182,11 @@ parser gadget =
 irParser : Parser IR.Value
 irParser =
     P.oneOf
-        [ boolParser |> P.map IR.Bool
-        , intParser |> P.map IR.Int
-        , floatParser |> P.map IR.Float
+        [ boolParser |> P.map IR.BoolValue
+        , intParser |> P.map IR.IntValue
+        , floatParser |> P.map IR.FloatValue
         , charParser
-        , stringParser |> P.map IR.String
+        , stringParser |> P.map IR.StringValue
         , listParser
         , productParser
         , customParser
@@ -218,7 +218,7 @@ listParser =
         , spaces = P.spaces
         , trailing = P.Forbidden
         }
-        |> P.map IR.List
+        |> P.map IR.ListValue
 
 
 productParser : Parser IR.Value
@@ -231,12 +231,12 @@ productParser =
         , spaces = P.spaces
         , trailing = P.Forbidden
         }
-        |> P.map IR.Product
+        |> P.map IR.ProductValue
 
 
 customParser : Parser IR.Value
 customParser =
-    P.succeed IR.Custom
+    P.succeed IR.CustomValue
         |. P.token "u"
         |= P.int
         |= (P.sequence
@@ -251,22 +251,22 @@ customParser =
                     (\args ->
                         case args of
                             [] ->
-                                P.succeed IR.Variant0
+                                P.succeed IR.Variant0Value
 
                             [ arg ] ->
-                                P.succeed (IR.Variant1 arg)
+                                P.succeed (IR.Variant1Value arg)
 
                             [ arg1, arg2 ] ->
-                                P.succeed (IR.Variant2 arg1 arg2)
+                                P.succeed (IR.Variant2Value arg1 arg2)
 
                             [ arg1, arg2, arg3 ] ->
-                                P.succeed (IR.Variant3 arg1 arg2 arg3)
+                                P.succeed (IR.Variant3Value arg1 arg2 arg3)
 
                             [ arg1, arg2, arg3, arg4 ] ->
-                                P.succeed (IR.Variant4 arg1 arg2 arg3 arg4)
+                                P.succeed (IR.Variant4Value arg1 arg2 arg3 arg4)
 
                             [ arg1, arg2, arg3, arg4, arg5 ] ->
-                                P.succeed (IR.Variant5 arg1 arg2 arg3 arg4 arg5)
+                                P.succeed (IR.Variant5Value arg1 arg2 arg3 arg4 arg5)
 
                             _ ->
                                 P.problem "variant has too many args"
@@ -312,7 +312,7 @@ charParser =
                         P.problem "Not a char"
 
                     Just ( c, _ ) ->
-                        P.succeed (IR.Char c)
+                        P.succeed (IR.CharValue c)
             )
 
 

@@ -120,8 +120,8 @@ values for the `Int` that it generates.
 intRange : Int -> Int -> IR.Gadget a -> IR.Gadget a
 intRange lo hi g =
     g
-        |> tools.attach "int_lo" (IR.Int lo)
-        |> tools.attach "int_hi" (IR.Int hi)
+        |> tools.attach "int_lo" (IR.IntValue lo)
+        |> tools.attach "int_hi" (IR.IntValue hi)
 
 
 {-| Limit the output of a Gadget's `Random.Generator` by setting minimum and maximum
@@ -138,8 +138,8 @@ values for the `Float` that it generates.
 floatRange : Float -> Float -> IR.Gadget a -> IR.Gadget a
 floatRange lo hi g =
     g
-        |> tools.attach "float_lo" (IR.Float lo)
-        |> tools.attach "float_hi" (IR.Float hi)
+        |> tools.attach "float_lo" (IR.FloatValue lo)
+        |> tools.attach "float_hi" (IR.FloatValue hi)
 
 
 {-| Limit the output of a Gadget's `Random.Generator` by setting minimum and maximum
@@ -168,8 +168,8 @@ values for the length of the `List` that it generates.
 listLength : Int -> Int -> IR.Gadget a -> IR.Gadget a
 listLength lo hi g =
     g
-        |> tools.attach "list_lo" (IR.Int lo)
-        |> tools.attach "list_hi" (IR.Int hi)
+        |> tools.attach "list_lo" (IR.IntValue lo)
+        |> tools.attach "list_hi" (IR.IntValue hi)
 
 
 {-| Add a label to a `Gadget` so that it can be overridden.
@@ -179,7 +179,7 @@ See [`generatorWithOverrides`](#generatorWithOverrides) for a usage example.
 -}
 label : String -> IR.Gadget a -> IR.Gadget a
 label l =
-    tools.attach l (IR.String "")
+    tools.attach l (IR.StringValue "")
 
 
 {-| A type used to represent overrides.
@@ -295,30 +295,30 @@ randomAdapter overrides (IR.IR metadata irType) =
 
                 IR.BoolType ->
                     Random.uniform False [ True ]
-                        |> Random.map IR.Bool
+                        |> Random.map IR.BoolValue
                         |> Random.map (IR.IR metadata)
 
                 IR.CharType ->
                     Random.Char.basicLatin
-                        |> Random.map IR.Char
+                        |> Random.map IR.CharValue
                         |> Random.map (IR.IR metadata)
 
                 IR.StringType ->
                     Random.String.rangeLengthString 0 10 Random.Char.basicLatin
-                        |> Random.map IR.String
+                        |> Random.map IR.StringValue
                         |> Random.map (IR.IR metadata)
 
                 IR.IntType ->
                     Random.map (IR.IR metadata) <|
-                        Random.map IR.Int <|
+                        Random.map IR.IntValue <|
                             case ( tools.get "int_lo" metadata, tools.get "int_hi" metadata ) of
-                                ( Just (IR.Int lo), Just (IR.Int hi) ) ->
+                                ( Just (IR.IntValue lo), Just (IR.IntValue hi) ) ->
                                     Random.int lo hi
 
-                                ( Just (IR.Int lo), _ ) ->
+                                ( Just (IR.IntValue lo), _ ) ->
                                     Random.int lo Random.maxInt
 
-                                ( _, Just (IR.Int hi) ) ->
+                                ( _, Just (IR.IntValue hi) ) ->
                                     Random.int Random.maxInt hi
 
                                 _ ->
@@ -326,15 +326,15 @@ randomAdapter overrides (IR.IR metadata irType) =
 
                 IR.FloatType ->
                     Random.map (IR.IR metadata) <|
-                        Random.map IR.Float <|
+                        Random.map IR.FloatValue <|
                             case ( tools.get "float_lo" metadata, tools.get "float_hi" metadata ) of
-                                ( Just (IR.Float lo), Just (IR.Float hi) ) ->
+                                ( Just (IR.FloatValue lo), Just (IR.FloatValue hi) ) ->
                                     Random.float lo hi
 
-                                ( Just (IR.Float lo), _ ) ->
+                                ( Just (IR.FloatValue lo), _ ) ->
                                     Random.float lo (toFloat Random.maxInt)
 
-                                ( _, Just (IR.Float hi) ) ->
+                                ( _, Just (IR.FloatValue hi) ) ->
                                     Random.float (toFloat Random.maxInt) hi
 
                                 _ ->
@@ -346,29 +346,29 @@ randomAdapter overrides (IR.IR metadata irType) =
                             case variant of
                                 IR.Variant0Type ->
                                     Random.constant
-                                        (IR.Custom idx IR.Variant0)
+                                        (IR.CustomValue idx IR.Variant0Value)
 
                                 IR.Variant1Type arg ->
                                     Random.map
-                                        (\a -> IR.Custom idx (IR.Variant1 a))
+                                        (\a -> IR.CustomValue idx (IR.Variant1Value a))
                                         (randomAdapter overrides arg)
 
                                 IR.Variant2Type arg1 arg2 ->
                                     Random.map2
-                                        (\a1 a2 -> IR.Custom idx (IR.Variant2 a1 a2))
+                                        (\a1 a2 -> IR.CustomValue idx (IR.Variant2Value a1 a2))
                                         (randomAdapter overrides arg1)
                                         (randomAdapter overrides arg2)
 
                                 IR.Variant3Type arg1 arg2 arg3 ->
                                     Random.map3
-                                        (\a1 a2 a3 -> IR.Custom idx (IR.Variant3 a1 a2 a3))
+                                        (\a1 a2 a3 -> IR.CustomValue idx (IR.Variant3Value a1 a2 a3))
                                         (randomAdapter overrides arg1)
                                         (randomAdapter overrides arg2)
                                         (randomAdapter overrides arg3)
 
                                 IR.Variant4Type arg1 arg2 arg3 arg4 ->
                                     Random.map4
-                                        (\a1 a2 a3 a4 -> IR.Custom idx (IR.Variant4 a1 a2 a3 a4))
+                                        (\a1 a2 a3 a4 -> IR.CustomValue idx (IR.Variant4Value a1 a2 a3 a4))
                                         (randomAdapter overrides arg1)
                                         (randomAdapter overrides arg2)
                                         (randomAdapter overrides arg3)
@@ -376,7 +376,7 @@ randomAdapter overrides (IR.IR metadata irType) =
 
                                 IR.Variant5Type arg1 arg2 arg3 arg4 arg5 ->
                                     Random.map5
-                                        (\a1 a2 a3 a4 a5 -> IR.Custom idx (IR.Variant5 a1 a2 a3 a4 a5))
+                                        (\a1 a2 a3 a4 a5 -> IR.CustomValue idx (IR.Variant5Value a1 a2 a3 a4 a5))
                                         (randomAdapter overrides arg1)
                                         (randomAdapter overrides arg2)
                                         (randomAdapter overrides arg3)
@@ -391,14 +391,14 @@ randomAdapter overrides (IR.IR metadata irType) =
                 IR.ProductType fields ->
                     fields
                         |> Random.Extra.traverse (randomAdapter overrides)
-                        |> Random.map IR.Product
+                        |> Random.map IR.ProductValue
                         |> Random.map (IR.IR metadata)
 
                 IR.ListType itemType ->
                     let
                         min =
                             case tools.get "list_lo" metadata of
-                                Just (IR.Int lo) ->
+                                Just (IR.IntValue lo) ->
                                     lo
 
                                 _ ->
@@ -406,7 +406,7 @@ randomAdapter overrides (IR.IR metadata irType) =
 
                         max =
                             case tools.get "list_hi" metadata of
-                                Just (IR.Int lo) ->
+                                Just (IR.IntValue lo) ->
                                     lo
 
                                 _ ->
@@ -414,5 +414,5 @@ randomAdapter overrides (IR.IR metadata irType) =
                     in
                     Random.int min max
                         |> Random.andThen (\int -> Random.list int (randomAdapter overrides itemType))
-                        |> Random.map IR.List
+                        |> Random.map IR.ListValue
                         |> Random.map (IR.IR metadata)

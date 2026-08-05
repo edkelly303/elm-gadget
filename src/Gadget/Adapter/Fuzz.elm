@@ -145,7 +145,7 @@ type Override
 -}
 label : String -> IR.Gadget a -> IR.Gadget a
 label l =
-    tools.attach l (IR.String "")
+    tools.attach l (IR.StringValue "")
 
 
 {-| Override the default implementation of a `Fuzz.Fuzzer`.
@@ -183,19 +183,19 @@ fuzzAdapter overrides (IR.IR metadata irType) =
                     Fuzz.lazy (\() -> fuzzAdapter overrides (construct ()))
 
                 IR.BoolType ->
-                    Fuzz.bool |> Fuzz.map (IR.Bool >> IR.IR metadata)
+                    Fuzz.bool |> Fuzz.map (IR.BoolValue >> IR.IR metadata)
 
                 IR.CharType ->
-                    Fuzz.char |> Fuzz.map (IR.Char >> IR.IR metadata)
+                    Fuzz.char |> Fuzz.map (IR.CharValue >> IR.IR metadata)
 
                 IR.StringType ->
-                    Fuzz.string |> Fuzz.map (IR.String >> IR.IR metadata)
+                    Fuzz.string |> Fuzz.map (IR.StringValue >> IR.IR metadata)
 
                 IR.IntType ->
-                    Fuzz.int |> Fuzz.map (IR.Int >> IR.IR metadata)
+                    Fuzz.int |> Fuzz.map (IR.IntValue >> IR.IR metadata)
 
                 IR.FloatType ->
-                    Fuzz.niceFloat |> Fuzz.map (IR.Float >> IR.IR metadata)
+                    Fuzz.niceFloat |> Fuzz.map (IR.FloatValue >> IR.IR metadata)
 
                 IR.CustomType firstVariant restVariants ->
                     Fuzz.map (IR.IR metadata) <|
@@ -205,29 +205,29 @@ fuzzAdapter overrides (IR.IR metadata irType) =
                                     case variant of
                                         IR.Variant0Type ->
                                             Fuzz.constant
-                                                (IR.Custom idx IR.Variant0)
+                                                (IR.CustomValue idx IR.Variant0Value)
 
                                         IR.Variant1Type arg ->
                                             Fuzz.map
-                                                (\a -> IR.Custom idx (IR.Variant1 a))
+                                                (\a -> IR.CustomValue idx (IR.Variant1Value a))
                                                 (fuzzAdapter overrides arg)
 
                                         IR.Variant2Type arg1 arg2 ->
                                             Fuzz.map2
-                                                (\a1 a2 -> IR.Custom idx (IR.Variant2 a1 a2))
+                                                (\a1 a2 -> IR.CustomValue idx (IR.Variant2Value a1 a2))
                                                 (fuzzAdapter overrides arg1)
                                                 (fuzzAdapter overrides arg2)
 
                                         IR.Variant3Type arg1 arg2 arg3 ->
                                             Fuzz.map3
-                                                (\a1 a2 a3 -> IR.Custom idx (IR.Variant3 a1 a2 a3))
+                                                (\a1 a2 a3 -> IR.CustomValue idx (IR.Variant3Value a1 a2 a3))
                                                 (fuzzAdapter overrides arg1)
                                                 (fuzzAdapter overrides arg2)
                                                 (fuzzAdapter overrides arg3)
 
                                         IR.Variant4Type arg1 arg2 arg3 arg4 ->
                                             Fuzz.map4
-                                                (\a1 a2 a3 a4 -> IR.Custom idx (IR.Variant4 a1 a2 a3 a4))
+                                                (\a1 a2 a3 a4 -> IR.CustomValue idx (IR.Variant4Value a1 a2 a3 a4))
                                                 (fuzzAdapter overrides arg1)
                                                 (fuzzAdapter overrides arg2)
                                                 (fuzzAdapter overrides arg3)
@@ -235,7 +235,7 @@ fuzzAdapter overrides (IR.IR metadata irType) =
 
                                         IR.Variant5Type arg1 arg2 arg3 arg4 arg5 ->
                                             Fuzz.map5
-                                                (\a1 a2 a3 a4 a5 -> IR.Custom idx (IR.Variant5 a1 a2 a3 a4 a5))
+                                                (\a1 a2 a3 a4 a5 -> IR.CustomValue idx (IR.Variant5Value a1 a2 a3 a4 a5))
                                                 (fuzzAdapter overrides arg1)
                                                 (fuzzAdapter overrides arg2)
                                                 (fuzzAdapter overrides arg3)
@@ -248,10 +248,10 @@ fuzzAdapter overrides (IR.IR metadata irType) =
                 IR.ProductType fields ->
                     fields
                         |> Fuzz.traverse (fuzzAdapter overrides)
-                        |> Fuzz.map IR.Product
+                        |> Fuzz.map IR.ProductValue
                         |> Fuzz.map (IR.IR metadata)
 
                 IR.ListType itemType ->
                     Fuzz.list (fuzzAdapter overrides itemType)
-                        |> Fuzz.map IR.List
+                        |> Fuzz.map IR.ListValue
                         |> Fuzz.map (IR.IR metadata)

@@ -108,8 +108,8 @@ import Gadget.IR as IR
         , IR(..)
         , Type(..)
         , Value(..)
-        , Variant(..)
         , VariantType(..)
+        , VariantValue(..)
         )
 import Result.Extra
 import Set
@@ -148,11 +148,11 @@ type CustomGadgetBuilder input hasAtLeastOneVariant output
 bool : Gadget Bool
 bool =
     Gadget
-        { fromInput = IR.ir << Bool
+        { fromInput = IR.ir << BoolValue
         , toOutput =
             \(IR _ ir) ->
                 case ir of
-                    Bool b ->
+                    BoolValue b ->
                         Ok b
 
                     _ ->
@@ -166,11 +166,11 @@ bool =
 char : Gadget Char
 char =
     Gadget
-        { fromInput = IR.ir << Char
+        { fromInput = IR.ir << CharValue
         , toOutput =
             \(IR _ ir) ->
                 case ir of
-                    Char c ->
+                    CharValue c ->
                         Ok c
 
                     _ ->
@@ -184,11 +184,11 @@ char =
 string : Gadget String
 string =
     Gadget
-        { fromInput = IR.ir << String
+        { fromInput = IR.ir << StringValue
         , toOutput =
             \(IR _ value) ->
                 case value of
-                    String s ->
+                    StringValue s ->
                         Ok s
 
                     _ ->
@@ -202,11 +202,11 @@ string =
 int : Gadget Int
 int =
     Gadget
-        { fromInput = IR.ir << Int
+        { fromInput = IR.ir << IntValue
         , toOutput =
             \(IR _ value) ->
                 case value of
-                    Int i ->
+                    IntValue i ->
                         Ok i
 
                     _ ->
@@ -220,11 +220,11 @@ int =
 float : Gadget Float
 float =
     Gadget
-        { fromInput = IR.ir << Float
+        { fromInput = IR.ir << FloatValue
         , toOutput =
             \(IR _ value) ->
                 case value of
-                    Float s ->
+                    FloatValue s ->
                         Ok s
 
                     _ ->
@@ -246,11 +246,11 @@ float =
 list : Gadget a -> Gadget (List a)
 list (Gadget item) =
     Gadget
-        { fromInput = \items -> IR.ir <| List (List.map item.fromInput items)
+        { fromInput = \items -> IR.ir <| ListValue (List.map item.fromInput items)
         , toOutput =
             \(IR _ value) ->
                 case value of
-                    List items ->
+                    ListValue items ->
                         List.map item.toOutput items
                             |> Result.Extra.combine
 
@@ -425,12 +425,12 @@ variant0 :
     -> CustomGadgetBuilder input () output
 variant0 ctor (CustomGadgetBuilder prev) =
     CustomGadgetBuilder
-        { match = prev.match <| IR.ir <| Custom prev.index Variant0
+        { match = prev.match <| IR.ir <| CustomValue prev.index Variant0Value
         , index = prev.index + 1
         , fromIR =
             \((IR _ value) as ir) ->
                 case value of
-                    Custom selected Variant0 ->
+                    CustomValue selected Variant0Value ->
                         if selected == prev.index then
                             Ok ctor
 
@@ -454,12 +454,12 @@ variant1 :
     -> CustomGadgetBuilder input () output
 variant1 ctor (Gadget argfns) (CustomGadgetBuilder prev) =
     CustomGadgetBuilder
-        { match = prev.match <| \arg -> IR.ir <| Custom prev.index (Variant1 (argfns.fromInput arg))
+        { match = prev.match <| \arg -> IR.ir <| CustomValue prev.index (Variant1Value (argfns.fromInput arg))
         , index = prev.index + 1
         , fromIR =
             \((IR _ value) as ir) ->
                 case value of
-                    Custom selected (Variant1 arg) ->
+                    CustomValue selected (Variant1Value arg) ->
                         if selected == prev.index then
                             Result.map ctor (argfns.toOutput arg)
 
@@ -484,12 +484,12 @@ variant2 :
     -> CustomGadgetBuilder input () output
 variant2 ctor (Gadget arg1fns) (Gadget arg2fns) (CustomGadgetBuilder prev) =
     CustomGadgetBuilder
-        { match = prev.match <| \arg1 arg2 -> IR.ir <| Custom prev.index (Variant2 (arg1fns.fromInput arg1) (arg2fns.fromInput arg2))
+        { match = prev.match <| \arg1 arg2 -> IR.ir <| CustomValue prev.index (Variant2Value (arg1fns.fromInput arg1) (arg2fns.fromInput arg2))
         , index = prev.index + 1
         , fromIR =
             \((IR _ value) as ir) ->
                 case value of
-                    Custom selected (Variant2 arg1 arg2) ->
+                    CustomValue selected (Variant2Value arg1 arg2) ->
                         if selected == prev.index then
                             Result.map2 ctor (arg1fns.toOutput arg1) (arg2fns.toOutput arg2)
 
@@ -519,8 +519,8 @@ variant3 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (CustomGadgetBu
             prev.match <|
                 \arg1 arg2 arg3 ->
                     IR.ir <|
-                        Custom prev.index
-                            (Variant3
+                        CustomValue prev.index
+                            (Variant3Value
                                 (arg1fns.fromInput arg1)
                                 (arg2fns.fromInput arg2)
                                 (arg3fns.fromInput arg3)
@@ -529,7 +529,7 @@ variant3 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (CustomGadgetBu
         , fromIR =
             \((IR _ value) as ir) ->
                 case value of
-                    Custom selected (Variant3 arg1 arg2 arg3) ->
+                    CustomValue selected (Variant3Value arg1 arg2 arg3) ->
                         if selected == prev.index then
                             Result.map3 ctor
                                 (arg1fns.toOutput arg1)
@@ -566,8 +566,8 @@ variant4 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget arg4fns
             prev.match <|
                 \arg1 arg2 arg3 arg4 ->
                     IR.ir <|
-                        Custom prev.index
-                            (Variant4
+                        CustomValue prev.index
+                            (Variant4Value
                                 (arg1fns.fromInput arg1)
                                 (arg2fns.fromInput arg2)
                                 (arg3fns.fromInput arg3)
@@ -577,7 +577,7 @@ variant4 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget arg4fns
         , fromIR =
             \((IR _ value) as ir) ->
                 case value of
-                    Custom selected (Variant4 arg1 arg2 arg3 arg4) ->
+                    CustomValue selected (Variant4Value arg1 arg2 arg3 arg4) ->
                         if selected == prev.index then
                             Result.map4 ctor
                                 (arg1fns.toOutput arg1)
@@ -617,8 +617,8 @@ variant5 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget arg4fns
             prev.match <|
                 \arg1 arg2 arg3 arg4 arg5 ->
                     IR.ir <|
-                        Custom prev.index
-                            (Variant5
+                        CustomValue prev.index
+                            (Variant5Value
                                 (arg1fns.fromInput arg1)
                                 (arg2fns.fromInput arg2)
                                 (arg3fns.fromInput arg3)
@@ -629,7 +629,7 @@ variant5 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget arg4fns
         , fromIR =
             \((IR _ value) as ir) ->
                 case value of
-                    Custom selected (Variant5 arg1 arg2 arg3 arg4 arg5) ->
+                    CustomValue selected (Variant5Value arg1 arg2 arg3 arg4 arg5) ->
                         if selected == prev.index then
                             Result.map5 ctor
                                 (arg1fns.toOutput arg1)
@@ -730,11 +730,11 @@ endRecord (RecordGadgetBuilder builder) =
     Gadget
         { fromInput =
             \input ->
-                IR.ir <| Product (List.reverse (builder.fromInput input))
+                IR.ir <| ProductValue (List.reverse (builder.fromInput input))
         , toOutput =
             \(IR _ value) ->
                 case value of
-                    Product fields ->
+                    ProductValue fields ->
                         builder.toOutput (List.reverse fields)
 
                     _ ->

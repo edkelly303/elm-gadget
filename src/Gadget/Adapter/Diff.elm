@@ -123,22 +123,22 @@ diffHelp (IR.IR _ type_) ((IR.IR _ oldData) as oldIR_) ((IR.IR _ newData) as new
 
             else
                 case ( oldData, newData, type_ ) of
-                    ( IR.Bool _, IR.Bool b2, _ ) ->
+                    ( IR.BoolValue _, IR.BoolValue b2, _ ) ->
                         BoolChange b2
 
-                    ( IR.String _, IR.String b2, _ ) ->
+                    ( IR.StringValue _, IR.StringValue b2, _ ) ->
                         StringChange b2
 
-                    ( IR.Char _, IR.Char b2, _ ) ->
+                    ( IR.CharValue _, IR.CharValue b2, _ ) ->
                         CharChange b2
 
-                    ( IR.Float _, IR.Float b2, _ ) ->
+                    ( IR.FloatValue _, IR.FloatValue b2, _ ) ->
                         FloatChange b2
 
-                    ( IR.Int _, IR.Int b2, _ ) ->
+                    ( IR.IntValue _, IR.IntValue b2, _ ) ->
                         IntChange b2
 
-                    ( IR.List oldList, IR.List newList, IR.ListType itemType ) ->
+                    ( IR.ListValue oldList, IR.ListValue newList, IR.ListType itemType ) ->
                         ListDiffer.diffWith (areSimilar itemType) oldList newList
                             |> List.foldl
                                 (\change { idx, out } ->
@@ -177,7 +177,7 @@ diffHelp (IR.IR _ type_) ((IR.IR _ oldData) as oldIR_) ((IR.IR _ newData) as new
                             |> doRunLengthEncoding
                             |> ListChanges
 
-                    ( IR.Product fields1, IR.Product fields2, IR.ProductType fieldTypes ) ->
+                    ( IR.ProductValue fields1, IR.ProductValue fields2, IR.ProductType fieldTypes ) ->
                         let
                             changes =
                                 List.map3 diffHelp fieldTypes fields1 fields2
@@ -191,26 +191,26 @@ diffHelp (IR.IR _ type_) ((IR.IR _ oldData) as oldIR_) ((IR.IR _ newData) as new
                             [] ->
                                 Identical
 
-                    ( IR.Custom oldSelected oldVariant, IR.Custom newSelected newVariant, IR.CustomType firstVariantType restVariantTypes ) ->
+                    ( IR.CustomValue oldSelected oldVariant, IR.CustomValue newSelected newVariant, IR.CustomType firstVariantType restVariantTypes ) ->
                         let
                             argsToList variant =
                                 case variant of
-                                    IR.Variant0 ->
+                                    IR.Variant0Value ->
                                         []
 
-                                    IR.Variant1 a ->
+                                    IR.Variant1Value a ->
                                         [ a ]
 
-                                    IR.Variant2 a1 a2 ->
+                                    IR.Variant2Value a1 a2 ->
                                         [ a1, a2 ]
 
-                                    IR.Variant3 a1 a2 a3 ->
+                                    IR.Variant3Value a1 a2 a3 ->
                                         [ a1, a2, a3 ]
 
-                                    IR.Variant4 a1 a2 a3 a4 ->
+                                    IR.Variant4Value a1 a2 a3 a4 ->
                                         [ a1, a2, a3, a4 ]
 
-                                    IR.Variant5 a1 a2 a3 a4 a5 ->
+                                    IR.Variant5Value a1 a2 a3 a4 a5 ->
                                         [ a1, a2, a3, a4, a5 ]
 
                             argTypesToList variantType =
@@ -433,48 +433,48 @@ default (IR.IR metadata irType) =
             default (construct ())
 
         IR.BoolType ->
-            IR.IR metadata <| IR.Bool True
+            IR.IR metadata <| IR.BoolValue True
 
         IR.CharType ->
-            IR.IR metadata <| IR.Char ' '
+            IR.IR metadata <| IR.CharValue ' '
 
         IR.StringType ->
-            IR.IR metadata <| IR.String ""
+            IR.IR metadata <| IR.StringValue ""
 
         IR.IntType ->
-            IR.IR metadata <| IR.Int 0
+            IR.IR metadata <| IR.IntValue 0
 
         IR.FloatType ->
-            IR.IR metadata <| IR.Float 0.0
+            IR.IR metadata <| IR.FloatValue 0.0
 
         IR.ListType _ ->
-            IR.IR metadata <| IR.List []
+            IR.IR metadata <| IR.ListValue []
 
         IR.CustomType firstVariantType _ ->
             IR.IR metadata <|
-                IR.Custom 0
+                IR.CustomValue 0
                     (case firstVariantType of
                         IR.Variant0Type ->
-                            IR.Variant0
+                            IR.Variant0Value
 
                         IR.Variant1Type arg ->
-                            IR.Variant1 (default arg)
+                            IR.Variant1Value (default arg)
 
                         IR.Variant2Type arg1 arg2 ->
-                            IR.Variant2 (default arg1) (default arg2)
+                            IR.Variant2Value (default arg1) (default arg2)
 
                         IR.Variant3Type arg1 arg2 arg3 ->
-                            IR.Variant3 (default arg1) (default arg2) (default arg3)
+                            IR.Variant3Value (default arg1) (default arg2) (default arg3)
 
                         IR.Variant4Type arg1 arg2 arg3 arg4 ->
-                            IR.Variant4 (default arg1) (default arg2) (default arg3) (default arg4)
+                            IR.Variant4Value (default arg1) (default arg2) (default arg3) (default arg4)
 
                         IR.Variant5Type arg1 arg2 arg3 arg4 arg5 ->
-                            IR.Variant5 (default arg1) (default arg2) (default arg3) (default arg4) (default arg5)
+                            IR.Variant5Value (default arg1) (default arg2) (default arg3) (default arg4) (default arg5)
                     )
 
         IR.ProductType fieldTypes ->
-            IR.IR metadata <| IR.Product (List.map default fieldTypes)
+            IR.IR metadata <| IR.ProductValue (List.map default fieldTypes)
 
 
 {-| Use a set of [Changes](#Changes) to patch a value.
@@ -506,22 +506,22 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
         ( _, _, IR.LazyType constructType ) ->
             patchHelp changes_ old_ (constructType ())
 
-        ( BoolChange b, IR.Bool _, _ ) ->
-            Ok (IR.IR metadata <| IR.Bool b)
+        ( BoolChange b, IR.BoolValue _, _ ) ->
+            Ok (IR.IR metadata <| IR.BoolValue b)
 
-        ( CharChange b, IR.Char _, _ ) ->
-            Ok (IR.IR metadata <| IR.Char b)
+        ( CharChange b, IR.CharValue _, _ ) ->
+            Ok (IR.IR metadata <| IR.CharValue b)
 
-        ( StringChange b, IR.String _, _ ) ->
-            Ok (IR.IR metadata <| IR.String b)
+        ( StringChange b, IR.StringValue _, _ ) ->
+            Ok (IR.IR metadata <| IR.StringValue b)
 
-        ( IntChange b, IR.Int _, _ ) ->
-            Ok (IR.IR metadata <| IR.Int b)
+        ( IntChange b, IR.IntValue _, _ ) ->
+            Ok (IR.IR metadata <| IR.IntValue b)
 
-        ( FloatChange b, IR.Float _, _ ) ->
-            Ok (IR.IR metadata <| IR.Float b)
+        ( FloatChange b, IR.FloatValue _, _ ) ->
+            Ok (IR.IR metadata <| IR.FloatValue b)
 
-        ( ListChanges cs, IR.List oldList, IR.ListType itemType ) ->
+        ( ListChanges cs, IR.ListValue oldList, IR.ListType itemType ) ->
             Ok
                 (List.foldl
                     (\change out ->
@@ -531,11 +531,11 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
                     cs
                     |> List.filterMap identity
                     |> List.concat
-                    |> IR.List
+                    |> IR.ListValue
                     |> IR.IR metadata
                 )
 
-        ( ProductChanges fieldChange restFieldChanges, IR.Product oldFields, IR.ProductType fieldTypes ) ->
+        ( ProductChanges fieldChange restFieldChanges, IR.ProductValue oldFields, IR.ProductType fieldTypes ) ->
             let
                 fieldChangesDict =
                     Dict.fromList (fieldChange :: restFieldChanges)
@@ -551,10 +551,10 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
                                 patchHelp change oldField fieldType
                     )
                 |> Result.Extra.combine
-                |> Result.map IR.Product
+                |> Result.map IR.ProductValue
                 |> Result.map (IR.IR metadata)
 
-        ( CustomChanges diffSelected diffVariant, IR.Custom oldSelected oldVariant, IR.CustomType firstVariantType restVariantTypes ) ->
+        ( CustomChanges diffSelected diffVariant, IR.CustomValue oldSelected oldVariant, IR.CustomType firstVariantType restVariantTypes ) ->
             let
                 argsDict =
                     Dict.fromList diffVariant
@@ -581,17 +581,17 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
                     (\variantType ->
                         case variantType of
                             IR.Variant0Type ->
-                                Ok IR.Variant0
+                                Ok IR.Variant0Value
 
                             IR.Variant1Type arg1Type ->
                                 if diffSelected == oldSelected then
                                     case oldVariant of
-                                        IR.Variant1 arg1 ->
+                                        IR.Variant1Value arg1 ->
                                             let
                                                 arg1Diff =
                                                     toArgDiff 0 arg1 arg1Type
                                             in
-                                            Result.map IR.Variant1 arg1Diff
+                                            Result.map IR.Variant1Value arg1Diff
 
                                         _ ->
                                             Err ""
@@ -601,12 +601,12 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
                                         arg1Diff =
                                             toArgDiffFromDefault 0 arg1Type
                                     in
-                                    Result.map IR.Variant1 arg1Diff
+                                    Result.map IR.Variant1Value arg1Diff
 
                             IR.Variant2Type arg1Type arg2Type ->
                                 if diffSelected == oldSelected then
                                     case oldVariant of
-                                        IR.Variant2 arg1 arg2 ->
+                                        IR.Variant2Value arg1 arg2 ->
                                             let
                                                 arg1Diff =
                                                     toArgDiff 0 arg1 arg1Type
@@ -614,7 +614,7 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
                                                 arg2Diff =
                                                     toArgDiff 1 arg2 arg2Type
                                             in
-                                            Result.map2 IR.Variant2 arg1Diff arg2Diff
+                                            Result.map2 IR.Variant2Value arg1Diff arg2Diff
 
                                         _ ->
                                             Err ""
@@ -627,12 +627,12 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
                                         arg2Diff =
                                             toArgDiffFromDefault 1 arg2Type
                                     in
-                                    Result.map2 IR.Variant2 arg1Diff arg2Diff
+                                    Result.map2 IR.Variant2Value arg1Diff arg2Diff
 
                             IR.Variant3Type arg1Type arg2Type arg3Type ->
                                 if diffSelected == oldSelected then
                                     case oldVariant of
-                                        IR.Variant3 arg1 arg2 arg3 ->
+                                        IR.Variant3Value arg1 arg2 arg3 ->
                                             let
                                                 arg1Diff =
                                                     toArgDiff 0 arg1 arg1Type
@@ -643,7 +643,7 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
                                                 arg3Diff =
                                                     toArgDiff 2 arg3 arg3Type
                                             in
-                                            Result.map3 IR.Variant3 arg1Diff arg2Diff arg3Diff
+                                            Result.map3 IR.Variant3Value arg1Diff arg2Diff arg3Diff
 
                                         _ ->
                                             Err ""
@@ -659,12 +659,12 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
                                         arg3Diff =
                                             toArgDiffFromDefault 2 arg3Type
                                     in
-                                    Result.map3 IR.Variant3 arg1Diff arg2Diff arg3Diff
+                                    Result.map3 IR.Variant3Value arg1Diff arg2Diff arg3Diff
 
                             IR.Variant4Type arg1Type arg2Type arg3Type arg4Type ->
                                 if diffSelected == oldSelected then
                                     case oldVariant of
-                                        IR.Variant4 arg1 arg2 arg3 arg4 ->
+                                        IR.Variant4Value arg1 arg2 arg3 arg4 ->
                                             let
                                                 arg1Diff =
                                                     toArgDiff 0 arg1 arg1Type
@@ -678,7 +678,7 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
                                                 arg4Diff =
                                                     toArgDiff 3 arg4 arg4Type
                                             in
-                                            Result.map4 IR.Variant4 arg1Diff arg2Diff arg3Diff arg4Diff
+                                            Result.map4 IR.Variant4Value arg1Diff arg2Diff arg3Diff arg4Diff
 
                                         _ ->
                                             Err ""
@@ -697,12 +697,12 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
                                         arg4Diff =
                                             toArgDiffFromDefault 3 arg4Type
                                     in
-                                    Result.map4 IR.Variant4 arg1Diff arg2Diff arg3Diff arg4Diff
+                                    Result.map4 IR.Variant4Value arg1Diff arg2Diff arg3Diff arg4Diff
 
                             IR.Variant5Type arg1Type arg2Type arg3Type arg4Type arg5Type ->
                                 if diffSelected == oldSelected then
                                     case oldVariant of
-                                        IR.Variant5 arg1 arg2 arg3 arg4 arg5 ->
+                                        IR.Variant5Value arg1 arg2 arg3 arg4 arg5 ->
                                             let
                                                 arg1Diff =
                                                     toArgDiff 0 arg1 arg1Type
@@ -719,7 +719,7 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
                                                 arg5Diff =
                                                     toArgDiff 4 arg5 arg5Type
                                             in
-                                            Result.map5 IR.Variant5 arg1Diff arg2Diff arg3Diff arg4Diff arg5Diff
+                                            Result.map5 IR.Variant5Value arg1Diff arg2Diff arg3Diff arg4Diff arg5Diff
 
                                         _ ->
                                             Err ""
@@ -741,9 +741,9 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
                                         arg5Diff =
                                             toArgDiffFromDefault 4 arg5Type
                                     in
-                                    Result.map5 IR.Variant5 arg1Diff arg2Diff arg3Diff arg4Diff arg5Diff
+                                    Result.map5 IR.Variant5Value arg1Diff arg2Diff arg3Diff arg4Diff arg5Diff
                     )
-                |> Result.map (IR.Custom diffSelected)
+                |> Result.map (IR.CustomValue diffSelected)
                 |> Result.map (IR.IR metadata)
 
         _ ->

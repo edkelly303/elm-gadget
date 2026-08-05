@@ -97,27 +97,27 @@ decoder gadget =
 encodeAdapter : IRValue -> JE.Value
 encodeAdapter (IR.IR _ irValue) =
     case irValue of
-        IR.Bool b ->
+        IR.BoolValue b ->
             JE.object
                 [ ( "bool", JE.bool b ) ]
 
-        IR.Char c ->
+        IR.CharValue c ->
             JE.object
                 [ ( "char", JE.string (String.fromChar c) ) ]
 
-        IR.String s ->
+        IR.StringValue s ->
             JE.object
                 [ ( "string", JE.string s ) ]
 
-        IR.Int i ->
+        IR.IntValue i ->
             JE.object
                 [ ( "int", JE.int i ) ]
 
-        IR.Float f ->
+        IR.FloatValue f ->
             JE.object
                 [ ( "float", JE.float f ) ]
 
-        IR.Custom selected variant ->
+        IR.CustomValue selected variant ->
             JE.object
                 [ ( "custom"
                   , JE.object
@@ -125,31 +125,31 @@ encodeAdapter (IR.IR _ irValue) =
                         , ( "args"
                           , JE.list encodeAdapter
                                 (case variant of
-                                    IR.Variant0 ->
+                                    IR.Variant0Value ->
                                         []
 
-                                    IR.Variant1 arg ->
+                                    IR.Variant1Value arg ->
                                         [ arg ]
 
-                                    IR.Variant2 arg1 arg2 ->
+                                    IR.Variant2Value arg1 arg2 ->
                                         [ arg1
                                         , arg2
                                         ]
 
-                                    IR.Variant3 arg1 arg2 arg3 ->
+                                    IR.Variant3Value arg1 arg2 arg3 ->
                                         [ arg1
                                         , arg2
                                         , arg3
                                         ]
 
-                                    IR.Variant4 arg1 arg2 arg3 arg4 ->
+                                    IR.Variant4Value arg1 arg2 arg3 arg4 ->
                                         [ arg1
                                         , arg2
                                         , arg3
                                         , arg4
                                         ]
 
-                                    IR.Variant5 arg1 arg2 arg3 arg4 arg5 ->
+                                    IR.Variant5Value arg1 arg2 arg3 arg4 arg5 ->
                                         [ arg1
                                         , arg2
                                         , arg3
@@ -162,14 +162,14 @@ encodeAdapter (IR.IR _ irValue) =
                   )
                 ]
 
-        IR.Product fields ->
+        IR.ProductValue fields ->
             JE.object
                 [ ( "product"
                   , JE.list encodeAdapter fields
                   )
                 ]
 
-        IR.List items ->
+        IR.ListValue items ->
             JE.object
                 [ ( "list"
                   , JE.list encodeAdapter items
@@ -181,7 +181,7 @@ decodeAdapter : JD.Decoder IRValue
 decodeAdapter =
     JD.map IR.ir <|
         JD.oneOf
-            [ JD.field "bool" JD.bool |> JD.map IR.Bool
+            [ JD.field "bool" JD.bool |> JD.map IR.BoolValue
             , JD.field "char" JD.string
                 |> JD.andThen
                     (\s ->
@@ -190,33 +190,33 @@ decodeAdapter =
                                 JD.fail "not a char"
 
                             Just ( c, _ ) ->
-                                JD.succeed (IR.Char c)
+                                JD.succeed (IR.CharValue c)
                     )
-            , JD.field "string" JD.string |> JD.map IR.String
-            , JD.field "int" JD.int |> JD.map IR.Int
-            , JD.field "float" JD.float |> JD.map IR.Float
+            , JD.field "string" JD.string |> JD.map IR.StringValue
+            , JD.field "int" JD.int |> JD.map IR.IntValue
+            , JD.field "float" JD.float |> JD.map IR.FloatValue
             , JD.field "custom"
                 (JD.map2
                     (\selected args ->
-                        Maybe.map (IR.Custom selected) <|
+                        Maybe.map (IR.CustomValue selected) <|
                             case args of
                                 [] ->
-                                    Just IR.Variant0
+                                    Just IR.Variant0Value
 
                                 [ arg ] ->
-                                    Just (IR.Variant1 arg)
+                                    Just (IR.Variant1Value arg)
 
                                 [ arg1, arg2 ] ->
-                                    Just (IR.Variant2 arg1 arg2)
+                                    Just (IR.Variant2Value arg1 arg2)
 
                                 [ arg1, arg2, arg3 ] ->
-                                    Just (IR.Variant3 arg1 arg2 arg3)
+                                    Just (IR.Variant3Value arg1 arg2 arg3)
 
                                 [ arg1, arg2, arg3, arg4 ] ->
-                                    Just (IR.Variant4 arg1 arg2 arg3 arg4)
+                                    Just (IR.Variant4Value arg1 arg2 arg3 arg4)
 
                                 [ arg1, arg2, arg3, arg4, arg5 ] ->
-                                    Just (IR.Variant5 arg1 arg2 arg3 arg4 arg5)
+                                    Just (IR.Variant5Value arg1 arg2 arg3 arg4 arg5)
 
                                 _ ->
                                     Nothing
@@ -235,10 +235,10 @@ decodeAdapter =
                 )
             , JD.field "product"
                 (JD.list (JD.lazy (\() -> decodeAdapter))
-                    |> JD.map IR.Product
+                    |> JD.map IR.ProductValue
                 )
             , JD.field "list"
                 (JD.list (JD.lazy (\() -> decodeAdapter))
-                    |> JD.map IR.List
+                    |> JD.map IR.ListValue
                 )
             ]

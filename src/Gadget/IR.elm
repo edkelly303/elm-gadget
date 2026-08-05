@@ -1,7 +1,7 @@
 module Gadget.IR exposing
     ( Gadget(..)
     , fromInput, irType, toOutput, Error
-    , IR(..), ir, Value(..), Variant(..), Type(..), VariantType(..)
+    , IR(..), ir, Value(..), VariantValue(..), Type(..), VariantType(..)
     , Metadata, MetadataTools, makeMetadataTools
     )
 
@@ -20,7 +20,7 @@ various `Gadget.Adapter` modules in this package:
 
 @docs fromInput, irType, toOutput, Error
 
-@docs IR, ir, Value, Variant, Type, VariantType
+@docs IR, ir, Value, VariantValue, Type, VariantType
 
 @docs Metadata, MetadataTools, makeMetadataTools
 
@@ -46,35 +46,35 @@ type alias Error =
     String
 
 
-{-| `IR` values are variants of this type. All Elm values (as long as they don't
-contain functions) should be able to be encoded as a value of this type.
+{-| A wrapper that attaches `Metadata` to each `Value` and `Type` node.
 -}
-type IR a
-    = IR Metadata a
+type IR valueOrType
+    = IR Metadata valueOrType
 
 
-{-| TODO docs
+{-| When an Elm value is translated into IR, its structure and contents are
+represented using variants of `Value`.
 -}
 type Value
-    = Bool Bool
-    | Char Char
-    | String String
-    | Int Int
-    | Float Float
-    | Custom Int Variant
-    | Product (List (IR Value))
-    | List (List (IR Value))
+    = BoolValue Bool
+    | CharValue Char
+    | StringValue String
+    | IntValue Int
+    | FloatValue Float
+    | CustomValue Int VariantValue
+    | ProductValue (List (IR Value))
+    | ListValue (List (IR Value))
 
 
 {-| A type used by the `Custom` constructor of the `Value` type.
 -}
-type Variant
-    = Variant0
-    | Variant1 (IR Value)
-    | Variant2 (IR Value) (IR Value)
-    | Variant3 (IR Value) (IR Value) (IR Value)
-    | Variant4 (IR Value) (IR Value) (IR Value) (IR Value)
-    | Variant5 (IR Value) (IR Value) (IR Value) (IR Value) (IR Value)
+type VariantValue
+    = Variant0Value
+    | Variant1Value (IR Value)
+    | Variant2Value (IR Value) (IR Value)
+    | Variant3Value (IR Value) (IR Value) (IR Value)
+    | Variant4Value (IR Value) (IR Value) (IR Value) (IR Value)
+    | Variant5Value (IR Value) (IR Value) (IR Value) (IR Value) (IR Value)
 
 
 {-| When translated into IR, any Elm value will have a "type" that is a variant of `Type`.
@@ -132,7 +132,7 @@ type Metadata
 
 {-| A helper for making new `IR` nodes
 -}
-ir : a -> IR a
+ir : valueOrType -> IR valueOrType
 ir =
     IR (Metadata Dict.empty)
 
@@ -154,8 +154,8 @@ For example, here's how [`Gadget.Adapter.Random`](Gadget-Adapter-Random) defines
 
     intRange lo hi gadget =
         gadget
-            |> tools.attach "int_lo" (Gadget.IR.Int lo)
-            |> tools.attach "int_hi" (Gadget.IR.Int hi)
+            |> tools.attach "int_lo" (Gadget.IR.IntValue lo)
+            |> tools.attach "int_hi" (Gadget.IR.IntValue hi)
 
     -- and we can look up those values using the other tools:
 
@@ -170,7 +170,7 @@ For example, here's how [`Gadget.Adapter.Random`](Gadget-Adapter-Random) defines
     value =
         tools.get "int_lo" metadata
 
-    value --> Just (Gadget.IR.Int 0)
+    value --> Just (Gadget.IR.IntValue 0)
 
     member =
         tools.member "int_hi" metadata
@@ -180,7 +180,7 @@ For example, here's how [`Gadget.Adapter.Random`](Gadget-Adapter-Random) defines
     allValues =
         tools.export metadata
 
-    allValues --> [ ("MyAdapter", [ ( "int_hi" , Gadget.IR.Int 10 ), ( "int_lo" , Gadget.IR.Int 0 ) ]) ]
+    allValues --> [ ("MyAdapter", [ ( "int_hi" , Gadget.IR.IntValue 10 ), ( "int_lo" , Gadget.IR.IntValue 0 ) ]) ]
 
 -}
 type alias MetadataTools a =

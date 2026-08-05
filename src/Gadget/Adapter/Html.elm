@@ -92,7 +92,7 @@ htmlAdapter (IR.IR metadata irValue) =
 htmlAdapterHelper : IR.Value -> H.Html msg
 htmlAdapterHelper irValue =
     case irValue of
-        IR.Bool b ->
+        IR.BoolValue b ->
             unquotedPrimitive "Bool"
                 (if b then
                     "True"
@@ -101,47 +101,47 @@ htmlAdapterHelper irValue =
                     "False"
                 )
 
-        IR.Char c ->
+        IR.CharValue c ->
             quotedPrimitive "'" "Char" (String.fromChar c)
 
-        IR.String s ->
+        IR.StringValue s ->
             quotedPrimitive "\"" "String" s
 
-        IR.Int i ->
+        IR.IntValue i ->
             unquotedPrimitive "Int" (String.fromInt i)
 
-        IR.Float f ->
+        IR.FloatValue f ->
             unquotedPrimitive "Float" (String.fromFloat f)
 
-        IR.Custom selected variant ->
+        IR.CustomValue selected variant ->
             let
                 args =
                     case variant of
-                        IR.Variant0 ->
+                        IR.Variant0Value ->
                             []
 
-                        IR.Variant1 arg ->
+                        IR.Variant1Value arg ->
                             [ arg ]
 
-                        IR.Variant2 arg1 arg2 ->
+                        IR.Variant2Value arg1 arg2 ->
                             [ arg1
                             , arg2
                             ]
 
-                        IR.Variant3 arg1 arg2 arg3 ->
+                        IR.Variant3Value arg1 arg2 arg3 ->
                             [ arg1
                             , arg2
                             , arg3
                             ]
 
-                        IR.Variant4 arg1 arg2 arg3 arg4 ->
+                        IR.Variant4Value arg1 arg2 arg3 arg4 ->
                             [ arg1
                             , arg2
                             , arg3
                             , arg4
                             ]
 
-                        IR.Variant5 arg1 arg2 arg3 arg4 arg5 ->
+                        IR.Variant5Value arg1 arg2 arg3 arg4 arg5 ->
                             [ arg1
                             , arg2
                             , arg3
@@ -168,7 +168,7 @@ htmlAdapterHelper irValue =
                 )
                 args
 
-        IR.Product fields ->
+        IR.ProductValue fields ->
             let
                 count =
                     List.length fields
@@ -187,7 +187,7 @@ htmlAdapterHelper irValue =
                 )
                 fields
 
-        IR.List items ->
+        IR.ListValue items ->
             let
                 count =
                     List.length items
