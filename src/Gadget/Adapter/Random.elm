@@ -47,8 +47,8 @@ import Random.Int
 import Random.String
 
 
-meta : IR.MetadataTools a
-meta =
+tools : IR.MetadataTools a
+tools =
     IR.makeMetadataTools "Gadget.Adapter.Random"
 
 
@@ -120,8 +120,8 @@ values for the `Int` that it generates.
 intRange : Int -> Int -> IR.Gadget a -> IR.Gadget a
 intRange lo hi g =
     g
-        |> meta.attach "int_lo" (IR.Int lo)
-        |> meta.attach "int_hi" (IR.Int hi)
+        |> tools.attach "int_lo" (IR.Int lo)
+        |> tools.attach "int_hi" (IR.Int hi)
 
 
 {-| Limit the output of a Gadget's `Random.Generator` by setting minimum and maximum
@@ -138,8 +138,8 @@ values for the `Float` that it generates.
 floatRange : Float -> Float -> IR.Gadget a -> IR.Gadget a
 floatRange lo hi g =
     g
-        |> meta.attach "float_lo" (IR.Float lo)
-        |> meta.attach "float_hi" (IR.Float hi)
+        |> tools.attach "float_lo" (IR.Float lo)
+        |> tools.attach "float_hi" (IR.Float hi)
 
 
 {-| Limit the output of a Gadget's `Random.Generator` by setting minimum and maximum
@@ -168,17 +168,18 @@ values for the length of the `List` that it generates.
 listLength : Int -> Int -> IR.Gadget a -> IR.Gadget a
 listLength lo hi g =
     g
-        |> meta.attach "list_lo" (IR.Int lo)
-        |> meta.attach "list_hi" (IR.Int hi)
+        |> tools.attach "list_lo" (IR.Int lo)
+        |> tools.attach "list_hi" (IR.Int hi)
 
 
 {-| Add a label to a `Gadget` so that it can be overridden.
 
 See [`generatorWithOverrides`](#generatorWithOverrides) for a usage example.
+
 -}
 label : String -> IR.Gadget a -> IR.Gadget a
 label l =
-    meta.attach l (IR.String "")
+    tools.attach l (IR.String "")
 
 
 {-| A type used to represent overrides.
@@ -190,6 +191,7 @@ type Override
 {-| Override the default implementation of a `Random.Generator`.
 
 See [`generatorWithOverrides`](#generatorWithOverrides) for a usage example.
+
 -}
 override : String -> IR.Gadget a -> Random.Generator a -> Override
 override label_ gadget inputGenerator =
@@ -275,7 +277,7 @@ randomAdapter overrides (IR.IR metadata irType) =
                             Just prevOverride
 
                         Nothing ->
-                            if meta.member key metadata then
+                            if tools.member key metadata then
                                 Just thisOverride
 
                             else
@@ -309,7 +311,7 @@ randomAdapter overrides (IR.IR metadata irType) =
                 IR.IntType ->
                     Random.map (IR.IR metadata) <|
                         Random.map IR.Int <|
-                            case ( meta.get "int_lo" metadata, meta.get "int_hi" metadata ) of
+                            case ( tools.get "int_lo" metadata, tools.get "int_hi" metadata ) of
                                 ( Just (IR.Int lo), Just (IR.Int hi) ) ->
                                     Random.int lo hi
 
@@ -325,7 +327,7 @@ randomAdapter overrides (IR.IR metadata irType) =
                 IR.FloatType ->
                     Random.map (IR.IR metadata) <|
                         Random.map IR.Float <|
-                            case ( meta.get "float_lo" metadata, meta.get "float_hi" metadata ) of
+                            case ( tools.get "float_lo" metadata, tools.get "float_hi" metadata ) of
                                 ( Just (IR.Float lo), Just (IR.Float hi) ) ->
                                     Random.float lo hi
 
@@ -395,7 +397,7 @@ randomAdapter overrides (IR.IR metadata irType) =
                 IR.ListType itemType ->
                     let
                         min =
-                            case meta.get "list_lo" metadata of
+                            case tools.get "list_lo" metadata of
                                 Just (IR.Int lo) ->
                                     lo
 
@@ -403,7 +405,7 @@ randomAdapter overrides (IR.IR metadata irType) =
                                     0
 
                         max =
-                            case meta.get "list_hi" metadata of
+                            case tools.get "list_hi" metadata of
                                 Just (IR.Int lo) ->
                                     lo
 

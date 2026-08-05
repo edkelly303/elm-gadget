@@ -41,8 +41,8 @@ type alias IRType =
     IR.IR IR.Type
 
 
-meta : IR.MetadataTools a
-meta =
+tools : IR.MetadataTools a
+tools =
     IR.makeMetadataTools "Gadget.Adapter.Fuzz"
 
 
@@ -145,7 +145,7 @@ type Override
 -}
 label : String -> IR.Gadget a -> IR.Gadget a
 label l =
-    meta.attach l (IR.String "")
+    tools.attach l (IR.String "")
 
 
 {-| Override the default implementation of a `Fuzz.Fuzzer`.
@@ -166,7 +166,7 @@ fuzzAdapter overrides (IR.IR metadata irType) =
                             Just prevOverride
 
                         Nothing ->
-                            if meta.member key metadata then
+                            if tools.member key metadata then
                                 Just thisOverride
 
                             else

@@ -14,6 +14,7 @@ import Gadget.Adapter.Html
 import Gadget.Adapter.Json
 import Gadget.Adapter.Random
 import Gadget.Adapter.String
+import Gadget.IR
 import Html
 import Json.Decode
 import Json.Encode
@@ -472,6 +473,55 @@ tests =
                     ]
                 ]
             ]
+        , Test.describe
+            "Gadget.IR"
+            [ Test.describe
+                "MetadataTools"
+                [ Test.describe
+                    "code snippet 0"
+                    [ Test.test
+                        "0"
+                        (\() ->
+                            value__Gadget_IR__MetadataTools_0
+                                |> Expect.equal (Maybe.Just (Gadget.IR.Int 0))
+                        )
+                    , Test.test
+                        "1"
+                        (\() ->
+                            member__Gadget_IR__MetadataTools_0
+                                |> Expect.equal Basics.True
+                        )
+                    , Test.test
+                        "2"
+                        (\() ->
+                            allValues__Gadget_IR__MetadataTools_0
+                                |> Expect.equal
+                                    [ ( "MyAdapter"
+                                      , [ ( "int_hi", Gadget.IR.Int 10 )
+                                        , ( "int_lo", Gadget.IR.Int 0 )
+                                        ]
+                                      )
+                                    ]
+                        )
+                    ]
+                ]
+            , Test.describe
+                "makeMetadataTools"
+                [ Test.describe
+                    "code snippet 0"
+                    [ Test.test
+                        "0"
+                        (\() ->
+                            let
+                                unused : Gadget.IR.MetadataTools a
+                                unused =
+                                    tools__Gadget_IR__makeMetadataTools_0
+                            in
+                            Expect.pass
+                        )
+                    ]
+                ]
+            ]
         ]
 
 
@@ -819,3 +869,41 @@ printer__Gadget_Adapter_String__print_0 =
 
 printed__Gadget_Adapter_String__print_0 =
     printer__Gadget_Adapter_String__print_0 [ 1, 2, 3 ]
+
+
+tools__Gadget_IR__MetadataTools_0 =
+    Gadget.IR.makeMetadataTools "MyAdapter"
+
+
+intRange__Gadget_IR__MetadataTools_0 lo hi gadget =
+    gadget
+        |> tools__Gadget_IR__MetadataTools_0.attach "int_lo" (Gadget.IR.Int lo)
+        |> tools__Gadget_IR__MetadataTools_0.attach "int_hi" (Gadget.IR.Int hi)
+
+
+metadata__Gadget_IR__MetadataTools_0 =
+    Gadget.int
+        |> intRange__Gadget_IR__MetadataTools_0 0 10
+        |> Gadget.IR.irType
+        |> (\(Gadget.IR.IR metadata_ _) -> metadata_)
+
+
+value__Gadget_IR__MetadataTools_0 =
+    tools__Gadget_IR__MetadataTools_0.get
+        "int_lo"
+        metadata__Gadget_IR__MetadataTools_0
+
+
+member__Gadget_IR__MetadataTools_0 =
+    tools__Gadget_IR__MetadataTools_0.member
+        "int_hi"
+        metadata__Gadget_IR__MetadataTools_0
+
+
+allValues__Gadget_IR__MetadataTools_0 =
+    tools__Gadget_IR__MetadataTools_0.export
+        metadata__Gadget_IR__MetadataTools_0
+
+
+tools__Gadget_IR__makeMetadataTools_0 =
+    Gadget.IR.makeMetadataTools "MyAdapter"

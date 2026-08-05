@@ -31,8 +31,8 @@ type alias IRValue =
     IR.IR IR.Value
 
 
-meta : IR.MetadataTools a
-meta =
+tools : IR.MetadataTools a
+tools =
     IR.makeMetadataTools "Gadget.Adapter.Html"
 
 
@@ -65,7 +65,7 @@ htmlAdapter (IR.IR metadata irValue) =
         dataHtml =
             htmlAdapterHelper irValue
     in
-    case meta.export metadata of
+    case tools.export metadata of
         [] ->
             dataHtml
 

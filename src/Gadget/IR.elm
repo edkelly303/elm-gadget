@@ -11,8 +11,10 @@ To see some examples of how to use this module, look at the source code for the
 various `Gadget.Adapter` modules in this package:
 
   - The simplest one is probably [`Gadget.Adapter.Html`](Gadget-Adapter-Html).
-  - For a bidirectional example, try [`Gadget.Adapter.Json`](Gadget-Adapter-Json).
-  - For an example of how to override Gadgets, see [`Gadget.Adapter.Fuzz`](Gadget-Adapter-Fuzz).
+  - For a bidirectional example, try
+    [`Gadget.Adapter.Json`](Gadget-Adapter-Json).
+  - For an example of how to use [`Metadata`](#Metadata) with Gadgets, see
+    [`Gadget.Adapter.Random`](Gadget-Adapter-Random).
 
 @docs Gadget
 
@@ -64,7 +66,7 @@ type Value
     | List (List (IR Value))
 
 
-{-| A type used by the `Custom` constructor of the `IR` type.
+{-| A type used by the `Custom` constructor of the `Value` type.
 -}
 type Variant
     = Variant0
@@ -75,7 +77,7 @@ type Variant
     | Variant5 (IR Value) (IR Value) (IR Value) (IR Value) (IR Value)
 
 
-{-| Any IR value will have a "type" that is a variant of `IR Type`.
+{-| When translated into IR, any Elm value will have a "type" that is a variant of `Type`.
 -}
 type Type
     = BoolType
@@ -89,7 +91,7 @@ type Type
     | LazyType (() -> IR Type)
 
 
-{-| A type used by the `Custom` constructor of the `IR Type` type.
+{-| A type used by the `Custom` constructor of the `Type` type.
 -}
 type VariantType
     = Variant0Type
@@ -100,7 +102,7 @@ type VariantType
     | Variant5Type (IR Type) (IR Type) (IR Type) (IR Type) (IR Type)
 
 
-{-| Use an appropriate Gadget to convert an Elm value into an `IR` value.
+{-| Use an appropriate Gadget to convert an Elm value into an `IR Value`.
 -}
 fromInput : Gadget a -> a -> IR Value
 fromInput (Gadget c) input =
@@ -114,7 +116,7 @@ irType (Gadget c) =
     c.irType
 
 
-{-| Use an appropriate Gadget to attempt to convert an `IR` value into an Elm
+{-| Use an appropriate Gadget to attempt to convert an `IR Value` into an Elm
 value.
 -}
 toOutput : Gadget a -> IR Value -> Result Error a
@@ -122,7 +124,7 @@ toOutput (Gadget c) a =
     c.toOutput a
 
 
-{-| A type used to carry metadata for `IR` nodes
+{-| A type used to carry metadata for `IR Value` or `IR Type` nodes.
 -}
 type Metadata
     = Metadata (Dict String (Dict String Value))
@@ -135,7 +137,51 @@ ir =
     IR (Metadata Dict.empty)
 
 
-{-| Tools for working with `Metadata` attached to the `IR` produced by a Gadget.
+{-| Tools for working with `Metadata` attached to the `IR Value` or `IR Type`
+produced by a Gadget.
+
+For example, here's how [`Gadget.Adapter.Random`](Gadget-Adapter-Random) defines
+[`intRange`](Gadget-Adapter-Random#intRange):
+
+    import Gadget
+    import Gadget.IR
+
+    tools =
+        Gadget.IR.makeMetadataTools "MyAdapter"
+
+    -- we can use `tools.attach` to put some values in a
+    -- Gadget's metadata store:
+
+    intRange lo hi gadget =
+        gadget
+            |> tools.attach "int_lo" (Gadget.IR.Int lo)
+            |> tools.attach "int_hi" (Gadget.IR.Int hi)
+
+    -- and we can look up those values using the other tools:
+
+    metadata =
+        Gadget.int
+            |> intRange 0 10
+            |> Gadget.IR.irType
+            |> (\(Gadget.IR.IR metadata_ _) ->
+                metadata_
+               )
+
+    value =
+        tools.get "int_lo" metadata
+
+    value --> Just (Gadget.IR.Int 0)
+
+    member =
+        tools.member "int_hi" metadata
+
+    member --> True
+
+    allValues =
+        tools.export metadata
+
+    allValues --> [ ("MyAdapter", [ ( "int_hi" , Gadget.IR.Int 10 ), ( "int_lo" , Gadget.IR.Int 0 ) ]) ]
+
 -}
 type alias MetadataTools a =
     { attach : String -> Value -> Gadget a -> Gadget a
@@ -146,6 +192,32 @@ type alias MetadataTools a =
 
 
 {-| Make tools for working with `Metadata` for a specific adapter.
+
+`Metadata` is effectively a key-value store that allows adapters to attach extra
+information to the `IR Value` and `IR Type` nodes produced by Gadgets.
+
+To avoid spooky action at a distance and weird bugs, it's important that each
+adapter can only access the metadata values that it has inserted - it can't read
+values inserted by other adapters, or write values that other adapters can see.
+
+For this reason, each adapter should create its own individual instance of
+`MetadataTools` by passing a unique ID to the `makeMetadataTools` function. All
+metadata inserted into `Metadata` will then be namespaced under that unique ID,
+avoiding any risk of adapters interfering with each other.
+
+The unique ID can be any `String`, but as a convention, you could use the
+package name and/or module name of the Elm file where the adapter is defined.
+This might make it easier to debug if you have lots of different adapters.
+
+    -- module MyAdapter
+
+    import Gadget.IR
+
+    tools =
+        Gadget.IR.makeMetadataTools "MyAdapter"
+
+    tools --: Gadget.IR.MetadataTools a
+
 -}
 makeMetadataTools : String -> MetadataTools a
 makeMetadataTools adapterId =
