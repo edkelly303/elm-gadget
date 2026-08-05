@@ -96,7 +96,7 @@ override label_ gadget inputGenerator =
 {-| Limit the output of a `Random.Generator Int` by setting minimum and maximum
 values for the generator.
 -}
-intRange : Int -> Int -> IR.Gadget Int -> IR.Gadget Int
+intRange : Int -> Int -> IR.Gadget a -> IR.Gadget a
 intRange lo hi g =
     g
         |> meta.attach "int_lo" (IR.Int lo)
