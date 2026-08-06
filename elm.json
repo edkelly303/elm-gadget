@@ -22,10 +22,11 @@
         "elm/json": "1.1.4 <= v < 2.0.0",
         "elm/parser": "1.1.0 <= v < 2.0.0",
         "elm/random": "1.0.0 <= v < 2.0.0",
-        "elmcraft/core-extra": "2.2.0 <= v < 3.0.0",
         "elm-community/random-extra": "3.2.0 <= v < 4.0.0",
         "elm-explorations/test": "2.2.1 <= v < 3.0.0",
-        "miniBill/elm-diff": "1.1.2 <= v < 2.0.0"
+        "elmcraft/core-extra": "2.2.0 <= v < 3.0.0",
+        "miniBill/elm-diff": "1.1.2 <= v < 2.0.0",
+        "the-sett/elm-pretty-printer": "3.3.1 <= v < 4.0.0"
     },
     "test-dependencies": {}
 }

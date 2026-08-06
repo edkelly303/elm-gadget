@@ -20,7 +20,8 @@
             "elm-explorations/test": "2.2.1",
             "elmcraft/core-extra": "2.2.0",
             "miniBill/elm-codec": "2.3.1",
-            "miniBill/elm-diff": "1.1.2"
+            "miniBill/elm-diff": "1.1.2",
+            "the-sett/elm-pretty-printer": "3.3.1"
         },
         "indirect": {
             "avh4/elm-color": "1.0.0",

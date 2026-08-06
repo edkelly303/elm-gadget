@@ -18,6 +18,7 @@ import Json.Decode as JD
 import Json.Encode as JE
 import Parser
 import Random
+import Gadget.Adapter.Pretty
 
 
 type alias Person =
@@ -60,12 +61,12 @@ petGadget =
         )
         |> Gadget.Named.variant1 "Dog"
             Dog
-            (Gadget.record (\name -> { name = name })
-                |> Gadget.field .name
+            (Gadget.Named.record (\name -> { name = name })
+                |> Gadget.Named.field "name" .name
                     (Gadget.string
                         |> Gadget.Adapter.Fuzz.label "dogName"
                     )
-                |> Gadget.endRecord
+                |> Gadget.Named.endRecord
             )
         |> Gadget.Named.variant2 "Robot"
             Robot
@@ -142,6 +143,9 @@ view ( seed1, seed2 ) =
             Random.step randomGenerator (Random.initialSeed seed2)
                 |> Tuple.first
 
+        pretty = 
+            Gadget.Adapter.Pretty.print gadget 5 firstValue
+
         diff =
             Gadget.Adapter.Diff.diff gadget firstValue secondValue
 
@@ -163,6 +167,8 @@ view ( seed1, seed2 ) =
     Html.div []
         [ Html.h1 [] [ Html.text "elm-gadget examples" ]
         , Html.button [ Html.Events.onClick Clicked ] [ Html.text "Click to regenerate!" ]
+        , head "Pretty printer (first value)"
+        , Html.pre [] [Html.text pretty]
         , head "Random generator (first value)"
         , show firstValue
         , head "Random generator (second value)"
@@ -194,7 +200,4 @@ head : String -> Html.Html msg
 head txt =
     Html.h2 [] [ Html.text txt ]
 
-
-show : a -> Html.Html msg
-show a =
-    Html.code [] [ Html.text (Debug.toString a) ]
+show s = Html.pre [] [Html.text (Debug.toString s)]
