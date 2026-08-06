@@ -37,10 +37,7 @@ personGadget =
     Gadget.Named.record Person
         |> Gadget.Named.field "name"
             .name
-            (Gadget.string
-                |> Gadget.Adapter.Random.label "name"
-                |> Gadget.Adapter.Fuzz.label "name"
-            )
+            Gadget.string                
         |> Gadget.Named.field "heightInCentimetres"
             .heightInCentimetres
             (Gadget.float |> Gadget.Adapter.Random.floatRange 100 180)
@@ -67,7 +64,6 @@ petGadget =
                 |> Gadget.field .name
                     (Gadget.string
                         |> Gadget.Adapter.Fuzz.label "dogName"
-                        |> Gadget.Adapter.Random.label "dogName"
                     )
                 |> Gadget.endRecord
             )
@@ -75,7 +71,7 @@ petGadget =
             Robot
             (Gadget.char
                 |> Gadget.Adapter.Fuzz.label "series"
-                |> Gadget.Adapter.Random.label "series"
+                
             )
             (Gadget.int
                 |> Gadget.Adapter.Fuzz.label "model"
@@ -125,8 +121,7 @@ view ( seed1, seed2 ) =
             personGadget
 
         fuzzOverrides =
-            [ Gadget.Adapter.Fuzz.override "name" Gadget.string (Fuzz.oneOf (List.map Fuzz.constant [ "Ed", "Mario", "Leonardo", "Jeroen" ]))
-            , Gadget.Adapter.Fuzz.override "dogName" Gadget.string (Fuzz.oneOf (List.map Fuzz.constant [ "Fido", "Kevin", "Rover", "Fifi" ]))
+            [ Gadget.Adapter.Fuzz.override "dogName" Gadget.string (Fuzz.oneOf (List.map Fuzz.constant [ "Fido", "Kevin", "Rover", "Fifi" ]))
             , Gadget.Adapter.Fuzz.override "series" Gadget.char (Fuzz.oneOf (List.range 65 90 |> List.map Char.fromCode |> List.map Fuzz.constant))
             , Gadget.Adapter.Fuzz.override "model" Gadget.int (Fuzz.oneOf (List.range 1 5 |> List.map (\n -> n * 1000) |> List.map Fuzz.constant))
             ]
@@ -137,14 +132,8 @@ view ( seed1, seed2 ) =
         fuzzed =
             Fuzz.examples 1 fuzzer
 
-        randomOverrides =
-            [ Gadget.Adapter.Random.override "name" Gadget.string (Random.uniform "Bill" [ "George", "Sue" ])
-            , Gadget.Adapter.Random.override "dogName" Gadget.string (Random.uniform "Max" [ "Archie", "Finch" ])
-            , Gadget.Adapter.Random.override "series" Gadget.char (Random.uniform 'A' (List.range 66 90 |> List.map Char.fromCode))
-            ]
-
         randomGenerator =
-            Gadget.Adapter.Random.generatorWithOverrides randomOverrides gadget
+            Gadget.Adapter.Random.generator gadget
 
         firstValue =
             Random.step randomGenerator (Random.initialSeed seed1)
