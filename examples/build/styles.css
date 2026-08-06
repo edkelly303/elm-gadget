@@ -117,10 +117,21 @@ button {
 
         &[open] {
             gap: 10px;
+
+            &>summary::marker {
+                content: "- ";
+            }
         }
 
-        & summary {
+        &>summary {
             width: 100%;
+            cursor: pointer;
+
+
+            &::marker {
+                content: "+ ";
+            }
+
         }
 
         & div {
