@@ -11,10 +11,15 @@ To see some examples of how to use this module, look at the source code for the
 various `Gadget.Adapter` modules in this package:
 
   - The simplest one is probably [`Gadget.Adapter.Html`](Gadget-Adapter-Html).
-  - For a bidirectional example, try
-    [`Gadget.Adapter.Json`](Gadget-Adapter-Json).
-  - For an example of how to use [`Metadata`](#Metadata) with Gadgets, see
-    [`Gadget.Adapter.Random`](Gadget-Adapter-Random).
+  - For bidirectional examples, try [`Gadget.Adapter.Json`](Gadget-Adapter-Json)
+    or [`Gadget.Adapter.String`](Gadget-Adapter-String).
+  - For an example of how to use [`Metadata`](#Metadata) to configure Gadgets,
+    see [`Gadget.Adapter.Random`](Gadget-Adapter-Random).
+  - To see how you can use [`Metadata`](#Metadata) to build an override
+    system for Gadgets, look at [`Gadget.Adapter.Fuzz`](Gadget-Adapter-Fuzz).
+  - [`Gadget.Adapter.Diff`](Gadget-Adapter-Diff) isn't a very good example of
+    anything, but I guess it shows how you can use Gadgets to make something
+    quite complex.
 
 @docs Gadget
 
