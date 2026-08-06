@@ -24,7 +24,7 @@ variant names.
 -}
 
 import Gadget
-import Gadget.IR as IR exposing (IR(..), Type(..), Value(..))
+import Gadget.IR as IR exposing (IR(..), Value(..))
 import List.Extra
 
 
@@ -72,36 +72,8 @@ field name getter this (NamedRecordGadgetBuilder prev) =
 -}
 endRecord : NamedRecordGadgetBuilder a a -> IR.Gadget a
 endRecord (NamedRecordGadgetBuilder prev) =
-    let
-        (IR.Gadget gadget) =
-            Gadget.endRecord prev.builder
-
-        (IR metadata type_) =
-            gadget.irType
-
-        newMetadata =
-            prev.names
-                |> List.reverse
-                |> List.Extra.indexedFoldl
-                    (\idx name out ->
-                        tools.insert
-                            (String.fromInt idx)
-                            (StringValue name)
-                            out
-                    )
-                    metadata
-    in
-    IR.Gadget
-        { fromInput =
-            \input ->
-                let
-                    (IR _ value) =
-                        gadget.fromInput input
-                in
-                IR newMetadata value
-        , toOutput = gadget.toOutput
-        , irType = IR newMetadata type_
-        }
+    Gadget.endRecord prev.builder
+        |> attachNames prev.names
 
 
 {-| A type used to build Gadgets for custom types, where we track the names of
@@ -234,15 +206,18 @@ variant5 name ctor arg1 arg2 arg3 arg4 arg5 (NamedCustomGadgetBuilder prev) =
 -}
 endCustom : NamedCustomGadgetBuilder (a -> IR Value) () a -> IR.Gadget a
 endCustom (NamedCustomGadgetBuilder prev) =
-    let
-        (IR.Gadget gadget) =
-            Gadget.endCustom prev.builder
+    Gadget.endCustom prev.builder
+        |> attachNames prev.names
 
+
+attachNames : List String -> IR.Gadget a -> IR.Gadget a
+attachNames names (IR.Gadget gadget) =
+    let
         (IR metadata type_) =
             gadget.irType
 
         newMetadata =
-            prev.names
+            names
                 |> List.reverse
                 |> List.Extra.indexedFoldl
                     (\idx name out ->
