@@ -13,7 +13,7 @@ your own production-grade adapters that are designed for your specific use-case.
 
 ## Introduction
 
-Use a Gadget to render an Elm value as HTML. 
+Use a Gadget to render an Elm value as HTML.
 
 It's not very beautiful though! I wrote this adapter mainly to help me with
 debugging while I was writing this package.
