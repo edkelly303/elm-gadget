@@ -1,18 +1,30 @@
 module Gadget.Named exposing
     ( NamedRecordGadgetBuilder, record, field, endRecord
-    , NamedCustomGadgetBuilder, custom, variant0, variant1, variant2, variant3, variant4, variant5, endCustom
+    , NamedCustomGadgetBuilder, custom, variant0, variant1, variant2, variant3
+    , variant4, variant5, endCustom
     )
 
-{-|
+{-| The functions in this module are drop-in replacements for the `record`,
+`field`, `endRecord`, `custom`, `variant0`, `variant1`, `variant2`, `variant3`,
+`variant4`, `variant5`, and `endCustom` functions in the `Gadget` module.
+
+The difference is that with these functions, you can track the names of record
+fields and custom type variants, which may be useful when you're writing certain
+types of adapters.
+
+For example, if you wanted to write an adapter that would pretty-print Elm
+values, you need to be able to print out the record field names and custom type
+variant names.
 
 @docs NamedRecordGadgetBuilder, record, field, endRecord
 
-@docs NamedCustomGadgetBuilder, custom, variant0, variant1, variant2, variant3, variant4, variant5, endCustom
+@docs NamedCustomGadgetBuilder, custom, variant0, variant1, variant2, variant3
+@docs variant4, variant5, endCustom
 
 -}
 
 import Gadget
-import Gadget.IR as IR exposing (IR(..), Type(..), Value(..), VariantType(..), VariantValue(..))
+import Gadget.IR as IR exposing (IR(..), Type(..), Value(..))
 import List.Extra
 
 
@@ -21,7 +33,9 @@ tools =
     IR.makeMetadataTools "Gadget.Named"
 
 
-{-| -}
+{-| A type used to build Gadgets for records. Like `RecordGadgetBuilder`, but it
+tracks the names of each record field.
+-}
 type NamedRecordGadgetBuilder input output
     = NamedRecordGadgetBuilder
         { names : List String
@@ -29,7 +43,8 @@ type NamedRecordGadgetBuilder input output
         }
 
 
-{-| -}
+{-| Start the definition of a record that will track the names of fields.
+-}
 record : output -> NamedRecordGadgetBuilder input output
 record ctor =
     NamedRecordGadgetBuilder
@@ -38,7 +53,8 @@ record ctor =
         }
 
 
-{-| -}
+{-| Add a field to the definition of a record, tracking its name.
+-}
 field :
     String
     -> (input -> field)
@@ -52,7 +68,8 @@ field name getter this (NamedRecordGadgetBuilder prev) =
         }
 
 
-{-| -}
+{-| Complete the definition of a named record.
+-}
 endRecord : NamedRecordGadgetBuilder a a -> IR.Gadget a
 endRecord (NamedRecordGadgetBuilder prev) =
     let
@@ -85,6 +102,11 @@ endRecord (NamedRecordGadgetBuilder prev) =
         , toOutput = gadget.toOutput
         , irType = IR newMetadata type_
         }
+
+
+{-| A type used to build Gadgets for custom types, where we track the names of
+each variant.
+-}
 type NamedCustomGadgetBuilder input hasAtLeastOneVariant output
     = NamedCustomGadgetBuilder
         { names : List String
@@ -92,7 +114,9 @@ type NamedCustomGadgetBuilder input hasAtLeastOneVariant output
         }
 
 
-{-| -}
+{-| Start the definition of a custom type that will track the names of each
+variant.
+-}
 custom : input -> NamedCustomGadgetBuilder input Never output
 custom match =
     NamedCustomGadgetBuilder
@@ -101,7 +125,9 @@ custom match =
         }
 
 
-{-| -}
+{-| Add a variant with no arguments to the definition of a custom type and track
+its name.
+-}
 variant0 :
     String
     -> output
@@ -114,7 +140,9 @@ variant0 name ctor (NamedCustomGadgetBuilder prev) =
         }
 
 
-{-| -}
+{-| Add a variant with one argument to the definition of a custom type and track
+its name.
+-}
 variant1 :
     String
     -> (arg1 -> output)
@@ -128,7 +156,9 @@ variant1 name ctor arg1 (NamedCustomGadgetBuilder prev) =
         }
 
 
-{-| -}
+{-| Add a variant with two arguments to the definition of a custom type and
+track its name.
+-}
 variant2 :
     String
     -> (arg1 -> arg2 -> output)
@@ -143,7 +173,9 @@ variant2 name ctor arg1 arg2 (NamedCustomGadgetBuilder prev) =
         }
 
 
-{-| -}
+{-| Add a variant with three arguments to the definition of a custom type and
+track its name.
+-}
 variant3 :
     String
     -> (arg1 -> arg2 -> arg3 -> output)
@@ -159,7 +191,9 @@ variant3 name ctor arg1 arg2 arg3 (NamedCustomGadgetBuilder prev) =
         }
 
 
-{-| -}
+{-| Add a variant with four arguments to the definition of a custom type and
+track its name.
+-}
 variant4 :
     String
     -> (arg1 -> arg2 -> arg3 -> arg4 -> output)
@@ -176,7 +210,9 @@ variant4 name ctor arg1 arg2 arg3 arg4 (NamedCustomGadgetBuilder prev) =
         }
 
 
-{-| -}
+{-| Add a variant with five arguments to the definition of a custom type and
+track its name.
+-}
 variant5 :
     String
     -> (arg1 -> arg2 -> arg3 -> arg4 -> arg5 -> output)
@@ -194,7 +230,8 @@ variant5 name ctor arg1 arg2 arg3 arg4 arg5 (NamedCustomGadgetBuilder prev) =
         }
 
 
-{-| -}
+{-| Complete the definition of a custom type with tracked names.
+-}
 endCustom : NamedCustomGadgetBuilder (a -> IR Value) () a -> IR.Gadget a
 endCustom (NamedCustomGadgetBuilder prev) =
     let
