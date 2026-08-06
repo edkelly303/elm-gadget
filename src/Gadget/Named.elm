@@ -59,50 +59,32 @@ endRecord (NamedRecordGadgetBuilder prev) =
         (IR.Gadget gadget) =
             Gadget.endRecord prev.builder
 
-        insertNames fields =
+        (IR metadata type_) =
+            gadget.irType
+
+        newMetadata =
             prev.names
                 |> List.reverse
-                |> List.Extra.zip fields
-                |> List.map
-                    (\( IR metadata inner, name ) ->
-                        let
-                            newMetadata =
-                                tools.insert "name" (StringValue name) metadata
-                        in
-                        IR newMetadata inner
+                |> List.Extra.indexedFoldl
+                    (\idx name out ->
+                        tools.insert
+                            (String.fromInt idx)
+                            (StringValue name)
+                            out
                     )
+                    metadata
     in
     IR.Gadget
         { fromInput =
             \input ->
                 let
-                    (IR metadata value) =
+                    (IR _ value) =
                         gadget.fromInput input
                 in
-                IR metadata <|
-                    case value of
-                        ProductValue fields ->
-                            ProductValue (insertNames fields)
-
-                        _ ->
-                            value
+                IR newMetadata value
         , toOutput = gadget.toOutput
-        , irType =
-            let
-                (IR metadata type_) =
-                    gadget.irType
-            in
-            IR metadata <|
-                case type_ of
-                    ProductType fields ->
-                        ProductType (insertNames fields)
-
-                    _ ->
-                        type_
+        , irType = IR newMetadata type_
         }
-
-
-{-| -}
 type NamedCustomGadgetBuilder input hasAtLeastOneVariant output
     = NamedCustomGadgetBuilder
         { names : List String
@@ -219,7 +201,7 @@ endCustom (NamedCustomGadgetBuilder prev) =
         (IR.Gadget gadget) =
             Gadget.endCustom prev.builder
 
-        (IR metadata _) =
+        (IR metadata type_) =
             gadget.irType
 
         newMetadata =
@@ -243,10 +225,5 @@ endCustom (NamedCustomGadgetBuilder prev) =
                 in
                 IR newMetadata value
         , toOutput = gadget.toOutput
-        , irType =
-            let
-                (IR _ type_) =
-                    gadget.irType
-            in
-            IR newMetadata type_
+        , irType = IR newMetadata type_
         }
