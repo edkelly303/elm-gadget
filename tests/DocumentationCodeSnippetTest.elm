@@ -409,18 +409,6 @@ tests =
                     ]
                 ]
             , Test.describe
-                "generatorWithOverrides"
-                [ Test.describe
-                    "code snippet 0"
-                    [ Test.test
-                        "0"
-                        (\() ->
-                            randomPerson__Gadget_Adapter_Random__generatorWithOverrides_0
-                                |> Expect.equal { age = -97690584, name = "Ed" }
-                        )
-                    ]
-                ]
-            , Test.describe
                 "intRange"
                 [ Test.describe
                     "code snippet 0"
@@ -787,40 +775,6 @@ personGenerator__Gadget_Adapter_Random__generator_0 =
 randomPerson__Gadget_Adapter_Random__generator_0 =
     Random.step
         personGenerator__Gadget_Adapter_Random__generator_0
-        (Random.initialSeed 2)
-        |> Tuple.first
-
-
-type alias Person__Gadget_Adapter_Random__generatorWithOverrides_0 =
-    { name : String.String, age : Basics.Int }
-
-
-personGadget__Gadget_Adapter_Random__generatorWithOverrides_0 =
-    Gadget.record Person__Gadget_Adapter_Random__generatorWithOverrides_0
-        |> Gadget.field
-            .name
-            nameGadget__Gadget_Adapter_Random__generatorWithOverrides_0
-        |> Gadget.field .age Gadget.int
-        |> Gadget.endRecord
-
-
-nameGadget__Gadget_Adapter_Random__generatorWithOverrides_0 =
-    Gadget.string |> Gadget.Adapter.Random.label "name"
-
-
-personGenerator__Gadget_Adapter_Random__generatorWithOverrides_0 =
-    Gadget.Adapter.Random.generatorWithOverrides
-        [ Gadget.Adapter.Random.override
-            "name"
-            Gadget.string
-            (Random.constant "Ed")
-        ]
-        personGadget__Gadget_Adapter_Random__generatorWithOverrides_0
-
-
-randomPerson__Gadget_Adapter_Random__generatorWithOverrides_0 =
-    Random.step
-        personGenerator__Gadget_Adapter_Random__generatorWithOverrides_0
         (Random.initialSeed 2)
         |> Tuple.first
 
