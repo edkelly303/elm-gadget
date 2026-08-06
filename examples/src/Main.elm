@@ -3,6 +3,7 @@ module Main exposing (..)
 import Browser
 import Fuzz
 import Gadget
+import Gadget.Named
 import Gadget.Adapter.Diff
 import Gadget.Adapter.Fuzz
 import Gadget.Adapter.Html
@@ -33,22 +34,22 @@ type Pet
 
 personGadget : Gadget.Gadget Person
 personGadget =
-    Gadget.record Person
-        |> Gadget.field .name
+    Gadget.Named.record Person
+        |> Gadget.Named.field "name" .name
             (Gadget.string
                 |> Gadget.Adapter.Random.label "name"
                 |> Gadget.Adapter.Fuzz.label "name"
             )
-        |> Gadget.field .heightInCentimetres
+        |> Gadget.Named.field "heightInCentimetres" .heightInCentimetres
             (Gadget.float |> Gadget.Adapter.Random.floatRange 100 180)
-        |> Gadget.field .pets
+        |> Gadget.Named.field "pets" .pets
             (Gadget.list petGadget |> Gadget.Adapter.Random.listLength 0 3)
-        |> Gadget.endRecord
+        |> Gadget.Named.endRecord
 
 
 petGadget : Gadget.Gadget Pet
 petGadget =
-    Gadget.custom
+    Gadget.Named.custom
         (\dog robot variant ->
             case variant of
                 Dog name ->
@@ -57,7 +58,7 @@ petGadget =
                 Robot series model ->
                     robot series model
         )
-        |> Gadget.variant1 Dog
+        |> Gadget.Named.variant1 "Dog" Dog
             (Gadget.record (\name -> { name = name })
                 |> Gadget.field .name
                     (Gadget.string
@@ -66,7 +67,7 @@ petGadget =
                     )
                 |> Gadget.endRecord
             )
-        |> Gadget.variant2 Robot
+        |> Gadget.Named.variant2 "Robot" Robot
             (Gadget.char
                 |> Gadget.Adapter.Fuzz.label "series"
                 |> Gadget.Adapter.Random.label "series"
@@ -75,7 +76,7 @@ petGadget =
                 |> Gadget.Adapter.Fuzz.label "model"
                 |> Gadget.Adapter.Random.intRange 1000 5000
             )
-        |> Gadget.endCustom
+        |> Gadget.Named.endCustom
 
 
 main : Program () ( Int, Int ) Msg

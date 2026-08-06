@@ -185,6 +185,8 @@ For example, here's how [`Gadget.Adapter.Random`](Gadget-Adapter-Random) defines
 -}
 type alias MetadataTools a =
     { attach : String -> Value -> Gadget a -> Gadget a
+    , extract : Gadget a -> Metadata
+    , insert : String -> Value -> Metadata -> Metadata
     , get : String -> Metadata -> Maybe Value
     , member : String -> Metadata -> Bool
     , export : Metadata -> List ( String, List ( String, Value ) )
@@ -255,6 +257,13 @@ makeMetadataTools adapterId =
                     IR (insert key value metadata) inner
                 }
 
+        extract (Gadget g) =
+            let
+                (IR metadata _) =
+                    g.irType
+            in
+            metadata
+
         get key (Metadata m) =
             m
                 |> Dict.get adapterId
@@ -268,6 +277,8 @@ makeMetadataTools adapterId =
                 |> Dict.toList
     in
     { attach = attach
+    , extract = extract
+    , insert = insert
     , get = get
     , member = member
     , export = export
