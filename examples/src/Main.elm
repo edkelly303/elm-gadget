@@ -37,7 +37,7 @@ personGadget =
     Gadget.Named.record Person
         |> Gadget.Named.field "name"
             .name
-            Gadget.string                
+            Gadget.string
         |> Gadget.Named.field "heightInCentimetres"
             .heightInCentimetres
             (Gadget.float |> Gadget.Adapter.Random.floatRange 100 180)
@@ -71,7 +71,6 @@ petGadget =
             Robot
             (Gadget.char
                 |> Gadget.Adapter.Fuzz.label "series"
-                
             )
             (Gadget.int
                 |> Gadget.Adapter.Fuzz.label "model"
