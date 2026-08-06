@@ -32,13 +32,14 @@ button {
 .elm-gadget {
     --primitive-bg: hsl(0 100 95);
     --combinator-bg: hsl(0 100 99);
-
+    display: flex;
 
     & ol {
         display: flex;
         flex-direction: column;
         gap: 10px;
         padding-left: 0px;
+        margin: 0px;
 
         list-style: none;
         counter-reset: items;
@@ -48,7 +49,7 @@ button {
             flex-direction: row;
             counter-increment: items;
             gap: 10px;
-            align-items: center;
+
         }
 
         & li:first-child {
@@ -91,6 +92,12 @@ button {
 
         table {
             border-collapse: collapse;
+            text-align: left;
+
+            & th {
+                border: 1px black solid;
+                padding: 3px;
+            }
 
             & td {
                 border: 1px black solid;

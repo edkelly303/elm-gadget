@@ -77,15 +77,20 @@ htmlAdapter (IR.IR metadata irValue) =
                             (tools.export metadata
                                 |> List.concatMap
                                     (\( adapterId, kvs ) ->
-                                        List.map
-                                            (\( k, v ) ->
-                                                H.tr []
-                                                    [ H.td [] [ H.text ("\"" ++ adapterId ++ "\"") ]
-                                                    , H.td [] [ H.text ("\"" ++ k ++ "\"") ]
-                                                    , H.td [] [ H.text (viewMetadataValue v) ]
-                                                    ]
-                                            )
-                                            kvs
+                                        H.tr []
+                                            [ H.th [] [ H.text "Adapter" ]
+                                            , H.th [] [ H.text "Key" ]
+                                            , H.th [] [ H.text "Value" ]
+                                            ]
+                                            :: List.map
+                                                (\( k, v ) ->
+                                                    H.tr []
+                                                        [ H.td [] [ H.text ("\"" ++ adapterId ++ "\"") ]
+                                                        , H.td [] [ H.text ("\"" ++ k ++ "\"") ]
+                                                        , H.td [] [ H.text (viewMetadataValue v) ]
+                                                        ]
+                                                )
+                                                kvs
                                     )
                             )
                         ]
