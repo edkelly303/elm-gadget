@@ -65,187 +65,257 @@ view gadget value =
 htmlAdapter : IRValue -> H.Html msg
 htmlAdapter (IR.IR metadata irValue) =
     let
-        dataHtml =
-            htmlAdapterHelper irValue
-    in
-    case tools.export metadata of
-        [] ->
-            dataHtml
+        viewMetadata =
+            case tools.export metadata of
+                [] ->
+                    H.text ""
 
-        items ->
-            H.dl []
-                [ H.div [ HA.class "with-metadata" ]
-                    [ H.dt []
-                        [ H.em [] [ H.text "Metadata" ]
-                        , items
-                            |> List.map
-                                (\( adapterId, kvs ) ->
-                                    H.li []
-                                        [ H.text (adapterId ++ ": ")
-                                        , H.ol [] (List.map (\( k, v ) -> H.li [] [ H.text k, htmlAdapterHelper v ]) kvs)
-                                        ]
-                                )
-                            |> H.ol []
+                _ ->
+                    H.aside [ HA.class "metadata" ]
+                        [ H.strong [] [ H.text "Metadata" ]
+                        , H.table []
+                            (tools.export metadata
+                                |> List.concatMap
+                                    (\( adapterId, kvs ) ->
+                                        List.map
+                                            (\( k, v ) ->
+                                                H.tr []
+                                                    [ H.td [] [ H.text ("\"" ++ adapterId ++ "\"") ]
+                                                    , H.td [] [ H.text ("\"" ++ k ++ "\"") ]
+                                                    , H.td [] [ H.text (viewMetadataValue v) ]
+                                                    ]
+                                            )
+                                            kvs
+                                    )
+                            )
                         ]
-                    , H.dd [] [ dataHtml ]
+
+        argsToList variant =
+            case variant of
+                IR.Variant0Value ->
+                    []
+
+                IR.Variant1Value arg ->
+                    [ arg ]
+
+                IR.Variant2Value arg1 arg2 ->
+                    [ arg1
+                    , arg2
                     ]
-                ]
+
+                IR.Variant3Value arg1 arg2 arg3 ->
+                    [ arg1
+                    , arg2
+                    , arg3
+                    ]
+
+                IR.Variant4Value arg1 arg2 arg3 arg4 ->
+                    [ arg1
+                    , arg2
+                    , arg3
+                    , arg4
+                    ]
+
+                IR.Variant5Value arg1 arg2 arg3 arg4 arg5 ->
+                    [ arg1
+                    , arg2
+                    , arg3
+                    , arg4
+                    , arg5
+                    ]
+
+        viewMetadataValue metadataValue =
+            case metadataValue of
+                IR.BoolValue b ->
+                    if b then
+                        "True : Bool"
+
+                    else
+                        "False : Bool"
+
+                IR.CharValue c ->
+                    "'" ++ String.fromChar c ++ "' : Char"
+
+                IR.StringValue s ->
+                    "\"" ++ s ++ "\" : String"
+
+                IR.IntValue i ->
+                    String.fromInt i ++ " : Int"
+
+                IR.FloatValue f ->
+                    String.fromFloat f ++ " : Float"
+
+                IR.CustomValue selected variant ->
+                    "Variant #" ++ String.fromInt selected ++ " " ++ String.join " " (List.map (\(IR.IR _ v) -> viewMetadataValue v) (argsToList variant))
+
+                IR.ProductValue fields ->
+                    String.join " " (List.map (\(IR.IR _ v) -> viewMetadataValue v) fields)
+
+                IR.ListValue items ->
+                    String.join " " (List.map (\(IR.IR _ v) -> viewMetadataValue v) items)
+
+        viewValue metadataHtml v =
+            case v of
+                IR.BoolValue b ->
+                    unquotedPrimitive metadataHtml
+                        "Bool"
+                        (if b then
+                            "True"
+
+                         else
+                            "False"
+                        )
+
+                IR.CharValue c ->
+                    quotedPrimitive metadataHtml "'" "Char" (String.fromChar c)
+
+                IR.StringValue s ->
+                    quotedPrimitive metadataHtml "\"" "String" s
+
+                IR.IntValue i ->
+                    unquotedPrimitive metadataHtml "Int" (String.fromInt i)
+
+                IR.FloatValue f ->
+                    unquotedPrimitive metadataHtml "Float" (String.fromFloat f)
+
+                IR.CustomValue selected variant ->
+                    let
+                        args =
+                            case variant of
+                                IR.Variant0Value ->
+                                    []
+
+                                IR.Variant1Value arg ->
+                                    [ arg ]
+
+                                IR.Variant2Value arg1 arg2 ->
+                                    [ arg1
+                                    , arg2
+                                    ]
+
+                                IR.Variant3Value arg1 arg2 arg3 ->
+                                    [ arg1
+                                    , arg2
+                                    , arg3
+                                    ]
+
+                                IR.Variant4Value arg1 arg2 arg3 arg4 ->
+                                    [ arg1
+                                    , arg2
+                                    , arg3
+                                    , arg4
+                                    ]
+
+                                IR.Variant5Value arg1 arg2 arg3 arg4 arg5 ->
+                                    [ arg1
+                                    , arg2
+                                    , arg3
+                                    , arg4
+                                    , arg5
+                                    ]
+
+                        numArgs =
+                            List.length args
+                    in
+                    combinator
+                        metadataHtml
+                        "Custom"
+                        ("variant #"
+                            ++ String.fromInt selected
+                            ++ " with "
+                            ++ String.fromInt numArgs
+                            ++ " argument"
+                            ++ (if numArgs == 1 then
+                                    ""
+
+                                else
+                                    "s"
+                               )
+                        )
+                        args
+
+                IR.ProductValue fields ->
+                    let
+                        count =
+                            List.length fields
+                    in
+                    combinator
+                        metadataHtml
+                        "Product"
+                        ("with "
+                            ++ String.fromInt count
+                            ++ " field"
+                            ++ (if count == 1 then
+                                    ""
+
+                                else
+                                    "s"
+                               )
+                        )
+                        fields
+
+                IR.ListValue items ->
+                    let
+                        count =
+                            List.length items
+                    in
+                    combinator
+                        metadataHtml
+                        "List"
+                        ("with "
+                            ++ String.fromInt count
+                            ++ " item"
+                            ++ (if count == 1 then
+                                    ""
+
+                                else
+                                    "s"
+                               )
+                        )
+                        items
+    in
+    viewValue viewMetadata irValue
 
 
-htmlAdapterHelper : IR.Value -> H.Html msg
-htmlAdapterHelper irValue =
-    case irValue of
-        IR.BoolValue b ->
-            unquotedPrimitive "Bool"
-                (if b then
-                    "True"
-
-                 else
-                    "False"
-                )
-
-        IR.CharValue c ->
-            quotedPrimitive "'" "Char" (String.fromChar c)
-
-        IR.StringValue s ->
-            quotedPrimitive "\"" "String" s
-
-        IR.IntValue i ->
-            unquotedPrimitive "Int" (String.fromInt i)
-
-        IR.FloatValue f ->
-            unquotedPrimitive "Float" (String.fromFloat f)
-
-        IR.CustomValue selected variant ->
-            let
-                args =
-                    case variant of
-                        IR.Variant0Value ->
-                            []
-
-                        IR.Variant1Value arg ->
-                            [ arg ]
-
-                        IR.Variant2Value arg1 arg2 ->
-                            [ arg1
-                            , arg2
-                            ]
-
-                        IR.Variant3Value arg1 arg2 arg3 ->
-                            [ arg1
-                            , arg2
-                            , arg3
-                            ]
-
-                        IR.Variant4Value arg1 arg2 arg3 arg4 ->
-                            [ arg1
-                            , arg2
-                            , arg3
-                            , arg4
-                            ]
-
-                        IR.Variant5Value arg1 arg2 arg3 arg4 arg5 ->
-                            [ arg1
-                            , arg2
-                            , arg3
-                            , arg4
-                            , arg5
-                            ]
-
-                numArgs =
-                    List.length args
-            in
-            combinator
-                "Custom"
-                ("variant #"
-                    ++ String.fromInt selected
-                    ++ " with "
-                    ++ String.fromInt numArgs
-                    ++ " argument"
-                    ++ (if numArgs == 1 then
-                            ""
-
-                        else
-                            "s"
-                       )
-                )
-                args
-
-        IR.ProductValue fields ->
-            let
-                count =
-                    List.length fields
-            in
-            combinator
-                "Product"
-                ("with "
-                    ++ String.fromInt count
-                    ++ " field"
-                    ++ (if count == 1 then
-                            ""
-
-                        else
-                            "s"
-                       )
-                )
-                fields
-
-        IR.ListValue items ->
-            let
-                count =
-                    List.length items
-            in
-            combinator
-                "List"
-                ("with "
-                    ++ String.fromInt count
-                    ++ " item"
-                    ++ (if count == 1 then
-                            ""
-
-                        else
-                            "s"
-                       )
-                )
-                items
-
-
-primitive : H.Html msg -> (String -> H.Html msg) -> String -> String -> H.Html msg
-primitive quoteHtml valueWrapper typeName value =
-    H.dl []
-        [ H.div [ HA.class "primitive", HA.class typeName ]
-            [ H.dt [] [ H.em [] [ H.text typeName ] ]
-            , H.dd [] [ H.span [] [ quoteHtml, valueWrapper value, quoteHtml ] ]
-            ]
+primitive : H.Html msg -> H.Html msg -> (String -> H.Html msg) -> String -> String -> H.Html msg
+primitive metadataHtml quoteHtml valueWrapper typeName value =
+    H.div [ HA.class "primitive", HA.class typeName ]
+        [ H.em [ HA.class "type-name" ] [ H.text typeName ]
+        , H.span [ HA.class "value" ] [ quoteHtml, valueWrapper value, quoteHtml ]
+        , metadataHtml
         ]
 
 
-quotedPrimitive : String -> String -> String -> H.Html msg
-quotedPrimitive quote =
-    primitive (H.span [ HA.class "quote" ] [ H.text quote ]) (\value -> H.code [] [ H.text value ])
+quotedPrimitive : H.Html msg -> String -> String -> String -> H.Html msg
+quotedPrimitive metadataHtml quote =
+    primitive metadataHtml (H.span [ HA.class "quote" ] [ H.text quote ]) (\value -> H.code [] [ H.text value ])
 
 
-unquotedPrimitive : String -> String -> H.Html msg
-unquotedPrimitive =
-    primitive (H.text "") (\value -> H.code [] [ H.text value ])
+unquotedPrimitive : H.Html msg -> String -> String -> H.Html msg
+unquotedPrimitive metadataHtml =
+    primitive metadataHtml (H.text "") (\value -> H.code [] [ H.text value ])
 
 
-combinator : String -> String -> List IRValue -> H.Html msg
-combinator typeName typeInfo items =
+combinator : H.Html msg -> String -> String -> List IRValue -> H.Html msg
+combinator metadataHtml typeName typeInfo items =
     if List.isEmpty items then
         H.div [ HA.class "combinator", HA.class typeName ]
             [ H.summary []
                 [ H.strong [] [ H.text typeName ]
                 , H.text (" " ++ typeInfo)
                 ]
+            , metadataHtml
             ]
 
     else
         H.details [ HA.class "combinator", HA.class typeName ]
-            [ H.summary []
+            [ H.summary [ HA.class "type-name" ]
                 [ H.strong [] [ H.text typeName ]
                 , H.text (" " ++ typeInfo)
                 ]
-            , H.ol []
-                (List.map (\item -> H.li [] [ htmlAdapter item ]) items)
+            , H.div []
+                [ H.ol []
+                    (List.map (\item -> H.li [] [ htmlAdapter item ]) items)
+                , metadataHtml
+                ]
             ]

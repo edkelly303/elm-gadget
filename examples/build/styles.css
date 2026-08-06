@@ -37,8 +37,8 @@ button {
     & ol {
         display: flex;
         flex-direction: column;
-        gap: 5px;
-        padding-left: 20px;
+        gap: 10px;
+        padding-left: 0px;
 
         list-style: none;
         counter-reset: items;
@@ -47,7 +47,7 @@ button {
             display: flex;
             flex-direction: row;
             counter-increment: items;
-            gap: 5px;
+            gap: 10px;
             align-items: center;
         }
 
@@ -61,47 +61,41 @@ button {
         }
     }
 
-
-
     & .primitive {
         border: solid black 1px;
         border-radius: 5px;
-        padding: 5px;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
 
-        & dt {
-            font-size: 8pt;
-        }
+    & .type-name {
+        font-size: 8pt;
+    }
 
-        & dd {
-            font-size: 11pt;
-            margin-left: 0px;
-        }
+    & .value {
+        font-size: 16pt;
+        margin-left: 0px;
 
         & .quote {
             color: grey;
         }
     }
 
-    & .with-metadata {
-        border: solid black 1px;
-        border-radius: 5px;
-        padding: 5px;
+    & .metadata {
+        font-size: 10px;
         display: flex;
-        flex-direction: row;
-        align-items: center;
+        flex-direction: column;
         gap: 10px;
-        background-color: hsl(from var(--combinator-bg) 260deg s l);
 
-        & dt {
-            display: flex;
-            flex-direction: column;
-            font-size: 8pt;
-            filter: opacity(70%);
-        }
+        table {
+            border-collapse: collapse;
 
-        & dd {
-            font-size: 11pt;
-            margin-left: 0px;
+            & td {
+                border: 1px black solid;
+                padding: 3px;
+            }
         }
 
     }
@@ -110,13 +104,22 @@ button {
         border: solid black 1px;
         border-radius: 5px;
         padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 0px;
 
-        & summary {
-            font-size: 8pt;
+        &[open] {
+            gap: 10px;
         }
 
-        &>:nth-child(2) {
-            margin-top: 10px;
+        & summary {
+            width: 100%;
+        }
+
+        & div {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
     }
 
