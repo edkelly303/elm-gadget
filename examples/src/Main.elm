@@ -3,7 +3,6 @@ module Main exposing (..)
 import Browser
 import Fuzz
 import Gadget
-import Gadget.Named
 import Gadget.Adapter.Diff
 import Gadget.Adapter.Fuzz
 import Gadget.Adapter.Html
@@ -11,6 +10,7 @@ import Gadget.Adapter.Json
 import Gadget.Adapter.Random
 import Gadget.Adapter.String
 import Gadget.IR
+import Gadget.Named
 import Html
 import Html.Attributes
 import Html.Events
@@ -35,14 +35,17 @@ type Pet
 personGadget : Gadget.Gadget Person
 personGadget =
     Gadget.Named.record Person
-        |> Gadget.Named.field "name" .name
+        |> Gadget.Named.field "name"
+            .name
             (Gadget.string
                 |> Gadget.Adapter.Random.label "name"
                 |> Gadget.Adapter.Fuzz.label "name"
             )
-        |> Gadget.Named.field "heightInCentimetres" .heightInCentimetres
+        |> Gadget.Named.field "heightInCentimetres"
+            .heightInCentimetres
             (Gadget.float |> Gadget.Adapter.Random.floatRange 100 180)
-        |> Gadget.Named.field "pets" .pets
+        |> Gadget.Named.field "pets"
+            .pets
             (Gadget.list petGadget |> Gadget.Adapter.Random.listLength 0 3)
         |> Gadget.Named.endRecord
 
@@ -58,7 +61,8 @@ petGadget =
                 Robot series model ->
                     robot series model
         )
-        |> Gadget.Named.variant1 "Dog" Dog
+        |> Gadget.Named.variant1 "Dog"
+            Dog
             (Gadget.record (\name -> { name = name })
                 |> Gadget.field .name
                     (Gadget.string
@@ -67,7 +71,8 @@ petGadget =
                     )
                 |> Gadget.endRecord
             )
-        |> Gadget.Named.variant2 "Robot" Robot
+        |> Gadget.Named.variant2 "Robot"
+            Robot
             (Gadget.char
                 |> Gadget.Adapter.Fuzz.label "series"
                 |> Gadget.Adapter.Random.label "series"
