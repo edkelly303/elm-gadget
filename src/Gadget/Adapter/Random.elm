@@ -31,7 +31,6 @@ Use a Gadget to create a `Random.Generator` for use with functions from the
 
 -}
 
-import Dict
 import Gadget.IR as IR
 import Random
 import Random.Char
