@@ -79,9 +79,11 @@ petGadget =
             (Gadget.char
                 |> Gadget.Adapter.Fuzz.label "series"
             )
-            (Gadget.maybe(Gadget.int
-                |> Gadget.Adapter.Fuzz.label "model"
-                |> Gadget.Adapter.Random.intRange 1000 5000)
+            (Gadget.maybe
+                (Gadget.int
+                    |> Gadget.Adapter.Fuzz.label "model"
+                    |> Gadget.Adapter.Random.intRange 1000 5000
+                )
             )
         |> Gadget.endCustom
 
