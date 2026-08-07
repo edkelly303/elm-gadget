@@ -39,32 +39,31 @@ printHelp (IR.IR _ value) =
         CustomValue _ ( name, variantValue ) ->
             P.string name
                 |> P.a
-                    (P.nest 2
-                        (P.line
-                            |> P.a
-                                (case variantValue of
-                                    Variant0Value ->
-                                        P.empty
+                    (P.line
+                        |> P.a
+                            (case variantValue of
+                                Variant0Value ->
+                                    P.empty
 
-                                    Variant1Value arg1 ->
-                                        printHelp arg1
+                                Variant1Value arg1 ->
+                                    printHelp arg1
 
-                                    Variant2Value arg1 arg2 ->
-                                        printHelp arg1
-                                            |> P.a P.line
-                                            |> P.a (printHelp arg2)
+                                Variant2Value arg1 arg2 ->
+                                    printHelp arg1
+                                        |> P.a P.line
+                                        |> P.a (printHelp arg2)
 
-                                    Variant3Value _ _ _ ->
-                                        Debug.todo "branch 'Variant3Value _ _ _' not implemented"
+                                Variant3Value _ _ _ ->
+                                    Debug.todo "branch 'Variant3Value _ _ _' not implemented"
 
-                                    Variant4Value _ _ _ _ ->
-                                        Debug.todo "branch 'Variant4Value _ _ _ _' not implemented"
+                                Variant4Value _ _ _ _ ->
+                                    Debug.todo "branch 'Variant4Value _ _ _ _' not implemented"
 
-                                    Variant5Value _ _ _ _ _ ->
-                                        Debug.todo "branch 'Variant5Value _ _ _ _ _' not implemented"
-                                )
-                        )
+                                Variant5Value _ _ _ _ _ ->
+                                    Debug.todo "branch 'Variant5Value _ _ _ _ _' not implemented"
+                            )
                     )
+                |> P.hang 2
 
         ProductValue fields ->
             case fields of
@@ -73,30 +72,19 @@ printHelp (IR.IR _ value) =
 
                 _ ->
                     let
-                        item starter idx ( name, fld ) =
-                            P.string
-                                ((if idx == 0 then
-                                    starter ++ " "
-
-                                  else
-                                    ""
-                                 )
-                                    ++ name
-                                    ++ " ="
-                                )
-                                |> P.a
-                                    (P.nest 4
-                                        (P.line
-                                            |> P.a (printHelp fld)
-                                        )
-                                    )
+                        printField ( name, fld ) =
+                            P.string (name ++ " =")
+                                |> P.a P.line
+                                |> P.nest 4
+                                |> P.a (printHelp fld)
                                 |> P.group
                     in
-                    P.separators ", "
-                        (List.indexedMap (item "{") fields)
-                        |> P.a P.line
-                        |> P.a (P.string "}")
+                    P.surround
+                        (P.string "{ ")
+                        (P.line |> P.a (P.string "}"))
+                        (P.separators ", " (List.map printField fields))
                         |> P.group
+                        |> P.align
 
         ListValue items ->
             case items of
@@ -104,21 +92,25 @@ printHelp (IR.IR _ value) =
                     P.string "[]"
 
                 _ ->
-                    let
-                        item starter idx fld =
-                            P.group
-                                (if idx == 0 then
-                                    P.string (starter ++ " ") |> P.a (P.align (printHelp fld))
+                    P.surround
+                        (P.string "[ ")
+                        (P.line |> P.a (P.string "]"))
+                        (P.separators ", " (List.map printHelp items))
+                        |> P.align
 
-                                 else
-                                    P.align (printHelp fld)
-                                )
-                    in
-                    P.separators ", "
-                        (List.indexedMap (item "[") items)
-                        |> P.a P.line
-                        |> P.a (P.string "]")
-                        |> P.group
+        TupleValue a b ->
+            P.surround
+                (P.string "( ")
+                (P.line |> P.a (P.string ")"))
+                (P.separators ", " [ printHelp a, printHelp b ])
+                |> P.align
+
+        TripleValue a b c ->
+            P.surround
+                (P.string "( ")
+                (P.line |> P.a (P.string ")"))
+                (P.separators ", " [ printHelp a, printHelp b, printHelp c ])
+                |> P.align
 
 
 escape : String -> String

@@ -69,6 +69,8 @@ type Value
     | CustomValue Int ( String, VariantValue )
     | ProductValue (List ( String, IR Value ))
     | ListValue (List (IR Value))
+    | TupleValue (IR Value) (IR Value)
+    | TripleValue (IR Value) (IR Value) (IR Value)
 
 
 {-| A type used by the `Custom` constructor of the `Value` type.
@@ -94,7 +96,8 @@ type Type
     | ProductType (List ( String, IR Type ))
     | ListType (IR Type)
     | LazyType (() -> IR Type)
-
+    | TupleType (IR Type) (IR Type)
+    | TripleType (IR Type) (IR Type) (IR Type)
 
 {-| A type used by the `Custom` constructor of the `Type` type.
 -}

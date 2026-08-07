@@ -159,6 +159,12 @@ htmlAdapter (IR.IR metadata irValue) =
                 IR.ListValue items ->
                     String.join " " (List.map (\(IR.IR _ v) -> viewMetadataValue v) items)
 
+                IR.TupleValue a b ->
+                    String.join " " (List.map (\(IR.IR _ v) -> viewMetadataValue v) [ a, b ])
+
+                IR.TripleValue a b c ->
+                    String.join " " (List.map (\(IR.IR _ v) -> viewMetadataValue v) [ a, b, c ])
+
         viewValue metadataHtml v =
             case v of
                 IR.BoolValue b ->
@@ -278,6 +284,20 @@ htmlAdapter (IR.IR metadata irValue) =
                                )
                         )
                         (List.map (Tuple.pair "") items)
+
+                IR.TupleValue a b ->
+                    combinator
+                        metadataHtml
+                        "Tuple"
+                        ""
+                        (List.map (Tuple.pair "") [ a, b ])
+
+                IR.TripleValue a b c ->
+                    combinator
+                        metadataHtml
+                        "Triple"
+                        ""
+                        (List.map (Tuple.pair "") [ a, b, c ])
     in
     viewValue viewMetadata irValue
 

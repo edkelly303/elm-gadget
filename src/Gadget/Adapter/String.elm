@@ -146,6 +146,12 @@ printAdapter (IR.IR _ irValue) =
                 ""
                 items
 
+        IR.TupleValue a b ->
+            combinator "2" "" [ a, b ]
+
+        IR.TripleValue a b c ->
+            combinator "3" "" [ a, b, c ]
+
 
 {-| Create a Parser that will attempt to convert a String created by `print`
 into an Elm value.
@@ -187,6 +193,8 @@ irParser =
         , listParser
         , productParser
         , customParser
+        , tupleParser
+        , tripleParser
         ]
 
 
@@ -217,6 +225,46 @@ listParser =
         }
         |> P.map IR.ListValue
 
+
+tupleParser : Parser IR.Value
+tupleParser =
+    P.sequence
+        { start = "2["
+        , item = P.lazy (\() -> irParser) |> P.map IR.ir
+        , end = "]"
+        , separator = ","
+        , spaces = P.spaces
+        , trailing = P.Forbidden
+        }
+        |> P.andThen
+            (\values ->
+                case values of
+                    [ a, b ] ->
+                        P.succeed (IR.TupleValue a b)
+
+                    _ ->
+                        P.problem "wrong number of members for tuple"
+            )
+
+tripleParser : Parser IR.Value
+tripleParser =
+    P.sequence
+        { start = "3["
+        , item = P.lazy (\() -> irParser) |> P.map IR.ir
+        , end = "]"
+        , separator = ","
+        , spaces = P.spaces
+        , trailing = P.Forbidden
+        }
+        |> P.andThen
+            (\values ->
+                case values of
+                    [ a, b, c ] ->
+                        P.succeed (IR.TripleValue a b c)
+
+                    _ ->
+                        P.problem "wrong number of members for triple"
+            )
 
 productParser : Parser IR.Value
 productParser =

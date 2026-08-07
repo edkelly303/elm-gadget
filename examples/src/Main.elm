@@ -24,6 +24,8 @@ type alias Person =
     { name : String
     , heightInCentimetres : Float
     , pets : List Pet
+    , tuple : (Bool, Bool)
+    , triple : (Bool, Bool, Bool)
     }
 
 
@@ -44,6 +46,8 @@ personGadget =
         |> Gadget.field "pets"
             .pets
             (Gadget.list petGadget |> Gadget.Adapter.Random.listLength 0 3)
+        |> Gadget.field "tuple" .tuple (Gadget.tuple Gadget.bool Gadget.bool)
+        |> Gadget.field "triple" .triple (Gadget.triple Gadget.bool Gadget.bool Gadget.bool)
         |> Gadget.endRecord
 
 
@@ -134,6 +138,7 @@ view : Model -> H.Html Msg
 view model =
     let
         gadget =
+            --Gadget.tuple Gadget.float (Gadget.list Gadget.string)
             personGadget
 
         fuzzOverrides =
@@ -223,13 +228,13 @@ view model =
                 )
             ]
         , head "Random generator (first value, pretty-printed)"
-        , pretty personGadget firstValue
+        , pretty gadget firstValue
         , head "Random generator (second value, pretty-printed)"
-        , pretty personGadget secondValue
+        , pretty gadget secondValue
         , head "Diff between first & second values"
         , show diff
         , head "Patch first value with diff"
-        , pretty (Gadget.result Gadget.string personGadget) patched
+        , pretty (Gadget.result Gadget.string gadget) patched
         , head "Patched value equals second value?"
         , show (patched == Ok secondValue)
         , head "Html viewer (first value)"
@@ -239,13 +244,13 @@ view model =
         , head "String printer (first value)"
         , H.code [ HA.class "withoutSpaces" ] [ H.text printed ]
         , head "String parser (first value)"
-        , pretty (Gadget.result Gadget.string personGadget) parsed
+        , pretty (Gadget.result Gadget.string gadget) parsed
         , head "JSON encoder (first value)"
         , H.pre [] [ H.text encoded ]
         , head "JSON decoder (first value)"
-        , pretty (Gadget.result Gadget.string personGadget) decoded
+        , pretty (Gadget.result Gadget.string gadget) decoded
         , head "Fuzzer"
-        , pretty (Gadget.list personGadget) fuzzed
+        , pretty (Gadget.list gadget) fuzzed
         ]
 
 

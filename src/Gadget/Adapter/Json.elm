@@ -157,6 +157,12 @@ encodeAdapter (IR.IR _ irValue) =
         IR.ListValue items ->
             JE.list encodeAdapter items
 
+        IR.TupleValue a b ->
+            JE.list encodeAdapter [ a, b ]
+
+        IR.TripleValue a b c ->
+            JE.list encodeAdapter [ a, b, c ]
+
 
 decodeAdapter : IR Type -> JD.Decoder (IR Value)
 decodeAdapter (IR metadata irType) =
@@ -261,6 +267,17 @@ decodeAdapter (IR metadata irType) =
             JD.list (JD.lazy (\() -> decodeAdapter itemType))
                 |> JD.map ListValue
                 |> JD.map (IR metadata)
+
+        TupleType aType bType ->
+            JD.map2 (\a b -> IR metadata (TupleValue a b))
+                (JD.index 0 (JD.lazy (\() -> decodeAdapter aType)))
+                (JD.index 1 (JD.lazy (\() -> decodeAdapter bType)))
+
+        TripleType aType bType cType ->
+            JD.map3 (\a b c -> IR metadata (TripleValue a b c))
+                (JD.index 0 (JD.lazy (\() -> decodeAdapter aType)))
+                (JD.index 1 (JD.lazy (\() -> decodeAdapter bType)))
+                (JD.index 2 (JD.lazy (\() -> decodeAdapter cType)))
 
         LazyType innerType ->
             JD.lazy (\() -> decodeAdapter (innerType ()))

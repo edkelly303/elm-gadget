@@ -83,6 +83,8 @@ type Changes
     | CharChange Char
     | StringChange String
     | ListChanges (List ListChange)
+    | TupleChange Changes Changes
+    | TripleChange Changes Changes Changes
 
 
 type ListChange
@@ -176,6 +178,14 @@ diffHelp (IR.IR _ type_) ((IR.IR _ oldData) as oldIR_) ((IR.IR _ newData) as new
                             |> coalesceBackwardMoveSequences
                             |> doRunLengthEncoding
                             |> ListChanges
+
+                    ( IR.TupleValue a1 b1, IR.TupleValue a2 b2, IR.TupleType aType bType ) ->
+                        Identical
+                            |> Debug.log "implement diffHelp for Tuple"
+
+                    ( IR.TripleValue a1 b1 c1, IR.TripleValue a2 b2 c2, IR.TripleType aType bType cType ) ->
+                        Identical
+                            |> Debug.log "implement diffHelp for Triple"
 
                     ( IR.ProductValue fields1, IR.ProductValue fields2, IR.ProductType fieldTypes ) ->
                         let
@@ -429,6 +439,12 @@ size changes =
         StringChange _ ->
             1
 
+        TupleChange a b ->
+            size a + size b
+
+        TripleChange a b c ->
+            size a + size b + size c
+
 
 default : IRType -> IRValue
 default (IR.IR metadata irType) =
@@ -481,6 +497,12 @@ default (IR.IR metadata irType) =
         IR.ProductType fieldTypes ->
             IR.IR metadata <| IR.ProductValue (List.map (Tuple.mapSecond default) fieldTypes)
 
+        IR.TupleType aType bType ->
+            IR.IR metadata <| IR.TupleValue (default aType) (default bType)
+
+        IR.TripleType aType bType cType ->
+            IR.IR metadata <| IR.TripleValue (default aType) (default bType) (default cType)
+
 
 {-| Use a set of [Changes](#Changes) to patch a value.
 -}
@@ -525,6 +547,14 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
 
         ( FloatChange b, IR.FloatValue _, _ ) ->
             Ok (IR.IR metadata <| IR.FloatValue b)
+
+        ( TupleChange aChange bChange, IR.TupleValue a b, _ ) ->
+            Ok (IR.IR metadata <| IR.TupleValue a b)
+                |> Debug.log "implement patchHelp for Tuple"
+
+        ( TripleChange aChange bChange cChange, IR.TripleValue a b c, _ ) ->
+            Ok (IR.IR metadata <| IR.TripleValue a b c)
+                |> Debug.log "implement patchHelp for Triple"
 
         ( ListChanges cs, IR.ListValue oldList, IR.ListType itemType ) ->
             Ok

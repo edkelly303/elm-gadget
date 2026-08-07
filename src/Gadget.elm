@@ -379,11 +379,28 @@ result x a =
 
 -}
 tuple : Gadget a -> Gadget b -> Gadget ( a, b )
-tuple a b =
-    record Tuple.pair
-        |> field "first" Tuple.first a
-        |> field "second" Tuple.second b
-        |> endRecord
+tuple (Gadget a) (Gadget b) =
+    Gadget
+        { fromInput =
+            \input ->
+                IR.ir
+                    (TupleValue
+                        (a.fromInput (Tuple.first input))
+                        (b.fromInput (Tuple.second input))
+                    )
+        , toOutput =
+            \((IR metadata value) as ir) ->
+                case value of
+                    TupleValue fst snd ->
+                        Result.map2 Tuple.pair
+                            (a.toOutput fst)
+                            (b.toOutput snd)
+
+                    _ ->
+                        Err ""
+        , irType =
+            IR.ir (TupleType a.irType b.irType)
+        }
 
 
 {-| A combinator used to define Gadgets for triples.
@@ -397,12 +414,33 @@ tuple a b =
 
 -}
 triple : Gadget a -> Gadget b -> Gadget c -> Gadget ( a, b, c )
-triple a b c =
-    record (\a_ b_ c_ -> ( a_, b_, c_ ))
-        |> field "first" (\( a_, _, _ ) -> a_) a
-        |> field "second" (\( _, b_, _ ) -> b_) b
-        |> field "third" (\( _, _, c_ ) -> c_) c
-        |> endRecord
+triple (Gadget a) (Gadget b) (Gadget c) =
+    Gadget
+        { fromInput =
+            \( fst, snd, thd ) ->
+                IR.ir
+                    (TripleValue
+                        (a.fromInput fst)
+                        (b.fromInput snd)
+                        (c.fromInput thd)
+                    )
+        , toOutput =
+            \((IR metadata value) as ir) ->
+                case value of
+                    TripleValue fst snd thd ->
+                        Result.map3
+                            (\fstOutput sndOutput thdOutput ->
+                                ( fstOutput, sndOutput, thdOutput )
+                            )
+                            (a.toOutput fst)
+                            (b.toOutput snd)
+                            (c.toOutput thd)
+
+                    _ ->
+                        Err ""
+        , irType =
+            IR.ir (TripleType a.irType b.irType c.irType)
+        }
 
 
 {-| Start the definition of a custom type.

@@ -259,3 +259,14 @@ fuzzAdapter overrides (IR.IR metadata irType) =
                     Fuzz.list (fuzzAdapter overrides itemType)
                         |> Fuzz.map IR.ListValue
                         |> Fuzz.map (IR.IR metadata)
+
+                IR.TupleType aType bType ->
+                    Fuzz.map2 (\a b -> IR.IR metadata (IR.TupleValue a b))
+                        (fuzzAdapter overrides aType)
+                        (fuzzAdapter overrides bType)
+
+                IR.TripleType aType bType cType ->
+                    Fuzz.map3 (\a b c -> IR.IR metadata (IR.TripleValue a b c))
+                        (fuzzAdapter overrides aType)
+                        (fuzzAdapter overrides bType)
+                        (fuzzAdapter overrides cType)

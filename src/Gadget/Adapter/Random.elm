@@ -315,3 +315,14 @@ randomAdapter (IR.IR metadata irType) =
                 |> Random.andThen (\int -> Random.list int (randomAdapter itemType))
                 |> Random.map IR.ListValue
                 |> Random.map (IR.IR metadata)
+
+        IR.TupleType aType bType ->
+            Random.map2 (\a b -> IR.IR metadata (IR.TupleValue a b))
+                (randomAdapter aType)
+                (randomAdapter bType)
+
+        IR.TripleType aType bType cType ->
+            Random.map3 (\a b c -> IR.IR metadata (IR.TripleValue a b c))
+                (randomAdapter aType)
+                (randomAdapter bType)
+                (randomAdapter cType)
