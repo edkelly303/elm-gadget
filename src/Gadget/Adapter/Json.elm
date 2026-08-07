@@ -47,7 +47,7 @@ import Json.Encode as JE
     jsonString =
         Json.Encode.encode 0 json
 
-    jsonString --> "{\"int\":1}"
+    jsonString --> "1"
 
 -}
 encode : IR.Gadget a -> a -> JE.Value
@@ -67,7 +67,7 @@ encode gadget value =
         Gadget.int
 
     jsonString =
-        "{\"int\":1}"
+        "1"
 
     decoder =
         Gadget.Adapter.Json.decoder gadget

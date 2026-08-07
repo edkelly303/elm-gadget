@@ -389,7 +389,7 @@ tests =
                         "1"
                         (\() ->
                             jsonString__Gadget_Adapter_Json__encode_0
-                                |> Expect.equal "{\"int\":1}"
+                                |> Expect.equal "1"
                         )
                     ]
                 ]
@@ -737,7 +737,7 @@ gadget__Gadget_Adapter_Json__decoder_0 =
 
 
 jsonString__Gadget_Adapter_Json__decoder_0 =
-    "{\"int\":1}"
+    "1"
 
 
 decoder__Gadget_Adapter_Json__decoder_0 =
