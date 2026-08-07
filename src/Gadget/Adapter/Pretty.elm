@@ -44,7 +44,7 @@ printHelp (IR.IR metadata value) =
         CustomValue selected ( name, variantValue ) ->
             P.string name
                 |> P.a
-                    (P.nest 4
+                    (P.nest 2
                         (P.line
                             |> P.a
                                 (case variantValue of
@@ -133,3 +133,20 @@ escape s =
         |> String.replace "\t" "\\t"
         |> String.replace "\u{000D}" "\\r"
         |> String.replace "\n" "\\n"
+
+
+x =
+    Ok
+        { name = "M/"
+        , heightInCentimetres =
+            144.03668423204613
+        , pets =
+            [ Ok
+                { name = "h\u{000B};\u{001E}J;k!P"
+                }
+            , Ok
+                { name = "\u{001F}3\u{000E}WY[\u{0015}*"
+                }
+            , Ok { name = "\u{000D}Q!/\u{0001}[" }
+            ]
+        }
