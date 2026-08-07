@@ -1,6 +1,6 @@
 printf "Running pre-commit hooks\n\n"
 
-STAGED=$(git diff --name-only --staged | grep -i ".elm$")
+STAGED=$(git diff --name-only --staged --diff-filter=d | grep -i ".elm$")
 
 if [[ -n "$STAGED" ]]; then
 
