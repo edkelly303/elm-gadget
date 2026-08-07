@@ -53,6 +53,7 @@ type alias Record =
     , string : String
     , char : Char
     , custom : Custom
+    , tuple : ( Int, ( String, Float ), Bool )
     }
 
 
@@ -65,7 +66,16 @@ recordGadget =
         |> Gadget.field "string" .string Gadget.string
         |> Gadget.field "char" .char Gadget.char
         |> Gadget.field "custom" .custom customGadget
+        |> Gadget.field "tuple" .tuple tupleGadget
         |> Gadget.endRecord
+
+
+tupleGadget : Gadget.Gadget ( Int, ( String, Float ), Bool )
+tupleGadget =
+    Gadget.triple
+        Gadget.int
+        (Gadget.tuple Gadget.string Gadget.float)
+        Gadget.bool
 
 
 type Custom
