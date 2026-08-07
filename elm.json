@@ -11,6 +11,7 @@
         "Gadget.Adapter.Fuzz",
         "Gadget.Adapter.Html",
         "Gadget.Adapter.Json",
+        "Gadget.Adapter.Pretty",
         "Gadget.Adapter.Random",
         "Gadget.Adapter.String"
     ],
