@@ -162,8 +162,8 @@ view model =
             Random.step randomGenerator (Random.initialSeed seed2)
                 |> Tuple.first
 
-        pretty x =
-            H.pre [] [ H.text (Gadget.Adapter.Pretty.print gadget model.prettyWidth x) ]
+        pretty g x =
+            H.pre [] [ H.text (Gadget.Adapter.Pretty.print g model.prettyWidth x) ]
 
         diff =
             Gadget.Adapter.Diff.diff gadget firstValue secondValue
@@ -176,12 +176,14 @@ view model =
 
         decoded =
             JD.decodeString (Gadget.Adapter.Json.decoder gadget) encoded
+                |> Result.mapError (\_ -> "Decoding failed!")
 
         printed =
             Gadget.Adapter.String.print gadget firstValue
 
         parsed =
             Parser.run (Gadget.Adapter.String.parser gadget) printed
+                |> Result.mapError Parser.deadEndsToString
     in
     H.div []
         [ H.h1 [] [ H.text "elm-gadget examples" ]
@@ -221,13 +223,13 @@ view model =
                 )
             ]
         , head "Random generator (first value, pretty-printed)"
-        , pretty firstValue
+        , pretty personGadget  firstValue
         , head "Random generator (second value, pretty-printed)"
-        , pretty secondValue
+        , pretty  personGadget secondValue
         , head "Diff between first & second values"
         , show diff
         , head "Patch first value with diff"
-        , show patched
+        , pretty (Gadget.result Gadget.string personGadget) patched
         , head "Patched value equals second value?"
         , show (patched == Ok secondValue)
         , head "Html viewer (first value)"
@@ -237,13 +239,13 @@ view model =
         , head "String printer (first value)"
         , H.code [ HA.class "withoutSpaces" ] [ H.text printed ]
         , head "String parser (first value)"
-        , show parsed
+        , pretty (Gadget.result Gadget.string personGadget) parsed
         , head "JSON encoder (first value)"
         , H.pre [] [ H.text encoded ]
         , head "JSON decoder (first value)"
-        , show decoded
+        , pretty (Gadget.result Gadget.string personGadget) decoded
         , head "Fuzzer"
-        , show fuzzed
+        , pretty (Gadget.list personGadget) fuzzed
         ]
 
 
