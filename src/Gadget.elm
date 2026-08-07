@@ -389,7 +389,7 @@ tuple (Gadget a) (Gadget b) =
                         (b.fromInput (Tuple.second input))
                     )
         , toOutput =
-            \((IR metadata value) as ir) ->
+            \(IR _ value) ->
                 case value of
                     TupleValue fst snd ->
                         Result.map2 Tuple.pair
@@ -425,7 +425,7 @@ triple (Gadget a) (Gadget b) (Gadget c) =
                         (c.fromInput thd)
                     )
         , toOutput =
-            \((IR metadata value) as ir) ->
+            \(IR _ value) ->
                 case value of
                     TripleValue fst snd thd ->
                         Result.map3
