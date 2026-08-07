@@ -110,7 +110,7 @@ encodeAdapter (IR.IR _ irValue) =
         IR.FloatValue f ->
             JE.float f
 
-        IR.CustomValue selected ( name, variant ) ->
+        IR.CustomValue _ ( name, variant ) ->
             JE.object
                 [ ( "tag", JE.string name )
                 , ( "args"

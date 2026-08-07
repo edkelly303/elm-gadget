@@ -183,7 +183,7 @@ htmlAdapter (IR.IR metadata irValue) =
                 IR.FloatValue f ->
                     unquotedPrimitive metadataHtml "Float" (String.fromFloat f)
 
-                IR.CustomValue selected ( name, variant ) ->
+                IR.CustomValue _ ( name, variant ) ->
                     let
                         args =
                             case variant of

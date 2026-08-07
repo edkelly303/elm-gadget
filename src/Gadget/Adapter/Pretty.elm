@@ -4,11 +4,6 @@ import Gadget.IR as IR exposing (Value(..), VariantValue(..))
 import Pretty as P
 
 
-tools : IR.MetadataTools a
-tools =
-    IR.makeMetadataTools "Gadget.Named"
-
-
 print : IR.Gadget a -> Int -> a -> String
 print gadget width input =
     IR.fromInput gadget input
@@ -18,7 +13,7 @@ print gadget width input =
 
 
 printHelp : IR.IR Value -> P.Doc t
-printHelp (IR.IR metadata value) =
+printHelp (IR.IR _ value) =
     case value of
         StringValue s ->
             P.string ("\"" ++ escape s ++ "\"")
@@ -41,7 +36,7 @@ printHelp (IR.IR metadata value) =
         FloatValue f ->
             P.string (String.fromFloat f)
 
-        CustomValue selected ( name, variantValue ) ->
+        CustomValue _ ( name, variantValue ) ->
             P.string name
                 |> P.a
                     (P.nest 2
@@ -133,20 +128,3 @@ escape s =
         |> String.replace "\t" "\\t"
         |> String.replace "\u{000D}" "\\r"
         |> String.replace "\n" "\\n"
-
-
-x =
-    Ok
-        { name = "M/"
-        , heightInCentimetres =
-            144.03668423204613
-        , pets =
-            [ Ok
-                { name = "h\u{000B};\u{001E}J;k!P"
-                }
-            , Ok
-                { name = "\u{001F}3\u{000E}WY[\u{0015}*"
-                }
-            , Ok { name = "\u{000D}Q!/\u{0001}[" }
-            ]
-        }

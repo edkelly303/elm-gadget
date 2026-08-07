@@ -194,7 +194,7 @@ diffHelp (IR.IR _ type_) ((IR.IR _ oldData) as oldIR_) ((IR.IR _ newData) as new
                             [] ->
                                 Identical
 
-                    ( IR.CustomValue oldSelected ( oldName, oldVariant ), IR.CustomValue newSelected ( newName, newVariant ), IR.CustomType firstVariantType restVariantTypes ) ->
+                    ( IR.CustomValue oldSelected ( _, oldVariant ), IR.CustomValue newSelected ( _, newVariant ), IR.CustomType firstVariantType restVariantTypes ) ->
                         let
                             argsToList variant =
                                 case variant of
@@ -562,7 +562,7 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
                 |> Result.map IR.ProductValue
                 |> Result.map (IR.IR metadata)
 
-        ( CustomChanges diffSelected diffVariant, IR.CustomValue oldSelected ( oldName, oldVariant ), IR.CustomType firstVariantType restVariantTypes ) ->
+        ( CustomChanges diffSelected diffVariant, IR.CustomValue oldSelected ( _, oldVariant ), IR.CustomType firstVariantType restVariantTypes ) ->
             let
                 argsDict =
                     Dict.fromList diffVariant

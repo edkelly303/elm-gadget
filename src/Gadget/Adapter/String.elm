@@ -93,7 +93,7 @@ printAdapter (IR.IR _ irValue) =
         IR.FloatValue f ->
             primitive "f" (String.fromFloat f)
 
-        IR.CustomValue selected ( name, variant ) ->
+        IR.CustomValue selected ( _, variant ) ->
             let
                 args =
                     case variant of
