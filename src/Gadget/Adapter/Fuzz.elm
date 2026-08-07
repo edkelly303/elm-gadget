@@ -59,8 +59,8 @@ tools =
 
     personGadget =
         Gadget.record Person
-            |> Gadget.field .name Gadget.string
-            |> Gadget.field .age Gadget.int
+            |> Gadget.field "name" .name Gadget.string
+            |> Gadget.field "age" .age Gadget.int
             |> Gadget.endRecord
 
     personFuzzer =
@@ -91,8 +91,8 @@ implementations of fuzzers that are defined by this module.
 
     personGadget =
         Gadget.record Person
-            |> Gadget.field .name nameGadget
-            |> Gadget.field .age Gadget.int
+            |> Gadget.field "name" .name nameGadget
+            |> Gadget.field "age" .age Gadget.int
             |> Gadget.endRecord
 
     nameGadget =
@@ -247,7 +247,11 @@ fuzzAdapter overrides (IR.IR metadata irType) =
 
                 IR.ProductType fields ->
                     fields
-                        |> Fuzz.traverse (fuzzAdapter overrides)
+                        |> Fuzz.traverse
+                            (\( name, field ) ->
+                                fuzzAdapter overrides field
+                                    |> Fuzz.map (Tuple.pair name)
+                            )
                         |> Fuzz.map IR.ProductValue
                         |> Fuzz.map (IR.IR metadata)
 

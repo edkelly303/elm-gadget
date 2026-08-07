@@ -165,7 +165,7 @@ encodeAdapter (IR.IR _ irValue) =
         IR.ProductValue fields ->
             JE.object
                 [ ( "product"
-                  , JE.list encodeAdapter fields
+                  , JE.object (List.map (Tuple.mapSecond encodeAdapter) fields)
                   )
                 ]
 
@@ -234,7 +234,7 @@ decodeAdapter =
                         )
                 )
             , JD.field "product"
-                (JD.list (JD.lazy (\() -> decodeAdapter))
+                (JD.keyValuePairs (JD.lazy (\() -> decodeAdapter))
                     |> JD.map IR.ProductValue
                 )
             , JD.field "list"

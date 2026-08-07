@@ -180,7 +180,10 @@ diffHelp (IR.IR _ type_) ((IR.IR _ oldData) as oldIR_) ((IR.IR _ newData) as new
                     ( IR.ProductValue fields1, IR.ProductValue fields2, IR.ProductType fieldTypes ) ->
                         let
                             changes =
-                                List.map3 diffHelp fieldTypes fields1 fields2
+                                List.map3 diffHelp
+                                    (List.map Tuple.second fieldTypes)
+                                    (List.map Tuple.second fields1)
+                                    (List.map Tuple.second fields2)
                                     |> List.indexedMap Tuple.pair
                                     |> List.filter (\( _, arg ) -> arg /= Identical)
                         in
@@ -474,7 +477,7 @@ default (IR.IR metadata irType) =
                     )
 
         IR.ProductType fieldTypes ->
-            IR.IR metadata <| IR.ProductValue (List.map default fieldTypes)
+            IR.IR metadata <| IR.ProductValue (List.map (Tuple.mapSecond default) fieldTypes)
 
 
 {-| Use a set of [Changes](#Changes) to patch a value.
@@ -540,15 +543,18 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
                 fieldChangesDict =
                     Dict.fromList (fieldChange :: restFieldChanges)
             in
-            List.Extra.zip oldFields fieldTypes
+            List.Extra.zip
+                oldFields
+                fieldTypes
                 |> List.indexedMap
-                    (\idx ( oldField, fieldType ) ->
+                    (\idx ( ( name, oldField ), ( _, fieldType ) ) ->
                         case Dict.get idx fieldChangesDict of
                             Nothing ->
-                                Ok oldField
+                                Ok ( name, oldField )
 
                             Just change ->
                                 patchHelp change oldField fieldType
+                                    |> Result.map (Tuple.pair name)
                     )
                 |> Result.Extra.combine
                 |> Result.map IR.ProductValue

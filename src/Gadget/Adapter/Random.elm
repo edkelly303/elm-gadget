@@ -144,8 +144,8 @@ listLength lo hi g =
 
     personGadget =
         Gadget.record Person
-            |> Gadget.field .name Gadget.string
-            |> Gadget.field .age Gadget.int
+            |> Gadget.field "name" .name Gadget.string
+            |> Gadget.field "age" .age Gadget.int
             |> Gadget.endRecord
 
     personGenerator =
@@ -285,7 +285,11 @@ randomAdapter (IR.IR metadata irType) =
 
         IR.ProductType fields ->
             fields
-                |> Random.Extra.traverse randomAdapter
+                |> Random.Extra.traverse
+                    (\( name, fld ) ->
+                        randomAdapter fld
+                            |> Random.map (Tuple.pair name)
+                    )
                 |> Random.map IR.ProductValue
                 |> Random.map (IR.IR metadata)
 

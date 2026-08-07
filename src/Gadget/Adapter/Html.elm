@@ -154,7 +154,7 @@ htmlAdapter (IR.IR metadata irValue) =
                     "Variant #" ++ String.fromInt selected ++ " " ++ String.join " " (List.map (\(IR.IR _ v) -> viewMetadataValue v) (argsToList variant))
 
                 IR.ProductValue fields ->
-                    String.join " " (List.map (\(IR.IR _ v) -> viewMetadataValue v) fields)
+                    String.join " " (List.map (\( _, IR.IR _ v ) -> viewMetadataValue v) fields)
 
                 IR.ListValue items ->
                     String.join " " (List.map (\(IR.IR _ v) -> viewMetadataValue v) items)
@@ -257,7 +257,7 @@ htmlAdapter (IR.IR metadata irValue) =
                                     "s"
                                )
                         )
-                        fields
+                        (List.map Tuple.second fields)
 
                 IR.ListValue items ->
                     let

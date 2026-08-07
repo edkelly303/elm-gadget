@@ -59,12 +59,12 @@ type alias Record =
 recordGadget : Gadget.Gadget Record
 recordGadget =
     Gadget.record Record
-        |> Gadget.field .bool Gadget.bool
-        |> Gadget.field .int Gadget.int
-        |> Gadget.field .float Gadget.float
-        |> Gadget.field .string Gadget.string
-        |> Gadget.field .char Gadget.char
-        |> Gadget.field .custom customGadget
+        |> Gadget.field "bool" .bool Gadget.bool
+        |> Gadget.field "int" .int Gadget.int
+        |> Gadget.field "float" .float Gadget.float
+        |> Gadget.field "string" .string Gadget.string
+        |> Gadget.field "char" .char Gadget.char
+        |> Gadget.field "custom" .custom customGadget
         |> Gadget.endRecord
 
 

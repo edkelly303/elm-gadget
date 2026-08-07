@@ -67,7 +67,7 @@ type Value
     | IntValue Int
     | FloatValue Float
     | CustomValue Int VariantValue
-    | ProductValue (List (IR Value))
+    | ProductValue (List ( String, IR Value ))
     | ListValue (List (IR Value))
 
 
@@ -91,7 +91,7 @@ type Type
     | IntType
     | FloatType
     | CustomType VariantType (List VariantType)
-    | ProductType (List (IR Type))
+    | ProductType (List ( String, IR Type ))
     | ListType (IR Type)
     | LazyType (() -> IR Type)
 

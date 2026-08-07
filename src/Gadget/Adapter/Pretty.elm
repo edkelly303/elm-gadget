@@ -81,17 +81,9 @@ printHelp (IR.IR metadata value) =
                 [] ->
                     P.string "{}"
 
-                fst :: rst ->
+                _ ->
                     let
-                        name idx =
-                            case tools.get (String.fromInt idx) metadata of
-                                Just (StringValue n) ->
-                                    n
-
-                                _ ->
-                                    String.fromInt idx
-
-                        item starter idx fld =
+                        item starter idx ( name, fld ) =
                             P.string
                                 ((if idx == 0 then
                                     starter ++ " "
@@ -99,7 +91,7 @@ printHelp (IR.IR metadata value) =
                                   else
                                     ""
                                  )
-                                    ++ name idx
+                                    ++ name
                                     ++ " ="
                                 )
                                 |> P.a
@@ -139,20 +131,6 @@ printHelp (IR.IR metadata value) =
                         |> P.a P.line
                         |> P.a (P.string "]")
                         |> P.group
-
-
-bracket : String -> String
-bracket s =
-    if
-        String.contains " " s
-            && not (String.startsWith "{" s)
-            && not (String.startsWith "(" s)
-            && not (String.startsWith "[" s)
-    then
-        "(" ++ s ++ ")"
-
-    else
-        s
 
 
 escape : String -> String

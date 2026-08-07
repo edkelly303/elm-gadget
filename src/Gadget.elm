@@ -57,8 +57,8 @@ If you want to make your own adapters, see the [`Gadget.IR`](Gadget-IR) module.
 
     personGadget =
         Gadget.record Person
-            |> Gadget.field .name Gadget.string
-            |> Gadget.field .age Gadget.int
+            |> Gadget.field "name" .name Gadget.string
+            |> Gadget.field "age" .age Gadget.int
             |> Gadget.endRecord
 
     personGadget --: Gadget.Gadget Person
@@ -126,9 +126,9 @@ type alias Gadget a =
 -}
 type RecordGadgetBuilder input output
     = RecordGadgetBuilder
-        { fromInput : input -> List (IR Value)
-        , toOutput : List (IR Value) -> Result Error output
-        , irType : List (IR Type)
+        { fromInput : input -> List ( String, IR Value )
+        , toOutput : List ( String, IR Value ) -> Result Error output
+        , irType : List ( String, IR Type )
         }
 
 
@@ -381,8 +381,8 @@ result x a =
 tuple : Gadget a -> Gadget b -> Gadget ( a, b )
 tuple a b =
     record Tuple.pair
-        |> field Tuple.first a
-        |> field Tuple.second b
+        |> field "first" Tuple.first a
+        |> field "second" Tuple.second b
         |> endRecord
 
 
@@ -399,9 +399,9 @@ tuple a b =
 triple : Gadget a -> Gadget b -> Gadget c -> Gadget ( a, b, c )
 triple a b c =
     record (\a_ b_ c_ -> ( a_, b_, c_ ))
-        |> field (\( a_, _, _ ) -> a_) a
-        |> field (\( _, b_, _ ) -> b_) b
-        |> field (\( _, _, c_ ) -> c_) c
+        |> field "first" (\( a_, _, _ ) -> a_) a
+        |> field "second" (\( _, b_, _ ) -> b_) b
+        |> field "third" (\( _, _, c_ ) -> c_) c
         |> endRecord
 
 
@@ -692,11 +692,12 @@ record ctor =
 {-| Add a field to the definition of a record.
 -}
 field :
-    (input -> field)
+    String
+    -> (input -> field)
     -> Gadget field
     -> RecordGadgetBuilder input (field -> output)
     -> RecordGadgetBuilder input output
-field getter (Gadget gadget) (RecordGadgetBuilder builder) =
+field name getter (Gadget gadget) (RecordGadgetBuilder builder) =
     RecordGadgetBuilder
         { fromInput =
             \input ->
@@ -707,11 +708,11 @@ field getter (Gadget gadget) (RecordGadgetBuilder builder) =
                     prevFields =
                         builder.fromInput input
                 in
-                thisField :: prevFields
+                ( name, thisField ) :: prevFields
         , toOutput =
             \fields ->
                 case fields of
-                    thisField :: prevFields ->
+                    ( _, thisField ) :: prevFields ->
                         Result.map2 (\ctor val -> ctor val)
                             (builder.toOutput prevFields)
                             (gadget.toOutput thisField)
@@ -719,7 +720,7 @@ field getter (Gadget gadget) (RecordGadgetBuilder builder) =
                     [] ->
                         Err "expecting a Product field"
         , irType =
-            gadget.irType :: builder.irType
+            ( name, gadget.irType ) :: builder.irType
         }
 
 

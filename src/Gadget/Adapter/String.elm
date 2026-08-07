@@ -20,10 +20,6 @@ converts between Elm values and a simple and fairly compact String
 representation. I originally wrote this adapter because I wanted to be able to
 turn Elm values into Strings so that I could hash them.
 
-If anyone would like to contribute an example of a proper parser/pretty-printer,
-I would be happy to add it to this package. I think it is probably possible with
-judicious (ab)use of [`Gadget.Named`](Gadget-Named).
-
 
 ## API
 
@@ -142,7 +138,7 @@ printAdapter (IR.IR _ irValue) =
             combinator
                 "p"
                 ""
-                fields
+                (List.map Tuple.second fields)
 
         IR.ListValue items ->
             combinator
@@ -226,7 +222,7 @@ productParser : Parser IR.Value
 productParser =
     P.sequence
         { start = "p["
-        , item = P.lazy (\() -> irParser) |> P.map IR.ir
+        , item = P.lazy (\() -> irParser) |> P.map (\ir -> ( "", IR.ir ir ))
         , end = "]"
         , separator = ","
         , spaces = P.spaces

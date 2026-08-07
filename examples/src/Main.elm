@@ -11,7 +11,6 @@ import Gadget.Adapter.Pretty
 import Gadget.Adapter.Random
 import Gadget.Adapter.String
 import Gadget.IR
-import Gadget.Named
 import Html as H
 import Html.Attributes as HA
 import Html.Events as HE
@@ -35,22 +34,22 @@ type Pet
 
 personGadget : Gadget.Gadget Person
 personGadget =
-    Gadget.Named.record Person
-        |> Gadget.Named.field "name"
+    Gadget.record Person
+        |> Gadget.field "name"
             .name
             Gadget.string
-        |> Gadget.Named.field "heightInCentimetres"
+        |> Gadget.field "heightInCentimetres"
             .heightInCentimetres
             (Gadget.float |> Gadget.Adapter.Random.floatRange 100 180)
-        |> Gadget.Named.field "pets"
+        |> Gadget.field "pets"
             .pets
             (Gadget.list petGadget |> Gadget.Adapter.Random.listLength 0 3)
-        |> Gadget.Named.endRecord
+        |> Gadget.endRecord
 
 
 petGadget : Gadget.Gadget Pet
 petGadget =
-    Gadget.Named.custom
+    Gadget.custom
         (\dog robot variant ->
             case variant of
                 Dog name ->
@@ -59,17 +58,19 @@ petGadget =
                 Robot series model ->
                     robot series model
         )
-        |> Gadget.Named.variant1 "Dog"
+        |> Gadget.variant1
+            --"Dog"
             Dog
-            (Gadget.Named.record (\name -> { name = name })
-                |> Gadget.Named.field "name"
+            (Gadget.record (\name -> { name = name })
+                |> Gadget.field "name"
                     .name
                     (Gadget.string
                         |> Gadget.Adapter.Fuzz.label "dogName"
                     )
-                |> Gadget.Named.endRecord
+                |> Gadget.endRecord
             )
-        |> Gadget.Named.variant2 "Robot"
+        |> Gadget.variant2
+            --"Robot"
             Robot
             (Gadget.char
                 |> Gadget.Adapter.Fuzz.label "series"
@@ -78,7 +79,7 @@ petGadget =
                 |> Gadget.Adapter.Fuzz.label "model"
                 |> Gadget.Adapter.Random.intRange 1000 5000
             )
-        |> Gadget.Named.endCustom
+        |> Gadget.endCustom
 
 
 main : Program () Model Msg
@@ -161,8 +162,8 @@ view model =
             Random.step randomGenerator (Random.initialSeed seed2)
                 |> Tuple.first
 
-        pretty =
-            Gadget.Adapter.Pretty.print gadget model.prettyWidth firstValue
+        pretty x =
+            H.pre [] [ H.text (Gadget.Adapter.Pretty.print gadget model.prettyWidth x) ]
 
         diff =
             Gadget.Adapter.Diff.diff gadget firstValue secondValue
@@ -185,7 +186,7 @@ view model =
     H.div []
         [ H.h1 [] [ H.text "elm-gadget examples" ]
         , H.button [ HE.onClick UserClickedRegenerate ] [ H.text "Click to regenerate!" ]
-        , head "Pretty printer (first value)"
+        , head "Pretty printer width"
         , H.span []
             [ H.input
                 [ HA.type_ "range"
@@ -219,11 +220,10 @@ view model =
                     (List.range 0 12)
                 )
             ]
-        , H.pre [] [ H.text pretty ]
-        , head "Random generator (first value)"
-        , show firstValue
-        , head "Random generator (second value)"
-        , show secondValue
+        , head "Random generator (first value, pretty-printed)"
+        , pretty firstValue
+        , head "Random generator (second value, pretty-printed)"
+        , pretty secondValue
         , head "Diff between first & second values"
         , show diff
         , head "Patch first value with diff"
@@ -234,9 +234,9 @@ view model =
         , Gadget.Adapter.Html.view gadget firstValue
         , head "Html viewer (second value)"
         , Gadget.Adapter.Html.view gadget secondValue
-        , head "Printer (first value)"
+        , head "String printer (first value)"
         , H.code [ HA.class "withoutSpaces" ] [ H.text printed ]
-        , head "Parser (first value)"
+        , head "String parser (first value)"
         , show parsed
         , head "JSON encoder (first value)"
         , H.pre [] [ H.text encoded ]

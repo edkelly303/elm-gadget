@@ -525,8 +525,8 @@ input__Readme_0 =
 gadget__Readme_0 : Gadget.Gadget Person__Readme_0
 gadget__Readme_0 =
     Gadget.record Person__Readme_0
-        |> Gadget.field .name Gadget.string
-        |> Gadget.field .age Gadget.int
+        |> Gadget.field "name" .name Gadget.string
+        |> Gadget.field "age" .age Gadget.int
         |> Gadget.endRecord
 
 
@@ -550,8 +550,8 @@ type alias Person__Gadget__Header_0 =
 
 personGadget__Gadget__Header_0 =
     Gadget.record Person__Gadget__Header_0
-        |> Gadget.field .name Gadget.string
-        |> Gadget.field .age Gadget.int
+        |> Gadget.field "name" .name Gadget.string
+        |> Gadget.field "age" .age Gadget.int
         |> Gadget.endRecord
 
 
@@ -677,8 +677,8 @@ type alias Person__Gadget_Adapter_Fuzz__fuzzer_0 =
 
 personGadget__Gadget_Adapter_Fuzz__fuzzer_0 =
     Gadget.record Person__Gadget_Adapter_Fuzz__fuzzer_0
-        |> Gadget.field .name Gadget.string
-        |> Gadget.field .age Gadget.int
+        |> Gadget.field "name" .name Gadget.string
+        |> Gadget.field "age" .age Gadget.int
         |> Gadget.endRecord
 
 
@@ -697,9 +697,10 @@ type alias Person__Gadget_Adapter_Fuzz__fuzzerWithOverrides_0 =
 personGadget__Gadget_Adapter_Fuzz__fuzzerWithOverrides_0 =
     Gadget.record Person__Gadget_Adapter_Fuzz__fuzzerWithOverrides_0
         |> Gadget.field
+            "name"
             .name
             nameGadget__Gadget_Adapter_Fuzz__fuzzerWithOverrides_0
-        |> Gadget.field .age Gadget.int
+        |> Gadget.field "age" .age Gadget.int
         |> Gadget.endRecord
 
 
@@ -762,8 +763,8 @@ type alias Person__Gadget_Adapter_Random__generator_0 =
 
 personGadget__Gadget_Adapter_Random__generator_0 =
     Gadget.record Person__Gadget_Adapter_Random__generator_0
-        |> Gadget.field .name Gadget.string
-        |> Gadget.field .age Gadget.int
+        |> Gadget.field "name" .name Gadget.string
+        |> Gadget.field "age" .age Gadget.int
         |> Gadget.endRecord
 
 
