@@ -223,9 +223,9 @@ view model =
                 )
             ]
         , head "Random generator (first value, pretty-printed)"
-        , pretty personGadget  firstValue
+        , pretty personGadget firstValue
         , head "Random generator (second value, pretty-printed)"
-        , pretty  personGadget secondValue
+        , pretty personGadget secondValue
         , head "Diff between first & second values"
         , show diff
         , head "Patch first value with diff"
