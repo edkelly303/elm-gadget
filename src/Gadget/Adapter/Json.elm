@@ -264,5 +264,3 @@ decodeAdapter (IR metadata irType) =
 
         LazyType innerType ->
             JD.lazy (\() -> decodeAdapter (innerType ()))
-
-
