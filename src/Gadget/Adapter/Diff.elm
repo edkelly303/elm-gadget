@@ -180,12 +180,10 @@ diffHelp (IR.IR _ type_) ((IR.IR _ oldData) as oldIR_) ((IR.IR _ newData) as new
                             |> ListChanges
 
                     ( IR.TupleValue a1 b1, IR.TupleValue a2 b2, IR.TupleType aType bType ) ->
-                        Identical
-                            |> Debug.log "implement diffHelp for Tuple"
+                        TupleChange (diffHelp aType a1 a2) (diffHelp bType b1 b2)
 
                     ( IR.TripleValue a1 b1 c1, IR.TripleValue a2 b2 c2, IR.TripleType aType bType cType ) ->
-                        Identical
-                            |> Debug.log "implement diffHelp for Triple"
+                        TripleChange (diffHelp aType a1 a2) (diffHelp bType b1 b2) (diffHelp cType c1 c2)
 
                     ( IR.ProductValue fields1, IR.ProductValue fields2, IR.ProductType fieldTypes ) ->
                         let
@@ -548,13 +546,18 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
         ( FloatChange b, IR.FloatValue _, _ ) ->
             Ok (IR.IR metadata <| IR.FloatValue b)
 
-        ( TupleChange aChange bChange, IR.TupleValue a b, _ ) ->
-            Ok (IR.IR metadata <| IR.TupleValue a b)
-                |> Debug.log "implement patchHelp for Tuple"
+        ( TupleChange aChange bChange, IR.TupleValue a b, IR.TupleType aType bType ) ->
+            Result.map2
+                (\a2 b2 -> IR.IR metadata <| IR.TupleValue a2 b2)
+                (patchHelp aChange a aType)
+                (patchHelp bChange b bType)
 
-        ( TripleChange aChange bChange cChange, IR.TripleValue a b c, _ ) ->
-            Ok (IR.IR metadata <| IR.TripleValue a b c)
-                |> Debug.log "implement patchHelp for Triple"
+        ( TripleChange aChange bChange cChange, IR.TripleValue a b c, IR.TripleType aType bType cType ) ->
+            Result.map3
+                (\a2 b2 c2 -> IR.IR metadata <| IR.TripleValue a2 b2 c2)
+                (patchHelp aChange a aType)
+                (patchHelp bChange b bType)
+                (patchHelp cChange c cType)
 
         ( ListChanges cs, IR.ListValue oldList, IR.ListType itemType ) ->
             Ok
