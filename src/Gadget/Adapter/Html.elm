@@ -225,9 +225,8 @@ htmlAdapter (IR.IR metadata irValue) =
                     combinator
                         metadataHtml
                         "Custom"
-                        ("variant #"
-                            ++ String.fromInt selected
-                            ++ " with "
+                        ("\"" ++ name
+                            ++ "\" with "
                             ++ String.fromInt numArgs
                             ++ " argument"
                             ++ (if numArgs == 1 then
@@ -237,7 +236,7 @@ htmlAdapter (IR.IR metadata irValue) =
                                     "s"
                                )
                         )
-                        args
+                        (List.map (Tuple.pair "") args)
 
                 IR.ProductValue fields ->
                     let
@@ -246,7 +245,7 @@ htmlAdapter (IR.IR metadata irValue) =
                     in
                     combinator
                         metadataHtml
-                        "Product"
+                        "Record"
                         ("with "
                             ++ String.fromInt count
                             ++ " field"
@@ -257,7 +256,7 @@ htmlAdapter (IR.IR metadata irValue) =
                                     "s"
                                )
                         )
-                        (List.map Tuple.second fields)
+                        fields
 
                 IR.ListValue items ->
                     let
@@ -277,7 +276,7 @@ htmlAdapter (IR.IR metadata irValue) =
                                     "s"
                                )
                         )
-                        items
+                        (List.map (Tuple.pair "") items)
     in
     viewValue viewMetadata irValue
 
@@ -301,7 +300,7 @@ unquotedPrimitive metadataHtml =
     primitive metadataHtml (H.text "") (\value -> H.code [] [ H.text value ])
 
 
-combinator : H.Html msg -> String -> String -> List IRValue -> H.Html msg
+combinator : H.Html msg -> String -> String -> List ( String, IRValue ) -> H.Html msg
 combinator metadataHtml typeName typeInfo items =
     if List.isEmpty items then
         H.div [ HA.class "combinator", HA.class typeName ]
@@ -320,7 +319,7 @@ combinator metadataHtml typeName typeInfo items =
                 ]
             , H.div []
                 [ H.ol []
-                    (List.map (\item -> H.li [] [ htmlAdapter item ]) items)
+                    (List.map (\( name, item ) -> H.li [] [ H.text name, htmlAdapter item ]) items)
                 , metadataHtml
                 ]
             ]
