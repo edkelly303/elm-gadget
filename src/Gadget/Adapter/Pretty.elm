@@ -111,15 +111,13 @@ printHelp (IR.IR metadata value) =
                 _ ->
                     let
                         item starter idx fld =
-                            P.string
+                            P.group
                                 (if idx == 0 then
-                                    starter ++ " "
+                                    P.string (starter ++ " ") |> P.a (P.align (printHelp fld))
 
                                  else
-                                    ""
+                                    P.align (printHelp fld)
                                 )
-                                |> P.a (printHelp fld)
-                                |> P.group
                     in
                     P.separators ", "
                         (List.indexedMap (item "[") items)
