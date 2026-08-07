@@ -23,13 +23,11 @@ versa.
 
 -}
 
-import Gadget.IR as IR
+import Dict
+import Gadget.IR as IR exposing (IR(..), Type(..), Value(..), VariantType(..), VariantValue(..))
 import Json.Decode as JD
+import Json.Decode.Extra
 import Json.Encode as JE
-
-
-type alias IRValue =
-    IR.IR IR.Value
 
 
 {-| Convert an Elm value into a `Json.Encode.Value`.
@@ -82,10 +80,10 @@ encode gadget value =
 -}
 decoder : IR.Gadget a -> JD.Decoder a
 decoder gadget =
-    decodeAdapter
+    decodeAdapter (IR.irType gadget)
         |> JD.andThen
-            (\irValue ->
-                case IR.toOutput gadget irValue of
+            (\ir ->
+                case IR.toOutput gadget ir of
                     Ok s ->
                         JD.succeed s
 
@@ -94,96 +92,80 @@ decoder gadget =
             )
 
 
-encodeAdapter : IRValue -> JE.Value
+encodeAdapter : IR Value -> JE.Value
 encodeAdapter (IR.IR _ irValue) =
     case irValue of
         IR.BoolValue b ->
-            JE.object
-                [ ( "bool", JE.bool b ) ]
+            JE.bool b
 
         IR.CharValue c ->
-            JE.object
-                [ ( "char", JE.string (String.fromChar c) ) ]
+            JE.string (String.fromChar c)
 
         IR.StringValue s ->
-            JE.object
-                [ ( "string", JE.string s ) ]
+            JE.string s
 
         IR.IntValue i ->
-            JE.object
-                [ ( "int", JE.int i ) ]
+            JE.int i
 
         IR.FloatValue f ->
-            JE.object
-                [ ( "float", JE.float f ) ]
+            JE.float f
 
         IR.CustomValue selected ( name, variant ) ->
             JE.object
-                [ ( "custom"
-                  , JE.object
-                        [ ( "index", JE.int selected )
-                        , ( "name", JE.string name )
-                        , ( "args"
-                          , JE.list encodeAdapter
-                                (case variant of
-                                    IR.Variant0Value ->
-                                        []
+                [ ( "tag", JE.string name )
+                , ( "args"
+                  , JE.list encodeAdapter
+                        (case variant of
+                            IR.Variant0Value ->
+                                []
 
-                                    IR.Variant1Value arg ->
-                                        [ arg ]
+                            IR.Variant1Value arg ->
+                                [ arg ]
 
-                                    IR.Variant2Value arg1 arg2 ->
-                                        [ arg1
-                                        , arg2
-                                        ]
+                            IR.Variant2Value arg1 arg2 ->
+                                [ arg1
+                                , arg2
+                                ]
 
-                                    IR.Variant3Value arg1 arg2 arg3 ->
-                                        [ arg1
-                                        , arg2
-                                        , arg3
-                                        ]
+                            IR.Variant3Value arg1 arg2 arg3 ->
+                                [ arg1
+                                , arg2
+                                , arg3
+                                ]
 
-                                    IR.Variant4Value arg1 arg2 arg3 arg4 ->
-                                        [ arg1
-                                        , arg2
-                                        , arg3
-                                        , arg4
-                                        ]
+                            IR.Variant4Value arg1 arg2 arg3 arg4 ->
+                                [ arg1
+                                , arg2
+                                , arg3
+                                , arg4
+                                ]
 
-                                    IR.Variant5Value arg1 arg2 arg3 arg4 arg5 ->
-                                        [ arg1
-                                        , arg2
-                                        , arg3
-                                        , arg4
-                                        , arg5
-                                        ]
-                                )
-                          )
-                        ]
+                            IR.Variant5Value arg1 arg2 arg3 arg4 arg5 ->
+                                [ arg1
+                                , arg2
+                                , arg3
+                                , arg4
+                                , arg5
+                                ]
+                        )
                   )
                 ]
 
         IR.ProductValue fields ->
-            JE.object
-                [ ( "product"
-                  , JE.object (List.map (Tuple.mapSecond encodeAdapter) fields)
-                  )
-                ]
+            JE.object (List.map (\( name, field ) -> ( name, encodeAdapter field )) fields)
 
         IR.ListValue items ->
-            JE.object
-                [ ( "list"
-                  , JE.list encodeAdapter items
-                  )
-                ]
+            JE.list encodeAdapter items
 
 
-decodeAdapter : JD.Decoder IRValue
-decodeAdapter =
-    JD.map IR.ir <|
-        JD.oneOf
-            [ JD.field "bool" JD.bool |> JD.map IR.BoolValue
-            , JD.field "char" JD.string
+decodeAdapter : IR Type -> JD.Decoder (IR Value)
+decodeAdapter (IR metadata irType) =
+    case irType of
+        BoolType ->
+            JD.bool |> JD.map IR.BoolValue |> JD.map (IR metadata)
+
+        CharType ->
+            JD.string
                 |> JD.andThen
                     (\s ->
                         case String.uncons s of
@@ -191,56 +173,96 @@ decodeAdapter =
                                 JD.fail "not a char"
 
                             Just ( c, _ ) ->
-                                JD.succeed (IR.CharValue c)
+                                JD.succeed (IR metadata (CharValue c))
                     )
-            , JD.field "string" JD.string |> JD.map IR.StringValue
-            , JD.field "int" JD.int |> JD.map IR.IntValue
-            , JD.field "float" JD.float |> JD.map IR.FloatValue
-            , JD.field "custom"
-                (JD.map3
-                    (\selected name args ->
-                        Maybe.map (IR.CustomValue selected) <|
-                            case args of
-                                [] ->
-                                    Just ( name, IR.Variant0Value )
 
-                                [ arg ] ->
-                                    Just ( name, IR.Variant1Value arg )
+        StringType ->
+            JD.string |> JD.map IR.StringValue |> JD.map (IR metadata)
 
-                                [ arg1, arg2 ] ->
-                                    Just ( name, IR.Variant2Value arg1 arg2 )
+        IntType ->
+            JD.int |> JD.map IR.IntValue |> JD.map (IR metadata)
 
-                                [ arg1, arg2, arg3 ] ->
-                                    Just ( name, IR.Variant3Value arg1 arg2 arg3 )
+        FloatType ->
+            JD.float |> JD.map IR.FloatValue |> JD.map (IR metadata)
 
-                                [ arg1, arg2, arg3, arg4 ] ->
-                                    Just ( name, IR.Variant4Value arg1 arg2 arg3 arg4 )
+        CustomType fst rst ->
+            let
+                dict =
+                    (fst :: rst)
+                        |> List.indexedMap
+                            (\idx ( name, variant ) ->
+                                ( name, ( idx, variant ) )
+                            )
+                        |> Dict.fromList
+            in
+            JD.field "tag" JD.string
+                |> JD.andThen
+                    (\name ->
+                        case Dict.get name dict of
+                            Just ( idx, type_ ) ->
+                                JD.map (\v -> CustomValue idx ( name, v )) <|
+                                    case type_ of
+                                        Variant0Type ->
+                                            JD.succeed Variant0Value
 
-                                [ arg1, arg2, arg3, arg4, arg5 ] ->
-                                    Just ( name, IR.Variant5Value arg1 arg2 arg3 arg4 arg5 )
+                                        Variant1Type arg1Type ->
+                                            JD.map Variant1Value
+                                                (JD.field "args" (JD.index 0 (JD.lazy (\() -> decodeAdapter arg1Type))))
 
-                                _ ->
-                                    Nothing
+                                        Variant2Type arg1Type arg2Type ->
+                                            JD.map2 Variant2Value
+                                                (JD.field "args" (JD.index 0 (JD.lazy (\() -> decodeAdapter arg1Type))))
+                                                (JD.field "args" (JD.index 1 (JD.lazy (\() -> decodeAdapter arg2Type))))
+
+                                        Variant3Type arg1Type arg2Type arg3Type ->
+                                            JD.map3 Variant3Value
+                                                (JD.field "args" (JD.index 0 (JD.lazy (\() -> decodeAdapter arg1Type))))
+                                                (JD.field "args" (JD.index 1 (JD.lazy (\() -> decodeAdapter arg2Type))))
+                                                (JD.field "args" (JD.index 2 (JD.lazy (\() -> decodeAdapter arg3Type))))
+
+                                        Variant4Type arg1Type arg2Type arg3Type arg4Type ->
+                                            JD.map4 Variant4Value
+                                                (JD.field "args" (JD.index 0 (JD.lazy (\() -> decodeAdapter arg1Type))))
+                                                (JD.field "args" (JD.index 1 (JD.lazy (\() -> decodeAdapter arg2Type))))
+                                                (JD.field "args" (JD.index 2 (JD.lazy (\() -> decodeAdapter arg3Type))))
+                                                (JD.field "args" (JD.index 3 (JD.lazy (\() -> decodeAdapter arg4Type))))
+
+                                        Variant5Type arg1Type arg2Type arg3Type arg4Type arg5Type ->
+                                            JD.map5 Variant5Value
+                                                (JD.field "args" (JD.index 0 (JD.lazy (\() -> decodeAdapter arg1Type))))
+                                                (JD.field "args" (JD.index 1 (JD.lazy (\() -> decodeAdapter arg2Type))))
+                                                (JD.field "args" (JD.index 2 (JD.lazy (\() -> decodeAdapter arg3Type))))
+                                                (JD.field "args" (JD.index 3 (JD.lazy (\() -> decodeAdapter arg4Type))))
+                                                (JD.field "args" (JD.index 4 (JD.lazy (\() -> decodeAdapter arg5Type))))
+
+                            Nothing ->
+                                JD.fail (name ++ " is not a valid variant name for this type")
                     )
-                    (JD.field "index" JD.int)
-                    (JD.field "name" JD.string)
-                    (JD.field "args" (JD.list (JD.lazy (\() -> decodeAdapter))))
-                    |> JD.andThen
-                        (\maybeIR ->
-                            case maybeIR of
-                                Nothing ->
-                                    JD.fail ""
+                |> JD.map (IR metadata)
 
-                                Just ir ->
-                                    JD.succeed ir
+        ProductType fieldTypes ->
+            List.map
+                (\( name, fieldType ) ->
+                    JD.field name
+                        (JD.lazy
+                            (\() ->
+                                JD.map
+                                    (Tuple.pair name)
+                                    (decodeAdapter fieldType)
+                            )
                         )
                 )
-            , JD.field "product"
-                (JD.keyValuePairs (JD.lazy (\() -> decodeAdapter))
-                    |> JD.map IR.ProductValue
-                )
-            , JD.field "list"
-                (JD.list (JD.lazy (\() -> decodeAdapter))
-                    |> JD.map IR.ListValue
-                )
-            ]
+                fieldTypes
+                |> Json.Decode.Extra.combine
+                |> JD.map ProductValue
+                |> JD.map (IR metadata)
+
+        ListType itemType ->
+            JD.list (JD.lazy (\() -> decodeAdapter itemType))
+                |> JD.map ListValue
+                |> JD.map (IR metadata)
+
+        LazyType innerType ->
+            JD.lazy (\() -> decodeAdapter (innerType ()))
+
+
