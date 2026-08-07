@@ -99,6 +99,7 @@ type Type
     | TupleType (IR Type) (IR Type)
     | TripleType (IR Type) (IR Type) (IR Type)
 
+
 {-| A type used by the `Custom` constructor of the `Type` type.
 -}
 type VariantType

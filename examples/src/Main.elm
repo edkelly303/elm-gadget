@@ -24,8 +24,8 @@ type alias Person =
     { name : String
     , heightInCentimetres : Float
     , pets : List Pet
-    , tuple : (Bool, Bool)
-    , triple : (Bool, Bool, Bool)
+    , tuple : ( Bool, Bool )
+    , triple : ( Bool, Bool, Bool )
     }
 
 

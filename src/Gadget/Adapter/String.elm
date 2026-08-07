@@ -246,6 +246,7 @@ tupleParser =
                         P.problem "wrong number of members for tuple"
             )
 
+
 tripleParser : Parser IR.Value
 tripleParser =
     P.sequence
@@ -265,6 +266,7 @@ tripleParser =
                     _ ->
                         P.problem "wrong number of members for triple"
             )
+
 
 productParser : Parser IR.Value
 productParser =
