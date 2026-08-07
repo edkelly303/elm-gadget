@@ -7,13 +7,13 @@ import Pretty as P
 print : IR.Gadget a -> Int -> a -> String
 print gadget width input =
     IR.fromInput gadget input
-        |> printHelp
+        |> printHelp False
         |> P.group
         |> P.pretty width
 
 
-printHelp : IR.IR Value -> P.Doc t
-printHelp (IR.IR _ value) =
+printHelp : Bool -> IR.IR Value -> P.Doc t
+printHelp parentIsCustom (IR.IR _ value) =
     case value of
         StringValue s ->
             P.string ("\"" ++ escape s ++ "\"")
@@ -46,12 +46,12 @@ printHelp (IR.IR _ value) =
                                     P.empty
 
                                 Variant1Value arg1 ->
-                                    printHelp arg1
+                                    printHelp True arg1
 
                                 Variant2Value arg1 arg2 ->
-                                    printHelp arg1
+                                    printHelp True arg1
                                         |> P.a P.line
-                                        |> P.a (printHelp arg2)
+                                        |> P.a (printHelp True arg2)
 
                                 Variant3Value _ _ _ ->
                                     Debug.todo "branch 'Variant3Value _ _ _' not implemented"
@@ -63,7 +63,21 @@ printHelp (IR.IR _ value) =
                                     Debug.todo "branch 'Variant5Value _ _ _ _ _' not implemented"
                             )
                     )
+                |> P.group
                 |> P.hang 2
+                |> P.surround
+                    (if parentIsCustom && variantValue /= Variant0Value then
+                        P.string "("
+
+                     else
+                        P.empty
+                    )
+                    (if parentIsCustom && variantValue /= Variant0Value then
+                        P.tightline |> P.a (P.string ")")
+
+                     else
+                        P.empty
+                    )
 
         ProductValue fields ->
             case fields of
@@ -76,7 +90,7 @@ printHelp (IR.IR _ value) =
                             P.string (name ++ " =")
                                 |> P.a P.line
                                 |> P.nest 4
-                                |> P.a (printHelp fld)
+                                |> P.a (printHelp False fld)
                                 |> P.group
                     in
                     P.surround
@@ -95,21 +109,21 @@ printHelp (IR.IR _ value) =
                     P.surround
                         (P.string "[ ")
                         (P.line |> P.a (P.string "]"))
-                        (P.separators ", " (List.map printHelp items))
+                        (P.separators ", " (List.map (printHelp False) items))
                         |> P.align
 
         TupleValue a b ->
             P.surround
                 (P.string "( ")
                 (P.line |> P.a (P.string ")"))
-                (P.separators ", " [ printHelp a, printHelp b ])
+                (P.separators ", " [ printHelp False a, printHelp False b ])
                 |> P.align
 
         TripleValue a b c ->
             P.surround
                 (P.string "( ")
                 (P.line |> P.a (P.string ")"))
-                (P.separators ", " [ printHelp a, printHelp b, printHelp c ])
+                (P.separators ", " [ printHelp False a, printHelp False b, printHelp False c ])
                 |> P.align
 
 

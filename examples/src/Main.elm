@@ -31,7 +31,7 @@ type alias Person =
 
 type Pet
     = Dog { name : String }
-    | Robot Char Int
+    | Robot Char (Maybe Int)
 
 
 personGadget : Gadget.Gadget Person
@@ -79,9 +79,9 @@ petGadget =
             (Gadget.char
                 |> Gadget.Adapter.Fuzz.label "series"
             )
-            (Gadget.int
+            (Gadget.maybe(Gadget.int
                 |> Gadget.Adapter.Fuzz.label "model"
-                |> Gadget.Adapter.Random.intRange 1000 5000
+                |> Gadget.Adapter.Random.intRange 1000 5000)
             )
         |> Gadget.endCustom
 
