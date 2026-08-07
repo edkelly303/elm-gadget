@@ -41,8 +41,8 @@ treeGadgetHelp n =
                 Branch branch0 branch1 ->
                     branch branch0 branch1
         )
-        |> Gadget.variant1 Leaf Gadget.string
-        |> Gadget.variant2 Branch limited limited
+        |> Gadget.variant1 "Leaf" Leaf Gadget.string
+        |> Gadget.variant2 "Branch" Branch limited limited
         |> Gadget.endCustom
 
 
@@ -100,10 +100,10 @@ customGadget =
                 Var5 b1 b2 b3 b4 b5 ->
                     v5 b1 b2 b3 b4 b5
         )
-        |> Gadget.variant0 Var0
-        |> Gadget.variant1 Var1 (Gadget.list Gadget.bool)
-        |> Gadget.variant2 Var2 Gadget.int (Gadget.tuple Gadget.bool Gadget.char)
-        |> Gadget.variant3 Var3 Gadget.bool Gadget.bool Gadget.bool
-        |> Gadget.variant4 Var4 Gadget.bool Gadget.bool Gadget.bool Gadget.bool
-        |> Gadget.variant5 Var5 Gadget.bool Gadget.bool Gadget.bool Gadget.bool Gadget.bool
+        |> Gadget.variant0 "Var0" Var0
+        |> Gadget.variant1 "Var1" Var1 (Gadget.list Gadget.bool)
+        |> Gadget.variant2 "Var2" Var2 Gadget.int (Gadget.tuple Gadget.bool Gadget.char)
+        |> Gadget.variant3 "Var3" Var3 Gadget.bool Gadget.bool Gadget.bool
+        |> Gadget.variant4 "Var4" Var4 Gadget.bool Gadget.bool Gadget.bool Gadget.bool
+        |> Gadget.variant5 "Var5" Var5 Gadget.bool Gadget.bool Gadget.bool Gadget.bool Gadget.bool
         |> Gadget.endCustom

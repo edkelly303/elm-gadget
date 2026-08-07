@@ -194,7 +194,7 @@ diffHelp (IR.IR _ type_) ((IR.IR _ oldData) as oldIR_) ((IR.IR _ newData) as new
                             [] ->
                                 Identical
 
-                    ( IR.CustomValue oldSelected oldVariant, IR.CustomValue newSelected newVariant, IR.CustomType firstVariantType restVariantTypes ) ->
+                    ( IR.CustomValue oldSelected ( oldName, oldVariant ), IR.CustomValue newSelected ( newName, newVariant ), IR.CustomType firstVariantType restVariantTypes ) ->
                         let
                             argsToList variant =
                                 case variant of
@@ -242,6 +242,7 @@ diffHelp (IR.IR _ type_) ((IR.IR _ oldData) as oldIR_) ((IR.IR _ newData) as new
                             newArgTypes =
                                 List.Extra.getAt newSelected (firstVariantType :: restVariantTypes)
                                     |> Maybe.withDefault firstVariantType
+                                    |> Tuple.second
                                     |> argTypesToList
 
                             diffedArgs =
@@ -453,10 +454,11 @@ default (IR.IR metadata irType) =
         IR.ListType _ ->
             IR.IR metadata <| IR.ListValue []
 
-        IR.CustomType firstVariantType _ ->
+        IR.CustomType ( name, firstVariantType ) _ ->
             IR.IR metadata <|
                 IR.CustomValue 0
-                    (case firstVariantType of
+                    ( name
+                    , case firstVariantType of
                         IR.Variant0Type ->
                             IR.Variant0Value
 
@@ -560,7 +562,7 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
                 |> Result.map IR.ProductValue
                 |> Result.map (IR.IR metadata)
 
-        ( CustomChanges diffSelected diffVariant, IR.CustomValue oldSelected oldVariant, IR.CustomType firstVariantType restVariantTypes ) ->
+        ( CustomChanges diffSelected diffVariant, IR.CustomValue oldSelected ( oldName, oldVariant ), IR.CustomType firstVariantType restVariantTypes ) ->
             let
                 argsDict =
                     Dict.fromList diffVariant
@@ -582,172 +584,173 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
                             patchHelp changes (default argType) argType
             in
             List.Extra.getAt diffSelected (firstVariantType :: restVariantTypes)
-                |> Result.fromMaybe ""
+                |> Result.fromMaybe "missing"
                 |> Result.andThen
-                    (\variantType ->
-                        case variantType of
-                            IR.Variant0Type ->
-                                Ok IR.Variant0Value
+                    (\( name, variantType ) ->
+                        Result.map (Tuple.pair name) <|
+                            case variantType of
+                                IR.Variant0Type ->
+                                    Ok IR.Variant0Value
 
-                            IR.Variant1Type arg1Type ->
-                                if diffSelected == oldSelected then
-                                    case oldVariant of
-                                        IR.Variant1Value arg1 ->
-                                            let
-                                                arg1Diff =
-                                                    toArgDiff 0 arg1 arg1Type
-                                            in
-                                            Result.map IR.Variant1Value arg1Diff
+                                IR.Variant1Type arg1Type ->
+                                    if diffSelected == oldSelected then
+                                        case oldVariant of
+                                            IR.Variant1Value arg1 ->
+                                                let
+                                                    arg1Diff =
+                                                        toArgDiff 0 arg1 arg1Type
+                                                in
+                                                Result.map IR.Variant1Value arg1Diff
 
-                                        _ ->
-                                            Err ""
+                                            _ ->
+                                                Err ""
 
-                                else
-                                    let
-                                        arg1Diff =
-                                            toArgDiffFromDefault 0 arg1Type
-                                    in
-                                    Result.map IR.Variant1Value arg1Diff
+                                    else
+                                        let
+                                            arg1Diff =
+                                                toArgDiffFromDefault 0 arg1Type
+                                        in
+                                        Result.map IR.Variant1Value arg1Diff
 
-                            IR.Variant2Type arg1Type arg2Type ->
-                                if diffSelected == oldSelected then
-                                    case oldVariant of
-                                        IR.Variant2Value arg1 arg2 ->
-                                            let
-                                                arg1Diff =
-                                                    toArgDiff 0 arg1 arg1Type
+                                IR.Variant2Type arg1Type arg2Type ->
+                                    if diffSelected == oldSelected then
+                                        case oldVariant of
+                                            IR.Variant2Value arg1 arg2 ->
+                                                let
+                                                    arg1Diff =
+                                                        toArgDiff 0 arg1 arg1Type
 
-                                                arg2Diff =
-                                                    toArgDiff 1 arg2 arg2Type
-                                            in
-                                            Result.map2 IR.Variant2Value arg1Diff arg2Diff
+                                                    arg2Diff =
+                                                        toArgDiff 1 arg2 arg2Type
+                                                in
+                                                Result.map2 IR.Variant2Value arg1Diff arg2Diff
 
-                                        _ ->
-                                            Err ""
+                                            _ ->
+                                                Err ""
 
-                                else
-                                    let
-                                        arg1Diff =
-                                            toArgDiffFromDefault 0 arg1Type
+                                    else
+                                        let
+                                            arg1Diff =
+                                                toArgDiffFromDefault 0 arg1Type
 
-                                        arg2Diff =
-                                            toArgDiffFromDefault 1 arg2Type
-                                    in
-                                    Result.map2 IR.Variant2Value arg1Diff arg2Diff
+                                            arg2Diff =
+                                                toArgDiffFromDefault 1 arg2Type
+                                        in
+                                        Result.map2 IR.Variant2Value arg1Diff arg2Diff
 
-                            IR.Variant3Type arg1Type arg2Type arg3Type ->
-                                if diffSelected == oldSelected then
-                                    case oldVariant of
-                                        IR.Variant3Value arg1 arg2 arg3 ->
-                                            let
-                                                arg1Diff =
-                                                    toArgDiff 0 arg1 arg1Type
+                                IR.Variant3Type arg1Type arg2Type arg3Type ->
+                                    if diffSelected == oldSelected then
+                                        case oldVariant of
+                                            IR.Variant3Value arg1 arg2 arg3 ->
+                                                let
+                                                    arg1Diff =
+                                                        toArgDiff 0 arg1 arg1Type
 
-                                                arg2Diff =
-                                                    toArgDiff 1 arg2 arg2Type
+                                                    arg2Diff =
+                                                        toArgDiff 1 arg2 arg2Type
 
-                                                arg3Diff =
-                                                    toArgDiff 2 arg3 arg3Type
-                                            in
-                                            Result.map3 IR.Variant3Value arg1Diff arg2Diff arg3Diff
+                                                    arg3Diff =
+                                                        toArgDiff 2 arg3 arg3Type
+                                                in
+                                                Result.map3 IR.Variant3Value arg1Diff arg2Diff arg3Diff
 
-                                        _ ->
-                                            Err ""
+                                            _ ->
+                                                Err ""
 
-                                else
-                                    let
-                                        arg1Diff =
-                                            toArgDiffFromDefault 0 arg1Type
+                                    else
+                                        let
+                                            arg1Diff =
+                                                toArgDiffFromDefault 0 arg1Type
 
-                                        arg2Diff =
-                                            toArgDiffFromDefault 1 arg2Type
+                                            arg2Diff =
+                                                toArgDiffFromDefault 1 arg2Type
 
-                                        arg3Diff =
-                                            toArgDiffFromDefault 2 arg3Type
-                                    in
-                                    Result.map3 IR.Variant3Value arg1Diff arg2Diff arg3Diff
+                                            arg3Diff =
+                                                toArgDiffFromDefault 2 arg3Type
+                                        in
+                                        Result.map3 IR.Variant3Value arg1Diff arg2Diff arg3Diff
 
-                            IR.Variant4Type arg1Type arg2Type arg3Type arg4Type ->
-                                if diffSelected == oldSelected then
-                                    case oldVariant of
-                                        IR.Variant4Value arg1 arg2 arg3 arg4 ->
-                                            let
-                                                arg1Diff =
-                                                    toArgDiff 0 arg1 arg1Type
+                                IR.Variant4Type arg1Type arg2Type arg3Type arg4Type ->
+                                    if diffSelected == oldSelected then
+                                        case oldVariant of
+                                            IR.Variant4Value arg1 arg2 arg3 arg4 ->
+                                                let
+                                                    arg1Diff =
+                                                        toArgDiff 0 arg1 arg1Type
 
-                                                arg2Diff =
-                                                    toArgDiff 1 arg2 arg2Type
+                                                    arg2Diff =
+                                                        toArgDiff 1 arg2 arg2Type
 
-                                                arg3Diff =
-                                                    toArgDiff 2 arg3 arg3Type
+                                                    arg3Diff =
+                                                        toArgDiff 2 arg3 arg3Type
 
-                                                arg4Diff =
-                                                    toArgDiff 3 arg4 arg4Type
-                                            in
-                                            Result.map4 IR.Variant4Value arg1Diff arg2Diff arg3Diff arg4Diff
+                                                    arg4Diff =
+                                                        toArgDiff 3 arg4 arg4Type
+                                                in
+                                                Result.map4 IR.Variant4Value arg1Diff arg2Diff arg3Diff arg4Diff
 
-                                        _ ->
-                                            Err ""
+                                            _ ->
+                                                Err ""
 
-                                else
-                                    let
-                                        arg1Diff =
-                                            toArgDiffFromDefault 0 arg1Type
+                                    else
+                                        let
+                                            arg1Diff =
+                                                toArgDiffFromDefault 0 arg1Type
 
-                                        arg2Diff =
-                                            toArgDiffFromDefault 1 arg2Type
+                                            arg2Diff =
+                                                toArgDiffFromDefault 1 arg2Type
 
-                                        arg3Diff =
-                                            toArgDiffFromDefault 2 arg3Type
+                                            arg3Diff =
+                                                toArgDiffFromDefault 2 arg3Type
 
-                                        arg4Diff =
-                                            toArgDiffFromDefault 3 arg4Type
-                                    in
-                                    Result.map4 IR.Variant4Value arg1Diff arg2Diff arg3Diff arg4Diff
+                                            arg4Diff =
+                                                toArgDiffFromDefault 3 arg4Type
+                                        in
+                                        Result.map4 IR.Variant4Value arg1Diff arg2Diff arg3Diff arg4Diff
 
-                            IR.Variant5Type arg1Type arg2Type arg3Type arg4Type arg5Type ->
-                                if diffSelected == oldSelected then
-                                    case oldVariant of
-                                        IR.Variant5Value arg1 arg2 arg3 arg4 arg5 ->
-                                            let
-                                                arg1Diff =
-                                                    toArgDiff 0 arg1 arg1Type
+                                IR.Variant5Type arg1Type arg2Type arg3Type arg4Type arg5Type ->
+                                    if diffSelected == oldSelected then
+                                        case oldVariant of
+                                            IR.Variant5Value arg1 arg2 arg3 arg4 arg5 ->
+                                                let
+                                                    arg1Diff =
+                                                        toArgDiff 0 arg1 arg1Type
 
-                                                arg2Diff =
-                                                    toArgDiff 1 arg2 arg2Type
+                                                    arg2Diff =
+                                                        toArgDiff 1 arg2 arg2Type
 
-                                                arg3Diff =
-                                                    toArgDiff 2 arg3 arg3Type
+                                                    arg3Diff =
+                                                        toArgDiff 2 arg3 arg3Type
 
-                                                arg4Diff =
-                                                    toArgDiff 3 arg4 arg4Type
+                                                    arg4Diff =
+                                                        toArgDiff 3 arg4 arg4Type
 
-                                                arg5Diff =
-                                                    toArgDiff 4 arg5 arg5Type
-                                            in
-                                            Result.map5 IR.Variant5Value arg1Diff arg2Diff arg3Diff arg4Diff arg5Diff
+                                                    arg5Diff =
+                                                        toArgDiff 4 arg5 arg5Type
+                                                in
+                                                Result.map5 IR.Variant5Value arg1Diff arg2Diff arg3Diff arg4Diff arg5Diff
 
-                                        _ ->
-                                            Err ""
+                                            _ ->
+                                                Err ""
 
-                                else
-                                    let
-                                        arg1Diff =
-                                            toArgDiffFromDefault 0 arg1Type
+                                    else
+                                        let
+                                            arg1Diff =
+                                                toArgDiffFromDefault 0 arg1Type
 
-                                        arg2Diff =
-                                            toArgDiffFromDefault 1 arg2Type
+                                            arg2Diff =
+                                                toArgDiffFromDefault 1 arg2Type
 
-                                        arg3Diff =
-                                            toArgDiffFromDefault 2 arg3Type
+                                            arg3Diff =
+                                                toArgDiffFromDefault 2 arg3Type
 
-                                        arg4Diff =
-                                            toArgDiffFromDefault 3 arg4Type
+                                            arg4Diff =
+                                                toArgDiffFromDefault 3 arg4Type
 
-                                        arg5Diff =
-                                            toArgDiffFromDefault 4 arg5Type
-                                    in
-                                    Result.map5 IR.Variant5Value arg1Diff arg2Diff arg3Diff arg4Diff arg5Diff
+                                            arg5Diff =
+                                                toArgDiffFromDefault 4 arg5Type
+                                        in
+                                        Result.map5 IR.Variant5Value arg1Diff arg2Diff arg3Diff arg4Diff arg5Diff
                     )
                 |> Result.map (IR.CustomValue diffSelected)
                 |> Result.map (IR.IR metadata)

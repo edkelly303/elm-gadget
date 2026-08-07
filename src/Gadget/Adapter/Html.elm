@@ -150,8 +150,8 @@ htmlAdapter (IR.IR metadata irValue) =
                 IR.FloatValue f ->
                     String.fromFloat f ++ " : Float"
 
-                IR.CustomValue selected variant ->
-                    "Variant #" ++ String.fromInt selected ++ " " ++ String.join " " (List.map (\(IR.IR _ v) -> viewMetadataValue v) (argsToList variant))
+                IR.CustomValue selected ( name, variant ) ->
+                    name ++ String.fromInt selected ++ " " ++ String.join " " (List.map (\(IR.IR _ v) -> viewMetadataValue v) (argsToList variant))
 
                 IR.ProductValue fields ->
                     String.join " " (List.map (\( _, IR.IR _ v ) -> viewMetadataValue v) fields)
@@ -183,7 +183,7 @@ htmlAdapter (IR.IR metadata irValue) =
                 IR.FloatValue f ->
                     unquotedPrimitive metadataHtml "Float" (String.fromFloat f)
 
-                IR.CustomValue selected variant ->
+                IR.CustomValue selected ( name, variant ) ->
                     let
                         args =
                             case variant of

@@ -41,40 +41,35 @@ printHelp (IR.IR metadata value) =
         FloatValue f ->
             P.string (String.fromFloat f)
 
-        CustomValue selected variantValue ->
-            case tools.get (String.fromInt selected) metadata of
-                Just (StringValue name) ->
-                    P.string name
-                        |> P.a
-                            (P.nest 4
-                                (P.line
-                                    |> P.a
-                                        (case variantValue of
-                                            Variant0Value ->
-                                                P.empty
+        CustomValue selected ( name, variantValue ) ->
+            P.string name
+                |> P.a
+                    (P.nest 4
+                        (P.line
+                            |> P.a
+                                (case variantValue of
+                                    Variant0Value ->
+                                        P.empty
 
-                                            Variant1Value arg1 ->
-                                                printHelp arg1
+                                    Variant1Value arg1 ->
+                                        printHelp arg1
 
-                                            Variant2Value arg1 arg2 ->
-                                                printHelp arg1
-                                                    |> P.a P.line
-                                                    |> P.a (printHelp arg2)
+                                    Variant2Value arg1 arg2 ->
+                                        printHelp arg1
+                                            |> P.a P.line
+                                            |> P.a (printHelp arg2)
 
-                                            Variant3Value _ _ _ ->
-                                                Debug.todo "branch 'Variant3Value _ _ _' not implemented"
+                                    Variant3Value _ _ _ ->
+                                        Debug.todo "branch 'Variant3Value _ _ _' not implemented"
 
-                                            Variant4Value _ _ _ _ ->
-                                                Debug.todo "branch 'Variant4Value _ _ _ _' not implemented"
+                                    Variant4Value _ _ _ _ ->
+                                        Debug.todo "branch 'Variant4Value _ _ _ _' not implemented"
 
-                                            Variant5Value _ _ _ _ _ ->
-                                                Debug.todo "branch 'Variant5Value _ _ _ _ _' not implemented"
-                                        )
+                                    Variant5Value _ _ _ _ _ ->
+                                        Debug.todo "branch 'Variant5Value _ _ _ _ _' not implemented"
                                 )
-                            )
-
-                _ ->
-                    P.empty
+                        )
+                    )
 
         ProductValue fields ->
             case fields of

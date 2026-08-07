@@ -570,8 +570,12 @@ shapeGadget__Gadget__Header_1 =
                 Circle__Gadget__Header_1 radius ->
                     circle radius
         )
-        |> Gadget.variant2 Rectangle__Gadget__Header_1 Gadget.int Gadget.int
-        |> Gadget.variant1 Circle__Gadget__Header_1 Gadget.int
+        |> Gadget.variant2
+            "Rectangle"
+            Rectangle__Gadget__Header_1
+            Gadget.int
+            Gadget.int
+        |> Gadget.variant1 "Circle" Circle__Gadget__Header_1 Gadget.int
         |> Gadget.endCustom
 
 
@@ -616,8 +620,9 @@ treeGadget__Gadget__lazy_0 =
                 Branch__Gadget__lazy_0 branch0 branch1 ->
                     branch branch0 branch1
         )
-        |> Gadget.variant1 Leaf__Gadget__lazy_0 Gadget.string
+        |> Gadget.variant1 "Leaf" Leaf__Gadget__lazy_0 Gadget.string
         |> Gadget.variant2
+            "Branch"
             Branch__Gadget__lazy_0
             (Gadget.lazy (\() -> treeGadget__Gadget__lazy_0))
             (Gadget.lazy (\() -> treeGadget__Gadget__lazy_0))

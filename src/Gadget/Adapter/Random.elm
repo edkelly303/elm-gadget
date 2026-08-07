@@ -237,33 +237,33 @@ randomAdapter (IR.IR metadata irType) =
 
         IR.CustomType firstVariant restVariants ->
             let
-                variantTypeToGenerator idx variant =
+                variantTypeToGenerator idx ( name, variant ) =
                     case variant of
                         IR.Variant0Type ->
                             Random.constant
-                                (IR.CustomValue idx IR.Variant0Value)
+                                (IR.CustomValue idx (name, IR.Variant0Value))
 
                         IR.Variant1Type arg ->
                             Random.map
-                                (\a -> IR.CustomValue idx (IR.Variant1Value a))
+                                (\a -> IR.CustomValue idx (name, IR.Variant1Value a))
                                 (randomAdapter arg)
 
                         IR.Variant2Type arg1 arg2 ->
                             Random.map2
-                                (\a1 a2 -> IR.CustomValue idx (IR.Variant2Value a1 a2))
+                                (\a1 a2 -> IR.CustomValue idx (name, IR.Variant2Value a1 a2))
                                 (randomAdapter arg1)
                                 (randomAdapter arg2)
 
                         IR.Variant3Type arg1 arg2 arg3 ->
                             Random.map3
-                                (\a1 a2 a3 -> IR.CustomValue idx (IR.Variant3Value a1 a2 a3))
+                                (\a1 a2 a3 -> IR.CustomValue idx (name, IR.Variant3Value a1 a2 a3))
                                 (randomAdapter arg1)
                                 (randomAdapter arg2)
                                 (randomAdapter arg3)
 
                         IR.Variant4Type arg1 arg2 arg3 arg4 ->
                             Random.map4
-                                (\a1 a2 a3 a4 -> IR.CustomValue idx (IR.Variant4Value a1 a2 a3 a4))
+                                (\a1 a2 a3 a4 -> IR.CustomValue idx (name, IR.Variant4Value a1 a2 a3 a4))
                                 (randomAdapter arg1)
                                 (randomAdapter arg2)
                                 (randomAdapter arg3)
@@ -271,7 +271,7 @@ randomAdapter (IR.IR metadata irType) =
 
                         IR.Variant5Type arg1 arg2 arg3 arg4 arg5 ->
                             Random.map5
-                                (\a1 a2 a3 a4 a5 -> IR.CustomValue idx (IR.Variant5Value a1 a2 a3 a4 a5))
+                                (\a1 a2 a3 a4 a5 -> IR.CustomValue idx (name, IR.Variant5Value a1 a2 a3 a4 a5))
                                 (randomAdapter arg1)
                                 (randomAdapter arg2)
                                 (randomAdapter arg3)

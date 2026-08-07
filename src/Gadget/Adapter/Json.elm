@@ -117,11 +117,12 @@ encodeAdapter (IR.IR _ irValue) =
             JE.object
                 [ ( "float", JE.float f ) ]
 
-        IR.CustomValue selected variant ->
+        IR.CustomValue selected ( name, variant ) ->
             JE.object
                 [ ( "custom"
                   , JE.object
-                        [ ( "tag", JE.int selected )
+                        [ ( "index", JE.int selected )
+                        , ( "name", JE.string name )
                         , ( "args"
                           , JE.list encodeAdapter
                                 (case variant of
@@ -196,32 +197,33 @@ decodeAdapter =
             , JD.field "int" JD.int |> JD.map IR.IntValue
             , JD.field "float" JD.float |> JD.map IR.FloatValue
             , JD.field "custom"
-                (JD.map2
-                    (\selected args ->
+                (JD.map3
+                    (\selected name args ->
                         Maybe.map (IR.CustomValue selected) <|
                             case args of
                                 [] ->
-                                    Just IR.Variant0Value
+                                    Just ( name, IR.Variant0Value )
 
                                 [ arg ] ->
-                                    Just (IR.Variant1Value arg)
+                                    Just ( name, IR.Variant1Value arg )
 
                                 [ arg1, arg2 ] ->
-                                    Just (IR.Variant2Value arg1 arg2)
+                                    Just ( name, IR.Variant2Value arg1 arg2 )
 
                                 [ arg1, arg2, arg3 ] ->
-                                    Just (IR.Variant3Value arg1 arg2 arg3)
+                                    Just ( name, IR.Variant3Value arg1 arg2 arg3 )
 
                                 [ arg1, arg2, arg3, arg4 ] ->
-                                    Just (IR.Variant4Value arg1 arg2 arg3 arg4)
+                                    Just ( name, IR.Variant4Value arg1 arg2 arg3 arg4 )
 
                                 [ arg1, arg2, arg3, arg4, arg5 ] ->
-                                    Just (IR.Variant5Value arg1 arg2 arg3 arg4 arg5)
+                                    Just ( name, IR.Variant5Value arg1 arg2 arg3 arg4 arg5 )
 
                                 _ ->
                                     Nothing
                     )
-                    (JD.field "tag" JD.int)
+                    (JD.field "index" JD.int)
+                    (JD.field "name" JD.string)
                     (JD.field "args" (JD.list (JD.lazy (\() -> decodeAdapter))))
                     |> JD.andThen
                         (\maybeIR ->

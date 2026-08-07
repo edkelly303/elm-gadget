@@ -93,7 +93,7 @@ printAdapter (IR.IR _ irValue) =
         IR.FloatValue f ->
             primitive "f" (String.fromFloat f)
 
-        IR.CustomValue selected variant ->
+        IR.CustomValue selected ( name, variant ) ->
             let
                 args =
                     case variant of
@@ -248,22 +248,22 @@ customParser =
                     (\args ->
                         case args of
                             [] ->
-                                P.succeed IR.Variant0Value
+                                P.succeed ( "", IR.Variant0Value )
 
                             [ arg ] ->
-                                P.succeed (IR.Variant1Value arg)
+                                P.succeed ( "", IR.Variant1Value arg )
 
                             [ arg1, arg2 ] ->
-                                P.succeed (IR.Variant2Value arg1 arg2)
+                                P.succeed ( "", IR.Variant2Value arg1 arg2 )
 
                             [ arg1, arg2, arg3 ] ->
-                                P.succeed (IR.Variant3Value arg1 arg2 arg3)
+                                P.succeed ( "", IR.Variant3Value arg1 arg2 arg3 )
 
                             [ arg1, arg2, arg3, arg4 ] ->
-                                P.succeed (IR.Variant4Value arg1 arg2 arg3 arg4)
+                                P.succeed ( "", IR.Variant4Value arg1 arg2 arg3 arg4 )
 
                             [ arg1, arg2, arg3, arg4, arg5 ] ->
-                                P.succeed (IR.Variant5Value arg1 arg2 arg3 arg4 arg5)
+                                P.succeed ( "", IR.Variant5Value arg1 arg2 arg3 arg4 arg5 )
 
                             _ ->
                                 P.problem "variant has too many args"

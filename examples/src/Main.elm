@@ -59,7 +59,7 @@ petGadget =
                     robot series model
         )
         |> Gadget.variant1
-            --"Dog"
+            "Dog"
             Dog
             (Gadget.record (\name -> { name = name })
                 |> Gadget.field "name"
@@ -70,7 +70,7 @@ petGadget =
                 |> Gadget.endRecord
             )
         |> Gadget.variant2
-            --"Robot"
+            "Robot"
             Robot
             (Gadget.char
                 |> Gadget.Adapter.Fuzz.label "series"

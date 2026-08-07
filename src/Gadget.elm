@@ -83,8 +83,8 @@ If you want to make your own adapters, see the [`Gadget.IR`](Gadget-IR) module.
                     Circle radius ->
                         circle radius
             )
-            |> Gadget.variant2 Rectangle Gadget.int Gadget.int
-            |> Gadget.variant1 Circle Gadget.int
+            |> Gadget.variant2 "Rectangle" Rectangle Gadget.int Gadget.int
+            |> Gadget.variant1 "Circle" Circle Gadget.int
             |> Gadget.endCustom
 
     shapeGadget --: Gadget.Gadget Shape
@@ -138,7 +138,7 @@ type CustomGadgetBuilder input hasAtLeastOneVariant output
     = CustomGadgetBuilder
         { match : input
         , fromIR : IR Value -> Result Error output
-        , variantTypes : List VariantType
+        , variantTypes : List ( String, VariantType )
         , index : Int
         }
 
@@ -337,8 +337,8 @@ maybe item =
                 Nothing ->
                     nothing
         )
-        |> variant1 Just item
-        |> variant0 Nothing
+        |> variant1 "Just" Just item
+        |> variant0 "Nothing" Nothing
         |> endCustom
 
 
@@ -363,8 +363,8 @@ result x a =
                 Ok a_ ->
                     ok a_
         )
-        |> variant1 Err x
-        |> variant1 Ok a
+        |> variant1 "Err" Err x
+        |> variant1 "Ok" Ok a
         |> endCustom
 
 
@@ -420,17 +420,18 @@ custom match =
 {-| Add a variant with zero arguments to the definition of a custom type.
 -}
 variant0 :
-    output
+    String
+    -> output
     -> CustomGadgetBuilder (IR Value -> input) variantType output
     -> CustomGadgetBuilder input () output
-variant0 ctor (CustomGadgetBuilder prev) =
+variant0 name ctor (CustomGadgetBuilder prev) =
     CustomGadgetBuilder
-        { match = prev.match <| IR.ir <| CustomValue prev.index Variant0Value
+        { match = prev.match <| IR.ir <| CustomValue prev.index ( name, Variant0Value )
         , index = prev.index + 1
         , fromIR =
             \((IR _ value) as ir) ->
                 case value of
-                    CustomValue selected Variant0Value ->
+                    CustomValue selected ( _, Variant0Value ) ->
                         if selected == prev.index then
                             Ok ctor
 
@@ -440,7 +441,7 @@ variant0 ctor (CustomGadgetBuilder prev) =
                     _ ->
                         prev.fromIR ir
         , variantTypes =
-            Variant0Type
+            ( name, Variant0Type )
                 :: prev.variantTypes
         }
 
@@ -448,18 +449,19 @@ variant0 ctor (CustomGadgetBuilder prev) =
 {-| Add a variant with one argument to the definition of a custom type.
 -}
 variant1 :
-    (arg1 -> output)
+    String
+    -> (arg1 -> output)
     -> Gadget arg1
     -> CustomGadgetBuilder ((arg1 -> IR Value) -> input) variantType output
     -> CustomGadgetBuilder input () output
-variant1 ctor (Gadget argfns) (CustomGadgetBuilder prev) =
+variant1 name ctor (Gadget argfns) (CustomGadgetBuilder prev) =
     CustomGadgetBuilder
-        { match = prev.match <| \arg -> IR.ir <| CustomValue prev.index (Variant1Value (argfns.fromInput arg))
+        { match = prev.match <| \arg -> IR.ir <| CustomValue prev.index ( name, Variant1Value (argfns.fromInput arg) )
         , index = prev.index + 1
         , fromIR =
             \((IR _ value) as ir) ->
                 case value of
-                    CustomValue selected (Variant1Value arg) ->
+                    CustomValue selected ( _, Variant1Value arg ) ->
                         if selected == prev.index then
                             Result.map ctor (argfns.toOutput arg)
 
@@ -469,7 +471,7 @@ variant1 ctor (Gadget argfns) (CustomGadgetBuilder prev) =
                     _ ->
                         prev.fromIR ir
         , variantTypes =
-            Variant1Type argfns.irType
+            ( name, Variant1Type argfns.irType )
                 :: prev.variantTypes
         }
 
@@ -477,19 +479,20 @@ variant1 ctor (Gadget argfns) (CustomGadgetBuilder prev) =
 {-| Add a variant with two arguments to the definition of a custom type.
 -}
 variant2 :
-    (arg1 -> arg2 -> output)
+    String
+    -> (arg1 -> arg2 -> output)
     -> Gadget arg1
     -> Gadget arg2
     -> CustomGadgetBuilder ((arg1 -> arg2 -> IR Value) -> input) variantType output
     -> CustomGadgetBuilder input () output
-variant2 ctor (Gadget arg1fns) (Gadget arg2fns) (CustomGadgetBuilder prev) =
+variant2 name ctor (Gadget arg1fns) (Gadget arg2fns) (CustomGadgetBuilder prev) =
     CustomGadgetBuilder
-        { match = prev.match <| \arg1 arg2 -> IR.ir <| CustomValue prev.index (Variant2Value (arg1fns.fromInput arg1) (arg2fns.fromInput arg2))
+        { match = prev.match <| \arg1 arg2 -> IR.ir <| CustomValue prev.index ( name, Variant2Value (arg1fns.fromInput arg1) (arg2fns.fromInput arg2) )
         , index = prev.index + 1
         , fromIR =
             \((IR _ value) as ir) ->
                 case value of
-                    CustomValue selected (Variant2Value arg1 arg2) ->
+                    CustomValue selected ( _, Variant2Value arg1 arg2 ) ->
                         if selected == prev.index then
                             Result.map2 ctor (arg1fns.toOutput arg1) (arg2fns.toOutput arg2)
 
@@ -499,7 +502,7 @@ variant2 ctor (Gadget arg1fns) (Gadget arg2fns) (CustomGadgetBuilder prev) =
                     _ ->
                         prev.fromIR ir
         , variantTypes =
-            Variant2Type arg1fns.irType arg2fns.irType
+            ( name, Variant2Type arg1fns.irType arg2fns.irType )
                 :: prev.variantTypes
         }
 
@@ -507,20 +510,22 @@ variant2 ctor (Gadget arg1fns) (Gadget arg2fns) (CustomGadgetBuilder prev) =
 {-| Add a variant with three arguments to the definition of a custom type.
 -}
 variant3 :
-    (arg1 -> arg2 -> arg3 -> output)
+    String
+    -> (arg1 -> arg2 -> arg3 -> output)
     -> Gadget arg1
     -> Gadget arg2
     -> Gadget arg3
     -> CustomGadgetBuilder ((arg1 -> arg2 -> arg3 -> IR Value) -> input) variantType output
     -> CustomGadgetBuilder input () output
-variant3 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (CustomGadgetBuilder prev) =
+variant3 name ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (CustomGadgetBuilder prev) =
     CustomGadgetBuilder
         { match =
             prev.match <|
                 \arg1 arg2 arg3 ->
                     IR.ir <|
                         CustomValue prev.index
-                            (Variant3Value
+                            ( name
+                            , Variant3Value
                                 (arg1fns.fromInput arg1)
                                 (arg2fns.fromInput arg2)
                                 (arg3fns.fromInput arg3)
@@ -529,7 +534,7 @@ variant3 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (CustomGadgetBu
         , fromIR =
             \((IR _ value) as ir) ->
                 case value of
-                    CustomValue selected (Variant3Value arg1 arg2 arg3) ->
+                    CustomValue selected ( _, Variant3Value arg1 arg2 arg3 ) ->
                         if selected == prev.index then
                             Result.map3 ctor
                                 (arg1fns.toOutput arg1)
@@ -542,10 +547,12 @@ variant3 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (CustomGadgetBu
                     _ ->
                         prev.fromIR ir
         , variantTypes =
-            Variant3Type
+            ( name
+            , Variant3Type
                 arg1fns.irType
                 arg2fns.irType
                 arg3fns.irType
+            )
                 :: prev.variantTypes
         }
 
@@ -553,21 +560,23 @@ variant3 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (CustomGadgetBu
 {-| Add a variant with four arguments to the definition of a custom type.
 -}
 variant4 :
-    (arg1 -> arg2 -> arg3 -> arg4 -> output)
+    String
+    -> (arg1 -> arg2 -> arg3 -> arg4 -> output)
     -> Gadget arg1
     -> Gadget arg2
     -> Gadget arg3
     -> Gadget arg4
     -> CustomGadgetBuilder ((arg1 -> arg2 -> arg3 -> arg4 -> IR Value) -> input) variantType output
     -> CustomGadgetBuilder input () output
-variant4 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget arg4fns) (CustomGadgetBuilder prev) =
+variant4 name ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget arg4fns) (CustomGadgetBuilder prev) =
     CustomGadgetBuilder
         { match =
             prev.match <|
                 \arg1 arg2 arg3 arg4 ->
                     IR.ir <|
                         CustomValue prev.index
-                            (Variant4Value
+                            ( name
+                            , Variant4Value
                                 (arg1fns.fromInput arg1)
                                 (arg2fns.fromInput arg2)
                                 (arg3fns.fromInput arg3)
@@ -577,7 +586,7 @@ variant4 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget arg4fns
         , fromIR =
             \((IR _ value) as ir) ->
                 case value of
-                    CustomValue selected (Variant4Value arg1 arg2 arg3 arg4) ->
+                    CustomValue selected ( _, Variant4Value arg1 arg2 arg3 arg4 ) ->
                         if selected == prev.index then
                             Result.map4 ctor
                                 (arg1fns.toOutput arg1)
@@ -591,11 +600,13 @@ variant4 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget arg4fns
                     _ ->
                         prev.fromIR ir
         , variantTypes =
-            Variant4Type
+            ( name
+            , Variant4Type
                 arg1fns.irType
                 arg2fns.irType
                 arg3fns.irType
                 arg4fns.irType
+            )
                 :: prev.variantTypes
         }
 
@@ -603,7 +614,8 @@ variant4 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget arg4fns
 {-| Add a variant with five arguments to the definition of a custom type.
 -}
 variant5 :
-    (arg1 -> arg2 -> arg3 -> arg4 -> arg5 -> output)
+    String
+    -> (arg1 -> arg2 -> arg3 -> arg4 -> arg5 -> output)
     -> Gadget arg1
     -> Gadget arg2
     -> Gadget arg3
@@ -611,14 +623,15 @@ variant5 :
     -> Gadget arg5
     -> CustomGadgetBuilder ((arg1 -> arg2 -> arg3 -> arg4 -> arg5 -> IR Value) -> input) variantType output
     -> CustomGadgetBuilder input () output
-variant5 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget arg4fns) (Gadget arg5fns) (CustomGadgetBuilder prev) =
+variant5 name ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget arg4fns) (Gadget arg5fns) (CustomGadgetBuilder prev) =
     CustomGadgetBuilder
         { match =
             prev.match <|
                 \arg1 arg2 arg3 arg4 arg5 ->
                     IR.ir <|
                         CustomValue prev.index
-                            (Variant5Value
+                            ( name
+                            , Variant5Value
                                 (arg1fns.fromInput arg1)
                                 (arg2fns.fromInput arg2)
                                 (arg3fns.fromInput arg3)
@@ -629,7 +642,7 @@ variant5 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget arg4fns
         , fromIR =
             \((IR _ value) as ir) ->
                 case value of
-                    CustomValue selected (Variant5Value arg1 arg2 arg3 arg4 arg5) ->
+                    CustomValue selected ( _, Variant5Value arg1 arg2 arg3 arg4 arg5 ) ->
                         if selected == prev.index then
                             Result.map5 ctor
                                 (arg1fns.toOutput arg1)
@@ -644,12 +657,14 @@ variant5 ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget arg4fns
                     _ ->
                         prev.fromIR ir
         , variantTypes =
-            Variant5Type
+            ( name
+            , Variant5Type
                 arg1fns.irType
                 arg2fns.irType
                 arg3fns.irType
                 arg4fns.irType
                 arg5fns.irType
+            )
                 :: prev.variantTypes
         }
 
@@ -671,7 +686,7 @@ endCustom (CustomGadgetBuilder prev) =
                         -- list of variants can't be empty. So it's ok to use a
                         -- spurious Variant0Type here, because this will never get
                         -- produced.
-                        CustomType Variant0Type []
+                        CustomType ( "", Variant0Type ) []
 
                     firstVariantType :: restVariantTypes ->
                         CustomType firstVariantType restVariantTypes
@@ -831,8 +846,8 @@ filterMap aToB bToA (Gadget prev) =
                     Branch branch0 branch1 ->
                         branch branch0 branch1
             )
-            |> Gadget.variant1 Leaf Gadget.string
-            |> Gadget.variant2 Branch
+            |> Gadget.variant1 "Leaf" Leaf Gadget.string
+            |> Gadget.variant2 "Branch" Branch
                 (Gadget.lazy (\() -> treeGadget))
                 (Gadget.lazy (\() -> treeGadget))
             |> Gadget.endCustom
