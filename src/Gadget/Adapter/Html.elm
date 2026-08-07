@@ -225,7 +225,8 @@ htmlAdapter (IR.IR metadata irValue) =
                     combinator
                         metadataHtml
                         "Custom"
-                        ("\"" ++ name
+                        ("\""
+                            ++ name
                             ++ "\" with "
                             ++ String.fromInt numArgs
                             ++ " argument"
