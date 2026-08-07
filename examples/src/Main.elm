@@ -7,18 +7,18 @@ import Gadget.Adapter.Diff
 import Gadget.Adapter.Fuzz
 import Gadget.Adapter.Html
 import Gadget.Adapter.Json
+import Gadget.Adapter.Pretty
 import Gadget.Adapter.Random
 import Gadget.Adapter.String
 import Gadget.IR
 import Gadget.Named
-import Html
-import Html.Attributes
-import Html.Events
+import Html as H
+import Html.Attributes as HA
+import Html.Events as HE
 import Json.Decode as JD
 import Json.Encode as JE
 import Parser
 import Random
-import Gadget.Adapter.Pretty
 
 
 type alias Person =
@@ -62,7 +62,8 @@ petGadget =
         |> Gadget.Named.variant1 "Dog"
             Dog
             (Gadget.Named.record (\name -> { name = name })
-                |> Gadget.Named.field "name" .name
+                |> Gadget.Named.field "name"
+                    .name
                     (Gadget.string
                         |> Gadget.Adapter.Fuzz.label "dogName"
                     )
@@ -80,7 +81,7 @@ petGadget =
         |> Gadget.Named.endCustom
 
 
-main : Program () ( Int, Int ) Msg
+main : Program () Model Msg
 main =
     Browser.element
         { view = view
@@ -89,33 +90,45 @@ main =
         , subscriptions = always Sub.none
         }
 
+type alias Model = 
+    { seeds : ( Int, Int)
+    , prettyWidth : Int
+    }
 
 type Msg
-    = Clicked
+    = UserClickedRegenerate
+    | UserChangedPrettyWidth String
     | NewSeeds ( Int, Int )
 
 
 update msg model =
     case msg of
-        Clicked ->
+        UserClickedRegenerate ->
             ( model
             , Random.generate NewSeeds (Random.pair (Random.int 0 Random.maxInt) (Random.int 0 Random.maxInt))
             )
 
+        UserChangedPrettyWidth s ->
+            ( { model | prettyWidth = String.toInt s |> Maybe.withDefault model.prettyWidth }
+            , Cmd.none
+            )
+
         NewSeeds newSeeds ->
-            ( newSeeds
+            ( { model | seeds = newSeeds }
             , Cmd.none
             )
 
 
 init _ =
-    ( ( 0, 1 )
+    ( { seeds =( 0, 1 )
+      , prettyWidth = 80 
+      }
     , Cmd.none
     )
 
 
-view : ( Int, Int ) -> Html.Html Msg
-view ( seed1, seed2 ) =
+view : Model -> H.Html Msg
+view model =
     let
         gadget =
             personGadget
@@ -135,6 +148,9 @@ view ( seed1, seed2 ) =
         randomGenerator =
             Gadget.Adapter.Random.generator gadget
 
+        ( seed1, seed2 ) = 
+            model.seeds
+
         firstValue =
             Random.step randomGenerator (Random.initialSeed seed1)
                 |> Tuple.first
@@ -143,8 +159,8 @@ view ( seed1, seed2 ) =
             Random.step randomGenerator (Random.initialSeed seed2)
                 |> Tuple.first
 
-        pretty = 
-            Gadget.Adapter.Pretty.print gadget 5 firstValue
+        pretty =
+            Gadget.Adapter.Pretty.print gadget model.prettyWidth firstValue
 
         diff =
             Gadget.Adapter.Diff.diff gadget firstValue secondValue
@@ -164,11 +180,42 @@ view ( seed1, seed2 ) =
         parsed =
             Parser.run (Gadget.Adapter.String.parser gadget) printed
     in
-    Html.div []
-        [ Html.h1 [] [ Html.text "elm-gadget examples" ]
-        , Html.button [ Html.Events.onClick Clicked ] [ Html.text "Click to regenerate!" ]
+    H.div []
+        [ H.h1 [] [ H.text "elm-gadget examples" ]
+        , H.button [ HE.onClick UserClickedRegenerate ] [ H.text "Click to regenerate!" ]
         , head "Pretty printer (first value)"
-        , Html.pre [] [Html.text pretty]
+        , H.span [] [H.input 
+            [ HA.type_ "range"
+            , HA.min "0"
+            , HA.max "120"
+            , HA.step "10"
+            , HA.value (String.fromInt model.prettyWidth)
+            , HE.onInput UserChangedPrettyWidth 
+            , HA.style "width" "500px"
+            , HA.list "markers"
+            , HA.style "margin" "0px"
+            ] 
+            []
+        , H.text (" " ++ String.fromInt model.prettyWidth ++ " columns")
+        , H.datalist 
+            [ HA.id "markers"
+            , HA.style "display" "flex"
+            , HA.style "flex-direction" "column"
+            , HA.style "justify-content" "space-between"
+            , HA.style "writing-mode" "vertical-lr"
+            , HA.style "width" "500px"
+            ] 
+            (List.map 
+                (\n -> 
+                    H.option 
+                        [ HA.value (String.fromInt (10 * n))
+                        , HA.style "padding" "0px"
+                        ] 
+                        []
+                ) 
+                (List.range 0 12))
+        ]
+        , H.pre [] [ H.text pretty ]
         , head "Random generator (first value)"
         , show firstValue
         , head "Random generator (second value)"
@@ -184,11 +231,11 @@ view ( seed1, seed2 ) =
         , head "Html viewer (second value)"
         , Gadget.Adapter.Html.view gadget secondValue
         , head "Printer (first value)"
-        , Html.code [ Html.Attributes.class "withoutSpaces" ] [ Html.text printed ]
+        , H.code [ HA.class "withoutSpaces" ] [ H.text printed ]
         , head "Parser (first value)"
         , show parsed
         , head "JSON encoder (first value)"
-        , Html.pre [] [ Html.text encoded ]
+        , H.pre [] [ H.text encoded ]
         , head "JSON decoder (first value)"
         , show decoded
         , head "Fuzzer"
@@ -196,8 +243,10 @@ view ( seed1, seed2 ) =
         ]
 
 
-head : String -> Html.Html msg
+head : String -> H.Html msg
 head txt =
-    Html.h2 [] [ Html.text txt ]
+    H.h2 [] [ H.text txt ]
 
-show s = Html.pre [] [Html.text (Debug.toString s)]
+
+show s =
+    H.pre [] [ H.text (Debug.toString s) ]

@@ -44,68 +44,101 @@ printHelp (IR.IR metadata value) =
         CustomValue selected variantValue ->
             case tools.get (String.fromInt selected) metadata of
                 Just (StringValue name) ->
-                    P.words
-                        [ P.string name
-                        , case variantValue of
-                            Variant0Value ->
-                                P.empty
+                    P.string name
+                        |> P.a
+                            (P.nest 4
+                                (P.line
+                                    |> P.a
+                                        (case variantValue of
+                                            Variant0Value ->
+                                                P.empty
 
-                            Variant1Value arg1 ->
-                                P.nest 4 (printHelp arg1)
+                                            Variant1Value arg1 ->
+                                                printHelp arg1
 
-                            Variant2Value arg1 arg2 ->
-                                P.nest 4
-                                    (P.words
-                                        [ printHelp arg1
-                                        , printHelp arg2
-                                        ]
-                                    )
+                                            Variant2Value arg1 arg2 ->
+                                                printHelp arg1
+                                                    |> P.a P.line
+                                                    |> P.a (printHelp arg2)
 
-                            Variant3Value _ _ _ ->
-                                Debug.todo "branch 'Variant3Value _ _ _' not implemented"
+                                            Variant3Value _ _ _ ->
+                                                Debug.todo "branch 'Variant3Value _ _ _' not implemented"
 
-                            Variant4Value _ _ _ _ ->
-                                Debug.todo "branch 'Variant4Value _ _ _ _' not implemented"
+                                            Variant4Value _ _ _ _ ->
+                                                Debug.todo "branch 'Variant4Value _ _ _ _' not implemented"
 
-                            Variant5Value _ _ _ _ _ ->
-                                Debug.todo "branch 'Variant5Value _ _ _ _ _' not implemented"
-                        ]
+                                            Variant5Value _ _ _ _ _ ->
+                                                Debug.todo "branch 'Variant5Value _ _ _ _ _' not implemented"
+                                        )
+                                )
+                            )
 
                 _ ->
                     P.empty
 
         ProductValue fields ->
-            P.words
-                [ P.string "{"
-                , P.separators ", "
-                    (List.indexedMap
-                        (\idx field ->
+            case fields of
+                [] ->
+                    P.string "{}"
+
+                fst :: rst ->
+                    let
+                        name idx =
                             case tools.get (String.fromInt idx) metadata of
-                                Just (StringValue name) ->
-                                    P.nest 4
-                                        (P.words
-                                            [ P.string (name ++ " =")
-                                            , printHelp field
-                                            ]
-                                        )
+                                Just (StringValue n) ->
+                                    n
 
                                 _ ->
-                                    P.nest 4
-                                        (P.words
-                                            [ P.string ("#" ++ String.fromInt idx ++ " =")
-                                            , printHelp field
-                                            ]
+                                    String.fromInt idx
+
+                        item starter idx fld =
+                            P.string
+                                ((if idx == 0 then
+                                    starter ++ " "
+
+                                  else
+                                    ""
+                                 )
+                                    ++ name idx
+                                    ++ " ="
+                                )
+                                |> P.a
+                                    (P.nest 4
+                                        (P.line
+                                            |> P.a (printHelp fld)
                                         )
-                        )
-                        fields
-                        ++ [ P.string "}" ]
-                    )
-                ]
+                                    )
+                                |> P.group
+                    in
+                    P.separators ", "
+                        (List.indexedMap (item "{") fields)
+                        |> P.a P.line
+                        |> P.a (P.string "}")
+                        |> P.group
 
         ListValue items ->
-            P.string "[ "
-                |> P.a (P.nest 4 (P.separators ", " (List.map printHelp items)))
-                |> P.a (P.string " ]")
+            case items of
+                [] ->
+                    P.string "[]"
+
+                _ ->
+                    let
+                        item starter idx fld =
+                            P.string
+                                (if idx == 0 then
+                                    starter ++ " "
+
+                                 else
+                                    ""
+                                )
+                                |> P.a (printHelp fld)
+                                |> P.group
+                    in
+                    P.separators ", "
+                        (List.indexedMap (item "[") items)
+                        |> P.a P.line
+                        |> P.a (P.string "]")
+                        |> P.group
 
 
 bracket : String -> String
