@@ -90,10 +90,12 @@ main =
         , subscriptions = always Sub.none
         }
 
-type alias Model = 
-    { seeds : ( Int, Int)
+
+type alias Model =
+    { seeds : ( Int, Int )
     , prettyWidth : Int
     }
+
 
 type Msg
     = UserClickedRegenerate
@@ -120,8 +122,8 @@ update msg model =
 
 
 init _ =
-    ( { seeds =( 0, 1 )
-      , prettyWidth = 80 
+    ( { seeds = ( 0, 1 )
+      , prettyWidth = 80
       }
     , Cmd.none
     )
@@ -148,7 +150,7 @@ view model =
         randomGenerator =
             Gadget.Adapter.Random.generator gadget
 
-        ( seed1, seed2 ) = 
+        ( seed1, seed2 ) =
             model.seeds
 
         firstValue =
@@ -184,37 +186,39 @@ view model =
         [ H.h1 [] [ H.text "elm-gadget examples" ]
         , H.button [ HE.onClick UserClickedRegenerate ] [ H.text "Click to regenerate!" ]
         , head "Pretty printer (first value)"
-        , H.span [] [H.input 
-            [ HA.type_ "range"
-            , HA.min "0"
-            , HA.max "120"
-            , HA.step "10"
-            , HA.value (String.fromInt model.prettyWidth)
-            , HE.onInput UserChangedPrettyWidth 
-            , HA.style "width" "500px"
-            , HA.list "markers"
-            , HA.style "margin" "0px"
-            ] 
-            []
-        , H.text (" " ++ String.fromInt model.prettyWidth ++ " columns")
-        , H.datalist 
-            [ HA.id "markers"
-            , HA.style "display" "flex"
-            , HA.style "flex-direction" "column"
-            , HA.style "justify-content" "space-between"
-            , HA.style "writing-mode" "vertical-lr"
-            , HA.style "width" "500px"
-            ] 
-            (List.map 
-                (\n -> 
-                    H.option 
-                        [ HA.value (String.fromInt (10 * n))
-                        , HA.style "padding" "0px"
-                        ] 
-                        []
-                ) 
-                (List.range 0 12))
-        ]
+        , H.span []
+            [ H.input
+                [ HA.type_ "range"
+                , HA.min "0"
+                , HA.max "120"
+                , HA.step "10"
+                , HA.value (String.fromInt model.prettyWidth)
+                , HE.onInput UserChangedPrettyWidth
+                , HA.style "width" "500px"
+                , HA.list "markers"
+                , HA.style "margin" "0px"
+                ]
+                []
+            , H.text (" " ++ String.fromInt model.prettyWidth ++ " columns")
+            , H.datalist
+                [ HA.id "markers"
+                , HA.style "display" "flex"
+                , HA.style "flex-direction" "column"
+                , HA.style "justify-content" "space-between"
+                , HA.style "writing-mode" "vertical-lr"
+                , HA.style "width" "500px"
+                ]
+                (List.map
+                    (\n ->
+                        H.option
+                            [ HA.value (String.fromInt (10 * n))
+                            , HA.style "padding" "0px"
+                            ]
+                            []
+                    )
+                    (List.range 0 12)
+                )
+            ]
         , H.pre [] [ H.text pretty ]
         , head "Random generator (first value)"
         , show firstValue
