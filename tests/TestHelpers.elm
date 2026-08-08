@@ -47,20 +47,21 @@ treeGadgetHelp n =
 
 
 type alias Record =
-    { bool : Bool
+    { unit : ()
+    , bool : Bool
     , int : Int
     , float : Float
     , string : String
     , char : Char
     , custom : Custom
     , tuple : ( Int, ( String, Float ), Bool )
-    , unit : ()
     }
 
 
 recordGadget : Gadget.Gadget Record
 recordGadget =
     Gadget.record Record
+        |> Gadget.field "unit" .unit Gadget.unit
         |> Gadget.field "bool" .bool Gadget.bool
         |> Gadget.field "int" .int Gadget.int
         |> Gadget.field "float" .float Gadget.float
@@ -68,7 +69,6 @@ recordGadget =
         |> Gadget.field "char" .char Gadget.char
         |> Gadget.field "custom" .custom customGadget
         |> Gadget.field "tuple" .tuple tupleGadget
-        |> Gadget.field "unit" .unit Gadget.unit
         |> Gadget.endRecord
 
 
