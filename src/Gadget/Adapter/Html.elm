@@ -238,7 +238,7 @@ htmlAdapter (IR.IR metadata irValue) =
                     in
                     combinator
                         metadataHtml
-                        "Custom"
+                        "Variant"
                         ("\""
                             ++ name
                             ++ "\" with "

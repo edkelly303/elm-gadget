@@ -141,16 +141,24 @@ button {
         }
     }
 
-    & .Custom {
+    & .Variant {
         background-color: var(--combinator-bg);
     }
 
     & .List {
-        background-color: hsl(from var(--combinator-bg) 135deg s l);
+        background-color: hsl(from var(--combinator-bg) 60deg s l);
     }
 
     & .Record {
-        background-color: hsl(from var(--combinator-bg) 225deg s l);
+        background-color: hsl(from var(--combinator-bg) 120deg s l);
+    }
+
+    & .Tuple {
+        background-color: hsl(from var(--combinator-bg) 180deg s l);
+    }
+
+    & .Triple {
+        background-color: hsl(from var(--combinator-bg) 240deg s l);
     }
 
     & .Bool {
@@ -172,4 +180,6 @@ button {
     & .Float {
         background-color: hsl(from var(--primitive-bg) 240deg s l);
     }
+
+
 }
