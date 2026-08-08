@@ -249,14 +249,14 @@ fuzzAdapter overrides (IR.IR metadata irType) =
                                 (firstVariant :: restVariants)
                             )
 
-                IR.ProductType fields ->
+                IR.RecordType fields ->
                     fields
                         |> Fuzz.traverse
                             (\( name, field ) ->
                                 fuzzAdapter overrides field
                                     |> Fuzz.map (Tuple.pair name)
                             )
-                        |> Fuzz.map IR.ProductValue
+                        |> Fuzz.map IR.RecordValue
                         |> Fuzz.map (IR.IR metadata)
 
                 IR.ListType itemType ->

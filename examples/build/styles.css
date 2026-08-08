@@ -149,7 +149,7 @@ button {
         background-color: hsl(from var(--combinator-bg) 135deg s l);
     }
 
-    & .Product {
+    & .Record {
         background-color: hsl(from var(--combinator-bg) 225deg s l);
     }
 

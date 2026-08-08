@@ -75,7 +75,7 @@ type alias IRType =
 -}
 type Changes
     = Identical
-    | ProductChanges ( Int, Changes ) (List ( Int, Changes ))
+    | RecordChanges ( Int, Changes ) (List ( Int, Changes ))
     | CustomChanges Int (List ( Int, Changes ))
     | BoolChange Bool
     | IntChange Int
@@ -185,7 +185,7 @@ diffHelp (IR.IR _ type_) ((IR.IR _ oldData) as oldIR_) ((IR.IR _ newData) as new
                     ( IR.TripleValue a1 b1 c1, IR.TripleValue a2 b2 c2, IR.TripleType aType bType cType ) ->
                         TripleChange (diffHelp aType a1 a2) (diffHelp bType b1 b2) (diffHelp cType c1 c2)
 
-                    ( IR.ProductValue fields1, IR.ProductValue fields2, IR.ProductType fieldTypes ) ->
+                    ( IR.RecordValue fields1, IR.RecordValue fields2, IR.RecordType fieldTypes ) ->
                         let
                             changes =
                                 List.map3 diffHelp
@@ -197,7 +197,7 @@ diffHelp (IR.IR _ type_) ((IR.IR _ oldData) as oldIR_) ((IR.IR _ newData) as new
                         in
                         case changes of
                             change :: restChanges ->
-                                ProductChanges change restChanges
+                                RecordChanges change restChanges
 
                             [] ->
                                 Identical
@@ -389,7 +389,7 @@ size changes =
         Identical ->
             0
 
-        ProductChanges c cs ->
+        RecordChanges c cs ->
             List.map (\( _, x ) -> size x) (c :: cs)
                 |> List.sum
 
@@ -495,8 +495,8 @@ default (IR.IR metadata irType) =
                             IR.Variant5Value (default arg1) (default arg2) (default arg3) (default arg4) (default arg5)
                     )
 
-        IR.ProductType fieldTypes ->
-            IR.IR metadata <| IR.ProductValue (List.map (Tuple.mapSecond default) fieldTypes)
+        IR.RecordType fieldTypes ->
+            IR.IR metadata <| IR.RecordValue (List.map (Tuple.mapSecond default) fieldTypes)
 
         IR.TupleType aType bType ->
             IR.IR metadata <| IR.TupleValue (default aType) (default bType)
@@ -576,7 +576,7 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
                     |> IR.IR metadata
                 )
 
-        ( ProductChanges fieldChange restFieldChanges, IR.ProductValue oldFields, IR.ProductType fieldTypes ) ->
+        ( RecordChanges fieldChange restFieldChanges, IR.RecordValue oldFields, IR.RecordType fieldTypes ) ->
             let
                 fieldChangesDict =
                     Dict.fromList (fieldChange :: restFieldChanges)
@@ -595,7 +595,7 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
                                     |> Result.map (Tuple.pair name)
                     )
                 |> Result.Extra.combine
-                |> Result.map IR.ProductValue
+                |> Result.map IR.RecordValue
                 |> Result.map (IR.IR metadata)
 
         ( CustomChanges diffSelected diffVariant, IR.CustomValue oldSelected ( _, oldVariant ), IR.CustomType firstVariantType restVariantTypes ) ->

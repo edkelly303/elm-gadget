@@ -156,7 +156,7 @@ htmlAdapter (IR.IR metadata irValue) =
                 IR.CustomValue selected ( name, variant ) ->
                     name ++ String.fromInt selected ++ " " ++ String.join " " (List.map (\(IR.IR _ v) -> viewMetadataValue v) (argsToList variant))
 
-                IR.ProductValue fields ->
+                IR.RecordValue fields ->
                     String.join " " (List.map (\( _, IR.IR _ v ) -> viewMetadataValue v) fields)
 
                 IR.ListValue items ->
@@ -253,7 +253,7 @@ htmlAdapter (IR.IR metadata irValue) =
                         )
                         (List.map (Tuple.pair "") args)
 
-                IR.ProductValue fields ->
+                IR.RecordValue fields ->
                     let
                         count =
                             List.length fields

@@ -154,7 +154,7 @@ encodeAdapter (IR.IR _ irValue) =
                   )
                 ]
 
-        IR.ProductValue fields ->
+        IR.RecordValue fields ->
             JE.object (List.map (\( name, field ) -> ( name, encodeAdapter field )) fields)
 
         IR.ListValue items ->
@@ -252,7 +252,7 @@ decodeAdapter (IR metadata irType) =
                     )
                 |> JD.map (IR metadata)
 
-        ProductType fieldTypes ->
+        RecordType fieldTypes ->
             List.map
                 (\( name, fieldType ) ->
                     JD.field name
@@ -266,7 +266,7 @@ decodeAdapter (IR metadata irType) =
                 )
                 fieldTypes
                 |> Json.Decode.Extra.combine
-                |> JD.map ProductValue
+                |> JD.map RecordValue
                 |> JD.map (IR metadata)
 
         ListType itemType ->

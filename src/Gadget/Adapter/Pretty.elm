@@ -108,7 +108,7 @@ printHelp parentIsCustom (IR.IR _ value) =
                         P.empty
                     )
 
-        ProductValue fields ->
+        RecordValue fields ->
             case fields of
                 [] ->
                     P.string "{}"

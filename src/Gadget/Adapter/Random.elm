@@ -295,14 +295,14 @@ randomAdapter (IR.IR metadata irType) =
                 (List.indexedMap (\idx v -> variantTypeToGenerator (idx + 1) v) restVariants)
                 |> Random.map (IR.IR metadata)
 
-        IR.ProductType fields ->
+        IR.RecordType fields ->
             fields
                 |> Random.Extra.traverse
                     (\( name, fld ) ->
                         randomAdapter fld
                             |> Random.map (Tuple.pair name)
                     )
-                |> Random.map IR.ProductValue
+                |> Random.map IR.RecordValue
                 |> Random.map (IR.IR metadata)
 
         IR.ListType itemType ->

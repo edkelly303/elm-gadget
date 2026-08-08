@@ -789,7 +789,7 @@ field name getter (Gadget gadget) (RecordGadgetBuilder builder) =
                             (gadget.toOutput thisField)
 
                     [] ->
-                        Err "expecting a Product field"
+                        Err "expecting a Record field"
         , irType =
             ( name, gadget.irType ) :: builder.irType
         }
@@ -802,16 +802,16 @@ endRecord (RecordGadgetBuilder builder) =
     Gadget
         { fromInput =
             \input ->
-                IR.ir <| ProductValue (List.reverse (builder.fromInput input))
+                IR.ir <| RecordValue (List.reverse (builder.fromInput input))
         , toOutput =
             \(IR _ value) ->
                 case value of
-                    ProductValue fields ->
+                    RecordValue fields ->
                         builder.toOutput (List.reverse fields)
 
                     _ ->
-                        Err "expecting a Product"
-        , irType = IR.ir <| ProductType (List.reverse builder.irType)
+                        Err "expecting a Record"
+        , irType = IR.ir <| RecordType (List.reverse builder.irType)
         }
 
 

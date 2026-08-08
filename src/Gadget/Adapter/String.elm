@@ -137,7 +137,7 @@ printAdapter (IR.IR _ irValue) =
                 (String.fromInt selected)
                 args
 
-        IR.ProductValue fields ->
+        IR.RecordValue fields ->
             combinator
                 "p"
                 ""
@@ -195,7 +195,7 @@ irParser =
         , charParser
         , stringParser |> P.map IR.StringValue
         , listParser
-        , productParser
+        , recordParser
         , customParser
         , tupleParser
         , tripleParser
@@ -272,8 +272,8 @@ tripleParser =
             )
 
 
-productParser : Parser IR.Value
-productParser =
+recordParser : Parser IR.Value
+recordParser =
     P.sequence
         { start = "p["
         , item = P.lazy (\() -> irParser) |> P.map (\ir -> ( "", IR.ir ir ))
@@ -282,7 +282,7 @@ productParser =
         , spaces = P.spaces
         , trailing = P.Forbidden
         }
-        |> P.map IR.ProductValue
+        |> P.map IR.RecordValue
 
 
 customParser : Parser IR.Value
