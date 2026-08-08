@@ -200,6 +200,7 @@ type alias MetadataTools meta a =
     , extract : Gadget a -> Metadata
     , insert : String -> Gadget meta -> meta -> Metadata -> Metadata
     , get : String -> Gadget meta -> Metadata -> Maybe meta
+    , getValue : String -> Metadata -> Maybe (IR Value)
     , member : String -> Metadata -> Bool
     , export : Metadata -> List ( String, List ( String, IR Value ) )
     }
@@ -276,16 +277,17 @@ makeMetadataTools adapterId =
             in
             metadata
 
-        get key metaGadget (Metadata m) =
+        getValue key (Metadata m) =
             m
                 |> Dict.get adapterId
                 |> Maybe.andThen (Dict.get key)
+
+        get key metaGadget metadata =
+            getValue key metadata
                 |> Maybe.andThen (toOutput metaGadget >> Result.toMaybe)
 
-        member key (Metadata m) =
-            m
-                |> Dict.get adapterId
-                |> Maybe.andThen (Dict.get key)
+        member key metadata =
+            getValue key metadata
                 |> Maybe.Extra.isJust
 
         export (Metadata m) =
@@ -296,6 +298,7 @@ makeMetadataTools adapterId =
     , extract = extract
     , insert = insert
     , get = get
+    , getValue = getValue
     , member = member
     , export = export
     }

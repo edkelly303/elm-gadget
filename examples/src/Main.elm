@@ -38,8 +38,8 @@ personGadget : Gadget.Gadget Person
 personGadget =
     Gadget.record Person
         |> Gadget.field "name"
-            .name
-            Gadget.string
+             .name            
+             (Gadget.string |> Gadget.Adapter.Random.choose "Ed" [ "Leonardo", "Wolfgang", "Rupert", "Mario", "Martin" ])
         |> Gadget.field "heightInCentimetres"
             .heightInCentimetres
             (Gadget.float |> Gadget.Adapter.Random.floatRange 100 180)
@@ -70,6 +70,7 @@ petGadget =
                     .name
                     (Gadget.string
                         |> Gadget.Adapter.Fuzz.label "dogName"
+                        |> Gadget.Adapter.Random.choose "Rex" [ "Fido", "Kevin", "Rover", "Fifi", "George", "Winnie" ]
                     )
                 |> Gadget.endRecord
             )
@@ -78,6 +79,7 @@ petGadget =
             Robot
             (Gadget.char
                 |> Gadget.Adapter.Fuzz.label "series"
+                |> Gadget.Adapter.Random.choose 'A' (List.range 66 90 |> List.map Char.fromCode)
             )
             (Gadget.maybe
                 (Gadget.int
