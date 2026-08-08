@@ -133,13 +133,13 @@ printAdapter (IR.IR _ irValue) =
                             ]
             in
             combinator
-                "u"
+                "v"
                 (String.fromInt selected)
                 args
 
         IR.RecordValue fields ->
             combinator
-                "p"
+                "r"
                 ""
                 (List.map Tuple.second fields)
 
@@ -275,7 +275,7 @@ tripleParser =
 recordParser : Parser IR.Value
 recordParser =
     P.sequence
-        { start = "p["
+        { start = "r["
         , item = P.lazy (\() -> irParser) |> P.map (\ir -> ( "", IR.ir ir ))
         , end = "]"
         , separator = ","
@@ -288,7 +288,7 @@ recordParser =
 customParser : Parser IR.Value
 customParser =
     P.succeed IR.CustomValue
-        |. P.token "u"
+        |. P.token "v"
         |= P.int
         |= (P.sequence
                 { start = "["
