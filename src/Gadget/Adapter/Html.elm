@@ -34,7 +34,7 @@ type alias IRValue =
     IR.IR IR.Value
 
 
-tools : IR.MetadataTools a
+tools : IR.MetadataTools meta a
 tools =
     IR.makeMetadataTools "Gadget.Adapter.Html"
 
@@ -83,7 +83,7 @@ htmlAdapter (IR.IR metadata irValue) =
                                             , H.th [] [ H.text "Value" ]
                                             ]
                                             :: List.map
-                                                (\( k, v ) ->
+                                                (\( k, IR.IR _ v ) ->
                                                     H.tr []
                                                         [ H.td [] [ H.text ("\"" ++ adapterId ++ "\"") ]
                                                         , H.td [] [ H.text ("\"" ++ k ++ "\"") ]

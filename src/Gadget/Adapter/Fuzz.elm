@@ -30,6 +30,7 @@ Use a Gadget to create a `Fuzz.Fuzzer` for use with functions from the
 
 import Dict
 import Fuzz
+import Gadget
 import Gadget.IR as IR
 
 
@@ -41,7 +42,7 @@ type alias IRType =
     IR.IR IR.Type
 
 
-tools : IR.MetadataTools a
+tools : IR.MetadataTools meta a
 tools =
     IR.makeMetadataTools "Gadget.Adapter.Fuzz"
 
@@ -145,7 +146,7 @@ type Override
 -}
 label : String -> IR.Gadget a -> IR.Gadget a
 label l =
-    tools.attach l (IR.StringValue "")
+    tools.attach l Gadget.string ""
 
 
 {-| Override the default implementation of a `Fuzz.Fuzzer`.

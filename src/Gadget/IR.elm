@@ -32,6 +32,7 @@ various `Gadget.Adapter` modules in this package:
 -}
 
 import Dict exposing (Dict)
+import Maybe.Extra
 
 
 {-| The core type of this package. Use the functions in this module together
@@ -136,7 +137,7 @@ toOutput (Gadget c) a =
 {-| A type used to carry metadata for `IR Value` or `IR Type` nodes.
 -}
 type Metadata
-    = Metadata (Dict String (Dict String Value))
+    = Metadata (Dict String (Dict String (IR Value)))
 
 
 {-| A helper for making new `IR` nodes
@@ -192,13 +193,13 @@ For example, here's how [`Gadget.Adapter.Random`](Gadget-Adapter-Random) defines
     allValues --> [ ("MyAdapter", [ ( "int_hi" , Gadget.IR.IntValue 10 ), ( "int_lo" , Gadget.IR.IntValue 0 ) ]) ]
 
 -}
-type alias MetadataTools a =
-    { attach : String -> Value -> Gadget a -> Gadget a
+type alias MetadataTools meta a =
+    { attach : String -> Gadget meta -> meta -> Gadget a -> Gadget a
     , extract : Gadget a -> Metadata
-    , insert : String -> Value -> Metadata -> Metadata
-    , get : String -> Metadata -> Maybe Value
+    , insert : String -> Gadget meta -> meta -> Metadata -> Metadata
+    , get : String -> Gadget meta -> Metadata -> Maybe meta
     , member : String -> Metadata -> Bool
-    , export : Metadata -> List ( String, List ( String, Value ) )
+    , export : Metadata -> List ( String, List ( String, IR Value ) )
     }
 
 
@@ -230,23 +231,23 @@ This might make it easier to debug if you have lots of different adapters.
     tools --: Gadget.IR.MetadataTools a
 
 -}
-makeMetadataTools : String -> MetadataTools a
+makeMetadataTools : String -> MetadataTools meta a
 makeMetadataTools adapterId =
     let
-        insert key value (Metadata m) =
+        insert key metaGadget value (Metadata m) =
             Dict.update adapterId
                 (\maybe ->
                     case maybe of
                         Just adapterDict ->
-                            Just (Dict.insert key value adapterDict)
+                            Just (Dict.insert key (fromInput metaGadget value) adapterDict)
 
                         Nothing ->
-                            Just (Dict.singleton key value)
+                            Just (Dict.singleton key (fromInput metaGadget value))
                 )
                 m
                 |> Metadata
 
-        attach key value (Gadget c) =
+        attach key metaGadget value (Gadget c) =
             Gadget
                 { fromInput =
                     \input ->
@@ -254,7 +255,7 @@ makeMetadataTools adapterId =
                             (IR metadata inner) =
                                 c.fromInput input
                         in
-                        IR (insert key value metadata) inner
+                        IR (insert key metaGadget value metadata) inner
                 , toOutput =
                     \ir_ ->
                         c.toOutput ir_
@@ -263,7 +264,7 @@ makeMetadataTools adapterId =
                         (IR metadata inner) =
                             c.irType
                     in
-                    IR (insert key value metadata) inner
+                    IR (insert key metaGadget value metadata) inner
                 }
 
         extract (Gadget g) =
@@ -273,13 +274,17 @@ makeMetadataTools adapterId =
             in
             metadata
 
-        get key (Metadata m) =
+        get key metaGadget (Metadata m) =
             m
                 |> Dict.get adapterId
                 |> Maybe.andThen (Dict.get key)
+                |> Maybe.andThen (toOutput metaGadget >> Result.toMaybe)
 
-        member key metadata =
-            get key metadata /= Nothing
+        member key (Metadata m) =
+            m
+                |> Dict.get adapterId
+                |> Maybe.andThen (Dict.get key)
+                |> Maybe.Extra.isJust
 
         export (Metadata m) =
             Dict.map (\_ v -> Dict.toList v) m

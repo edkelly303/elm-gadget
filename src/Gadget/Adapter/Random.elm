@@ -31,6 +31,7 @@ Use a Gadget to create a `Random.Generator` for use with functions from the
 
 -}
 
+import Gadget
 import Gadget.IR as IR
 import Random
 import Random.Char
@@ -40,7 +41,7 @@ import Random.Int
 import Random.String
 
 
-tools : IR.MetadataTools a
+tools : IR.MetadataTools meta a
 tools =
     IR.makeMetadataTools "Gadget.Adapter.Random"
 
@@ -79,8 +80,8 @@ values for the `Int` that it generates.
 intRange : Int -> Int -> IR.Gadget a -> IR.Gadget a
 intRange lo hi g =
     g
-        |> tools.attach "int_lo" (IR.IntValue lo)
-        |> tools.attach "int_hi" (IR.IntValue hi)
+        |> tools.attach "int_lo" Gadget.int lo
+        |> tools.attach "int_hi" Gadget.int hi
 
 
 {-| Limit the output of a Gadget's `Random.Generator` by setting minimum and maximum
@@ -97,8 +98,8 @@ values for the `Float` that it generates.
 floatRange : Float -> Float -> IR.Gadget a -> IR.Gadget a
 floatRange lo hi g =
     g
-        |> tools.attach "float_lo" (IR.FloatValue lo)
-        |> tools.attach "float_hi" (IR.FloatValue hi)
+        |> tools.attach "float_lo" Gadget.float lo
+        |> tools.attach "float_hi" Gadget.float hi
 
 
 {-| Limit the output of a Gadget's `Random.Generator` by setting minimum and maximum
@@ -127,8 +128,8 @@ values for the length of the `List` that it generates.
 listLength : Int -> Int -> IR.Gadget a -> IR.Gadget a
 listLength lo hi g =
     g
-        |> tools.attach "list_lo" (IR.IntValue lo)
-        |> tools.attach "list_hi" (IR.IntValue hi)
+        |> tools.attach "list_lo" Gadget.int lo
+        |> tools.attach "list_hi" Gadget.int hi
 
 
 {-| Turn a Gadget into a `Random.Generator`.
@@ -206,14 +207,18 @@ randomAdapter (IR.IR metadata irType) =
         IR.IntType ->
             Random.map (IR.IR metadata) <|
                 Random.map IR.IntValue <|
-                    case ( tools.get "int_lo" metadata, tools.get "int_hi" metadata ) of
-                        ( Just (IR.IntValue lo), Just (IR.IntValue hi) ) ->
+                    case
+                        ( tools.get "int_lo" Gadget.int metadata
+                        , tools.get "int_hi" Gadget.int metadata
+                        )
+                    of
+                        ( Just lo, Just hi ) ->
                             Random.int lo hi
 
-                        ( Just (IR.IntValue lo), _ ) ->
+                        ( Just lo, _ ) ->
                             Random.int lo Random.maxInt
 
-                        ( _, Just (IR.IntValue hi) ) ->
+                        ( _, Just hi ) ->
                             Random.int Random.maxInt hi
 
                         _ ->
@@ -222,14 +227,18 @@ randomAdapter (IR.IR metadata irType) =
         IR.FloatType ->
             Random.map (IR.IR metadata) <|
                 Random.map IR.FloatValue <|
-                    case ( tools.get "float_lo" metadata, tools.get "float_hi" metadata ) of
-                        ( Just (IR.FloatValue lo), Just (IR.FloatValue hi) ) ->
+                    case
+                        ( tools.get "float_lo" Gadget.float metadata
+                        , tools.get "float_hi" Gadget.float metadata
+                        )
+                    of
+                        ( Just lo, Just hi ) ->
                             Random.float lo hi
 
-                        ( Just (IR.FloatValue lo), _ ) ->
+                        ( Just lo, _ ) ->
                             Random.float lo (toFloat Random.maxInt)
 
-                        ( _, Just (IR.FloatValue hi) ) ->
+                        ( _, Just hi ) ->
                             Random.float (toFloat Random.maxInt) hi
 
                         _ ->
@@ -296,20 +305,12 @@ randomAdapter (IR.IR metadata irType) =
         IR.ListType itemType ->
             let
                 min =
-                    case tools.get "list_lo" metadata of
-                        Just (IR.IntValue lo) ->
-                            lo
-
-                        _ ->
-                            0
+                    tools.get "list_lo" Gadget.int metadata
+                        |> Maybe.withDefault 0
 
                 max =
-                    case tools.get "list_hi" metadata of
-                        Just (IR.IntValue lo) ->
-                            lo
-
-                        _ ->
-                            10
+                    tools.get "list_hi" Gadget.int metadata
+                        |> Maybe.withDefault 10
             in
             Random.int min max
                 |> Random.andThen (\int -> Random.list int (randomAdapter itemType))
