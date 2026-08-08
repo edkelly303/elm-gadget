@@ -62,7 +62,8 @@ type IR valueOrType
 represented using variants of `Value`.
 -}
 type Value
-    = BoolValue Bool
+    = UnitValue
+    | BoolValue Bool
     | CharValue Char
     | StringValue String
     | IntValue Int
@@ -88,7 +89,8 @@ type VariantValue
 {-| When translated into IR, any Elm value will have a "type" that is a variant of `Type`.
 -}
 type Type
-    = BoolType
+    = UnitType
+    | BoolType
     | CharType
     | StringType
     | IntType

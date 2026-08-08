@@ -189,6 +189,9 @@ randomAdapter (IR.IR metadata irType) =
         IR.LazyType constructType ->
             randomAdapter (constructType ())
 
+        IR.UnitType ->
+            Random.constant (IR.IR metadata IR.UnitValue)
+
         IR.BoolType ->
             Random.uniform False [ True ]
                 |> Random.map IR.BoolValue

@@ -183,6 +183,9 @@ fuzzAdapter overrides (IR.IR metadata irType) =
                 IR.LazyType construct ->
                     Fuzz.lazy (\() -> fuzzAdapter overrides (construct ()))
 
+                IR.UnitType ->
+                    Fuzz.constant (IR.IR metadata IR.UnitValue)
+
                 IR.BoolType ->
                     Fuzz.bool |> Fuzz.map (IR.BoolValue >> IR.IR metadata)
 

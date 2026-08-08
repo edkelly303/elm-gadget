@@ -131,6 +131,9 @@ htmlAdapter (IR.IR metadata irValue) =
 
         viewMetadataValue metadataValue =
             case metadataValue of
+                IR.UnitValue ->
+                    "() : Unit"
+
                 IR.BoolValue b ->
                     if b then
                         "True : Bool"
@@ -167,6 +170,11 @@ htmlAdapter (IR.IR metadata irValue) =
 
         viewValue metadataHtml v =
             case v of
+                IR.UnitValue ->
+                    unquotedPrimitive metadataHtml
+                        "Unit"
+                        "()"
+
                 IR.BoolValue b ->
                     unquotedPrimitive metadataHtml
                         "Bool"

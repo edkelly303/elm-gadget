@@ -95,6 +95,9 @@ decoder gadget =
 encodeAdapter : IR Value -> JE.Value
 encodeAdapter (IR.IR _ irValue) =
     case irValue of
+        IR.UnitValue ->
+            JE.null
+
         IR.BoolValue b ->
             JE.bool b
 
@@ -167,6 +170,9 @@ encodeAdapter (IR.IR _ irValue) =
 decodeAdapter : IR Type -> JD.Decoder (IR Value)
 decodeAdapter (IR metadata irType) =
     case irType of
+        UnitType ->
+            JD.null (IR metadata IR.UnitValue)
+
         BoolType ->
             JD.bool |> JD.map IR.BoolValue |> JD.map (IR metadata)
 

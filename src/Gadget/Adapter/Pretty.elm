@@ -15,8 +15,8 @@ print gadget width input =
 printHelp : Bool -> IR.IR Value -> P.Doc t
 printHelp parentIsCustom (IR.IR _ value) =
     case value of
-        StringValue s ->
-            P.string ("\"" ++ escape s ++ "\"")
+        UnitValue ->
+            P.string "()"
 
         BoolValue b ->
             P.string
@@ -29,6 +29,9 @@ printHelp parentIsCustom (IR.IR _ value) =
 
         CharValue c ->
             P.string ("'" ++ String.fromChar c ++ "'")
+
+        StringValue s ->
+            P.string ("\"" ++ escape s ++ "\"")
 
         IntValue i ->
             P.string (String.fromInt i)

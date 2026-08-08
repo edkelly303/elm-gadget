@@ -72,6 +72,9 @@ combinator typeTag typeInfo items =
 printAdapter : IRValue -> String
 printAdapter (IR.IR _ irValue) =
     case irValue of
+        IR.UnitValue ->
+            primitive "0" ""
+
         IR.BoolValue b ->
             primitive "b"
                 (if b then
@@ -185,7 +188,8 @@ parser gadget =
 irParser : Parser IR.Value
 irParser =
     P.oneOf
-        [ boolParser |> P.map IR.BoolValue
+        [ P.chompIf (\c -> c == '0') |> P.map (\() -> IR.UnitValue)
+        , boolParser |> P.map IR.BoolValue
         , intParser |> P.map IR.IntValue
         , floatParser |> P.map IR.FloatValue
         , charParser

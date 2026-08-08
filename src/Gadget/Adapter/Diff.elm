@@ -450,6 +450,9 @@ default (IR.IR metadata irType) =
         IR.LazyType construct ->
             default (construct ())
 
+        IR.UnitType ->
+            IR.IR metadata <| IR.UnitValue
+
         IR.BoolType ->
             IR.IR metadata <| IR.BoolValue True
 

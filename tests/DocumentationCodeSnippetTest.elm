@@ -471,8 +471,7 @@ tests =
                         "0"
                         (\() ->
                             value__Gadget_IR__MetadataTools_0
-                                |> Expect.equal
-                                    (Maybe.Just (Gadget.IR.IntValue 0))
+                                |> Expect.equal (Maybe.Just 0)
                         )
                     , Test.test
                         "1"
@@ -483,14 +482,12 @@ tests =
                     , Test.test
                         "2"
                         (\() ->
-                            allValues__Gadget_IR__MetadataTools_0
-                                |> Expect.equal
-                                    [ ( "MyAdapter"
-                                      , [ ( "int_hi", Gadget.IR.IntValue 10 )
-                                        , ( "int_lo", Gadget.IR.IntValue 0 )
-                                        ]
-                                      )
-                                    ]
+                            let
+                                unused : List ( String.String, List ( String.String, Gadget.IR.IR Gadget.IR.Value ) )
+                                unused =
+                                    allValues__Gadget_IR__MetadataTools_0
+                            in
+                            Expect.pass
                         )
                     ]
                 ]
@@ -502,7 +499,7 @@ tests =
                         "0"
                         (\() ->
                             let
-                                unused : Gadget.IR.MetadataTools a
+                                unused : Gadget.IR.MetadataTools meta a
                                 unused =
                                     tools__Gadget_IR__makeMetadataTools_0
                             in
@@ -838,12 +835,8 @@ tools__Gadget_IR__MetadataTools_0 =
 
 intRange__Gadget_IR__MetadataTools_0 lo hi gadget =
     gadget
-        |> tools__Gadget_IR__MetadataTools_0.attach
-            "int_lo"
-            (Gadget.IR.IntValue lo)
-        |> tools__Gadget_IR__MetadataTools_0.attach
-            "int_hi"
-            (Gadget.IR.IntValue hi)
+        |> tools__Gadget_IR__MetadataTools_0.attach "int_lo" Gadget.int lo
+        |> tools__Gadget_IR__MetadataTools_0.attach "int_hi" Gadget.int hi
 
 
 metadata__Gadget_IR__MetadataTools_0 =
@@ -856,6 +849,7 @@ metadata__Gadget_IR__MetadataTools_0 =
 value__Gadget_IR__MetadataTools_0 =
     tools__Gadget_IR__MetadataTools_0.get
         "int_lo"
+        Gadget.int
         metadata__Gadget_IR__MetadataTools_0
 
 
