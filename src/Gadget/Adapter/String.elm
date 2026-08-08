@@ -73,7 +73,7 @@ printAdapter : IRValue -> String
 printAdapter (IR.IR _ irValue) =
     case irValue of
         IR.UnitValue ->
-            primitive "0" ""
+            "0"
 
         IR.BoolValue b ->
             primitive "b"

@@ -54,6 +54,7 @@ type alias Record =
     , char : Char
     , custom : Custom
     , tuple : ( Int, ( String, Float ), Bool )
+    , unit : ()
     }
 
 
@@ -67,6 +68,7 @@ recordGadget =
         |> Gadget.field "char" .char Gadget.char
         |> Gadget.field "custom" .custom customGadget
         |> Gadget.field "tuple" .tuple tupleGadget
+        |> Gadget.field "unit" .unit Gadget.unit
         |> Gadget.endRecord
 
 
