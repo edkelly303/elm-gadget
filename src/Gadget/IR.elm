@@ -164,8 +164,8 @@ For example, here's how [`Gadget.Adapter.Random`](Gadget-Adapter-Random) defines
 
     intRange lo hi gadget =
         gadget
-            |> tools.attach "int_lo" (Gadget.IR.IntValue lo)
-            |> tools.attach "int_hi" (Gadget.IR.IntValue hi)
+            |> tools.attach "int_lo" Gadget.int lo
+            |> tools.attach "int_hi" Gadget.int hi
 
     -- and we can look up those values using the other tools:
 
@@ -178,9 +178,9 @@ For example, here's how [`Gadget.Adapter.Random`](Gadget-Adapter-Random) defines
                )
 
     value =
-        tools.get "int_lo" metadata
+        tools.get "int_lo" Gadget.int metadata
 
-    value --> Just (Gadget.IR.IntValue 0)
+    value --> Just 0
 
     member =
         tools.member "int_hi" metadata
@@ -190,7 +190,7 @@ For example, here's how [`Gadget.Adapter.Random`](Gadget-Adapter-Random) defines
     allValues =
         tools.export metadata
 
-    allValues --> [ ("MyAdapter", [ ( "int_hi" , Gadget.IR.IntValue 10 ), ( "int_lo" , Gadget.IR.IntValue 0 ) ]) ]
+    allValues --: List (String, List (String, Gadget.IR.IR Gadget.IR.Value))
 
 -}
 type alias MetadataTools meta a =
@@ -228,7 +228,7 @@ This might make it easier to debug if you have lots of different adapters.
     tools =
         Gadget.IR.makeMetadataTools "MyAdapter"
 
-    tools --: Gadget.IR.MetadataTools a
+    tools --: Gadget.IR.MetadataTools meta a
 
 -}
 makeMetadataTools : String -> MetadataTools meta a
