@@ -1,7 +1,6 @@
 module Gadget.Adapter.Random exposing
     ( generator
-    , intRange, floatRange, listLength
-    , choose
+    , intRange, floatRange, listLength, choose
     )
 
 {-|

@@ -38,8 +38,8 @@ personGadget : Gadget.Gadget Person
 personGadget =
     Gadget.record Person
         |> Gadget.field "name"
-             .name            
-             (Gadget.string |> Gadget.Adapter.Random.choose "Ed" [ "Leonardo", "Wolfgang", "Rupert", "Mario", "Martin" ])
+            .name
+            (Gadget.string |> Gadget.Adapter.Random.choose "Ed" [ "Leonardo", "Wolfgang", "Rupert", "Mario", "Martin" ])
         |> Gadget.field "heightInCentimetres"
             .heightInCentimetres
             (Gadget.float |> Gadget.Adapter.Random.floatRange 100 180)
