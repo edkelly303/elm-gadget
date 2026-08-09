@@ -409,18 +409,6 @@ tests =
                     ]
                 ]
             , Test.describe
-                "intRange"
-                [ Test.describe
-                    "code snippet 0"
-                    [ Test.test
-                        "0"
-                        (\() ->
-                            randomInt__Gadget_Adapter_Random__intRange_0
-                                |> Expect.equal 6
-                        )
-                    ]
-                ]
-            , Test.describe
                 "listLength"
                 [ Test.describe
                     "code snippet 0"
@@ -430,6 +418,18 @@ tests =
                             randomList__Gadget_Adapter_Random__listLength_0
                                 |> Expect.equal
                                     [ Basics.True, Basics.False, Basics.False ]
+                        )
+                    ]
+                ]
+            , Test.describe
+                "range"
+                [ Test.describe
+                    "code snippet 0"
+                    [ Test.test
+                        "0"
+                        (\() ->
+                            randomInt__Gadget_Adapter_Random__range_0
+                                |> Expect.equal 6
                         )
                     ]
                 ]
@@ -471,7 +471,7 @@ tests =
                         "0"
                         (\() ->
                             value__Gadget_IR__MetadataTools_0
-                                |> Expect.equal (Maybe.Just 0)
+                                |> Expect.equal (Maybe.Just ( 0, 10 ))
                         )
                     , Test.test
                         "1"
@@ -782,21 +782,6 @@ randomPerson__Gadget_Adapter_Random__generator_0 =
         |> Tuple.first
 
 
-intGadget__Gadget_Adapter_Random__intRange_0 =
-    Gadget.int |> Gadget.Adapter.Random.intRange 5 10
-
-
-intGenerator__Gadget_Adapter_Random__intRange_0 =
-    Gadget.Adapter.Random.generator intGadget__Gadget_Adapter_Random__intRange_0
-
-
-randomInt__Gadget_Adapter_Random__intRange_0 =
-    Random.step
-        intGenerator__Gadget_Adapter_Random__intRange_0
-        (Random.initialSeed 0)
-        |> Tuple.first
-
-
 listGadget__Gadget_Adapter_Random__listLength_0 =
     Gadget.list Gadget.bool |> Gadget.Adapter.Random.listLength 2 4
 
@@ -809,6 +794,21 @@ listGenerator__Gadget_Adapter_Random__listLength_0 =
 randomList__Gadget_Adapter_Random__listLength_0 =
     Random.step
         listGenerator__Gadget_Adapter_Random__listLength_0
+        (Random.initialSeed 0)
+        |> Tuple.first
+
+
+intGadget__Gadget_Adapter_Random__range_0 =
+    Gadget.int |> Gadget.Adapter.Random.range 5 10
+
+
+intGenerator__Gadget_Adapter_Random__range_0 =
+    Gadget.Adapter.Random.generator intGadget__Gadget_Adapter_Random__range_0
+
+
+randomInt__Gadget_Adapter_Random__range_0 =
+    Random.step
+        intGenerator__Gadget_Adapter_Random__range_0
         (Random.initialSeed 0)
         |> Tuple.first
 
@@ -833,29 +833,32 @@ tools__Gadget_IR__MetadataTools_0 =
     Gadget.IR.makeMetadataTools "MyAdapter"
 
 
-intRange__Gadget_IR__MetadataTools_0 lo hi gadget =
-    gadget
-        |> tools__Gadget_IR__MetadataTools_0.attach "int_lo" Gadget.int lo
-        |> tools__Gadget_IR__MetadataTools_0.attach "int_hi" Gadget.int hi
+range__Gadget_IR__MetadataTools_0 : number -> number -> Gadget.IR.Gadget number -> Gadget.IR.Gadget number
+range__Gadget_IR__MetadataTools_0 lo hi gadget =
+    tools__Gadget_IR__MetadataTools_0.attach
+        "range"
+        (Gadget.tuple gadget gadget)
+        ( lo, hi )
+        gadget
 
 
 metadata__Gadget_IR__MetadataTools_0 =
     Gadget.int
-        |> intRange__Gadget_IR__MetadataTools_0 0 10
+        |> range__Gadget_IR__MetadataTools_0 0 10
         |> Gadget.IR.irType
         |> (\(Gadget.IR.IR metadata_ _) -> metadata_)
 
 
 value__Gadget_IR__MetadataTools_0 =
     tools__Gadget_IR__MetadataTools_0.get
-        "int_lo"
-        Gadget.int
+        "range"
+        (Gadget.tuple Gadget.int Gadget.int)
         metadata__Gadget_IR__MetadataTools_0
 
 
 member__Gadget_IR__MetadataTools_0 =
     tools__Gadget_IR__MetadataTools_0.member
-        "int_hi"
+        "range"
         metadata__Gadget_IR__MetadataTools_0
 
 

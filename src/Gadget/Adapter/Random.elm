@@ -1,6 +1,6 @@
 module Gadget.Adapter.Random exposing
     ( generator
-    , intRange, floatRange, listLength, choose
+    , range, listLength, choose
     )
 
 {-|
@@ -27,7 +27,7 @@ Use a Gadget to create a `Random.Generator` for use with functions from the
 
 ### Configuring generators
 
-@docs intRange, floatRange, listLength, choose
+@docs range, listLength, choose
 
 -}
 
@@ -63,7 +63,7 @@ values for the `Int` that it generates.
 
     intGadget =
         Gadget.int
-            |> Gadget.Adapter.Random.intRange 5 10
+            |> Gadget.Adapter.Random.range 5 10
 
     intGenerator =
         Gadget.Adapter.Random.generator intGadget
@@ -77,29 +77,9 @@ values for the `Int` that it generates.
     randomInt --> 6
 
 -}
-intRange : Int -> Int -> IR.Gadget Int -> IR.Gadget Int
-intRange lo hi g =
-    g
-        |> tools.attach "int_lo" Gadget.int lo
-        |> tools.attach "int_hi" Gadget.int hi
-
-
-{-| Limit the output of a Gadget's `Random.Generator` by setting minimum and maximum
-values for the `Float` that it generates.
-
-    import Gadget
-    import Gadget.Adapter.Random
-
-    floatGadget =
-        Gadget.float
-            |> Gadget.Adapter.Random.floatRange 0.0 1.0
-
--}
-floatRange : Float -> Float -> IR.Gadget Float -> IR.Gadget Float
-floatRange lo hi g =
-    g
-        |> tools.attach "float_lo" Gadget.float lo
-        |> tools.attach "float_hi" Gadget.float hi
+range : number -> number -> IR.Gadget number -> IR.Gadget number
+range lo hi gadget =
+    tools.attach "range" (Gadget.tuple gadget gadget) ( lo, hi ) gadget
 
 
 {-| Limit the output of a Gadget's `Random.Generator` by setting minimum and maximum
@@ -126,18 +106,15 @@ values for the length of the `List` that it generates.
 
 -}
 listLength : Int -> Int -> IR.Gadget (List a) -> IR.Gadget (List a)
-listLength lo hi g =
-    g
-        |> tools.attach "list_lo" Gadget.int lo
-        |> tools.attach "list_hi" Gadget.int hi
+listLength lo hi gadget =
+    tools.attach "listLength" (Gadget.tuple Gadget.int Gadget.int) ( lo, hi ) gadget
 
 
 {-| Constrain a Gadget's `Random.Generator` to emit one of a set of options.
 -}
 choose : a -> List a -> IR.Gadget a -> IR.Gadget a
-choose first rest g =
-    g
-        |> tools.attach "choose" (Gadget.list g) (first :: rest)
+choose first rest gadget =
+    tools.attach "choose" (Gadget.list gadget) (first :: rest) gadget
 
 
 {-| Turn a Gadget into a `Random.Generator`.
@@ -219,18 +196,10 @@ randomAdapter (IR.IR metadata irType) =
                     Random.map (IR.IR metadata) <|
                         Random.map IR.IntValue <|
                             case
-                                ( tools.get "int_lo" Gadget.int metadata
-                                , tools.get "int_hi" Gadget.int metadata
-                                )
+                                tools.get "range" (Gadget.tuple Gadget.int Gadget.int) metadata
                             of
-                                ( Just lo, Just hi ) ->
+                                Just ( lo, hi ) ->
                                     Random.int lo hi
-
-                                ( Just lo, _ ) ->
-                                    Random.int lo Random.maxInt
-
-                                ( _, Just hi ) ->
-                                    Random.int Random.maxInt hi
 
                                 _ ->
                                     Random.Int.anyInt
@@ -239,18 +208,10 @@ randomAdapter (IR.IR metadata irType) =
                     Random.map (IR.IR metadata) <|
                         Random.map IR.FloatValue <|
                             case
-                                ( tools.get "float_lo" Gadget.float metadata
-                                , tools.get "float_hi" Gadget.float metadata
-                                )
+                                tools.get "range" (Gadget.tuple Gadget.float Gadget.float) metadata
                             of
-                                ( Just lo, Just hi ) ->
+                                Just ( lo, hi ) ->
                                     Random.float lo hi
-
-                                ( Just lo, _ ) ->
-                                    Random.float lo (toFloat Random.maxInt)
-
-                                ( _, Just hi ) ->
-                                    Random.float (toFloat Random.maxInt) hi
 
                                 _ ->
                                     Random.Float.anyFloat
@@ -315,13 +276,9 @@ randomAdapter (IR.IR metadata irType) =
 
                 IR.ListType itemType ->
                     let
-                        min =
-                            tools.get "list_lo" Gadget.int metadata
-                                |> Maybe.withDefault 0
-
-                        max =
-                            tools.get "list_hi" Gadget.int metadata
-                                |> Maybe.withDefault 10
+                        ( min, max ) =
+                            tools.get "listLength" (Gadget.tuple Gadget.int Gadget.int) metadata
+                                |> Maybe.withDefault ( 0, 10 )
                     in
                     Random.int min max
                         |> Random.andThen (\int -> Random.list int (randomAdapter itemType))

@@ -42,7 +42,7 @@ personGadget =
             (Gadget.string |> Gadget.Adapter.Random.choose "Ed" [ "Leonardo", "Wolfgang", "Rupert", "Mario", "Martin" ])
         |> Gadget.field "heightInCentimetres"
             .heightInCentimetres
-            (Gadget.float |> Gadget.Adapter.Random.floatRange 100 180)
+            (Gadget.float |> Gadget.Adapter.Random.range 100 180)
         |> Gadget.field "pets"
             .pets
             (Gadget.list petGadget |> Gadget.Adapter.Random.listLength 0 3)
@@ -84,7 +84,7 @@ petGadget =
             (Gadget.maybe
                 (Gadget.int
                     |> Gadget.Adapter.Fuzz.label "model"
-                    |> Gadget.Adapter.Random.intRange 1000 5000
+                    |> Gadget.Adapter.Random.range 1000 5000
                 )
             )
         |> Gadget.endCustom

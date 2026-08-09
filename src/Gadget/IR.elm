@@ -153,7 +153,7 @@ ir =
 produced by a Gadget.
 
 For example, here's how [`Gadget.Adapter.Random`](Gadget-Adapter-Random) defines
-[`intRange`](Gadget-Adapter-Random#intRange):
+[`intRange`](Gadget-Adapter-Random#range):
 
     import Gadget
     import Gadget.IR
@@ -164,28 +164,27 @@ For example, here's how [`Gadget.Adapter.Random`](Gadget-Adapter-Random) defines
     -- we can use `tools.attach` to put some values in a
     -- Gadget's metadata store:
 
-    intRange lo hi gadget =
-        gadget
-            |> tools.attach "int_lo" Gadget.int lo
-            |> tools.attach "int_hi" Gadget.int hi
+    range : number -> number -> Gadget.IR.Gadget number -> Gadget.IR.Gadget number
+    range lo hi gadget =
+        tools.attach "range" (Gadget.tuple gadget gadget) ( lo, hi ) gadget
 
     -- and we can look up those values using the other tools:
 
     metadata =
         Gadget.int
-            |> intRange 0 10
+            |> range 0 10
             |> Gadget.IR.irType
             |> (\(Gadget.IR.IR metadata_ _) ->
                 metadata_
                )
 
     value =
-        tools.get "int_lo" Gadget.int metadata
+        tools.get "range" (Gadget.tuple Gadget.int Gadget.int) metadata
 
-    value --> Just 0
+    value --> Just ( 0, 10 )
 
     member =
-        tools.member "int_hi" metadata
+        tools.member "range" metadata
 
     member --> True
 
