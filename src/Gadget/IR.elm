@@ -190,8 +190,8 @@ For example, here's how [`Gadget.Adapter.Random`](Gadget-Adapter-Random) defines
 -}
 type alias MetadataTools meta a =
     { attach : String -> Gadget meta -> meta -> Gadget a -> Gadget a
-    , get : String -> Metadata -> Maybe (IR Value)
     , decode : String -> Gadget meta -> Metadata -> Maybe meta
+    , get : String -> Metadata -> Maybe (IR Value)
     , debug : Metadata -> List ( String, List ( String, String ) )
     }
 
