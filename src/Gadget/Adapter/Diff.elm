@@ -1,4 +1,7 @@
-module Gadget.Adapter.Diff exposing (Changes, diff, patch)
+module Gadget.Adapter.Diff exposing
+    ( Changes, diff, patch
+    , changes
+    )
 
 {-|
 
@@ -57,7 +60,9 @@ probably possible with judicious (ab)use of [`Gadget.IR.Metadata`](Gadget-IR#Met
 
 import Dict
 import Diff as ListDiffer
+import Gadget
 import Gadget.IR as IR
+import Html.Attributes exposing (name)
 import List.Extra
 import Maybe.Extra
 import Result.Extra
@@ -85,6 +90,96 @@ type Changes
     | ListChanges (List ListChange)
     | TupleChange Changes Changes
     | TripleChange Changes Changes Changes
+
+
+changes : Gadget.Gadget Changes
+changes =
+    let
+        changes_ =
+            Gadget.lazy (\() -> changes)
+
+        indexedChanges_ =
+            Gadget.tuple Gadget.int changes_
+    in
+    Gadget.custom
+        (\identical recordChanges customChanges boolChange intChange floatChange charChange stringChange listChanges tupleChanges tripleChanges variant ->
+            case variant of
+                Identical ->
+                    identical
+
+                RecordChanges fst rst ->
+                    recordChanges fst rst
+
+                CustomChanges selected cs ->
+                    customChanges selected cs
+
+                BoolChange b ->
+                    boolChange b
+
+                IntChange i ->
+                    intChange i
+
+                FloatChange f ->
+                    floatChange f
+
+                CharChange c ->
+                    charChange c
+
+                StringChange s ->
+                    stringChange s
+
+                ListChanges l ->
+                    listChanges l
+
+                TupleChange a b ->
+                    tupleChanges a b
+
+                TripleChange a b c ->
+                    tripleChanges a b c
+        )
+        |> Gadget.variant0 "Identical" Identical
+        |> Gadget.variant2 "RecordChanges" RecordChanges indexedChanges_ (Gadget.list indexedChanges_)
+        |> Gadget.variant2 "CustomChanges" CustomChanges Gadget.int (Gadget.list indexedChanges_)
+        |> Gadget.variant1 "BoolChange" BoolChange Gadget.bool
+        |> Gadget.variant1 "IntChange" IntChange Gadget.int
+        |> Gadget.variant1 "FloatChange" FloatChange Gadget.float
+        |> Gadget.variant1 "CharChange" CharChange Gadget.char
+        |> Gadget.variant1 "StringChange" StringChange Gadget.string
+        |> Gadget.variant1 "ListChanges" ListChanges (Gadget.list (Gadget.lazy (\() -> listChange)))
+        |> Gadget.variant2 "TupleChange" TupleChange changes_ changes_
+        |> Gadget.variant3 "TripleChange" TripleChange changes_ changes_ changes_
+        |> Gadget.endCustom
+
+
+listChange =
+    Gadget.custom
+        (\added moved updated rangeForward rangeBackward repeat variant ->
+            case variant of
+                Added cs ->
+                    added cs
+
+                Moved _ ->
+                    Debug.todo "branch 'Moved _' not implemented"
+
+                Updated _ _ ->
+                    Debug.todo "branch 'Updated _ _' not implemented"
+
+                RangeForward _ _ ->
+                    Debug.todo "branch 'RangeForward _ _' not implemented"
+
+                RangeBackward _ _ ->
+                    Debug.todo "branch 'RangeBackward _ _' not implemented"
+
+                Repeat _ _ ->
+                    Debug.todo "branch 'Repeat _ _' not implemented"
+        )
+        |> Gadget.variant1 "Added" Added changes
+        |> Gadget.variant1 "Moved" Moved Gadget.int
+        |> Gadget.variant2 "Updated" Updated Gadget.int changes
+        |> Gadget.variant2 "RangeForward" RangeForward Gadget.int Gadget.int
+        |> Gadget.variant2 "RangeBackward" RangeBackward Gadget.int Gadget.int
+        |> Gadget.variant2 "Repeat" Repeat Gadget.int (Gadget.lazy (\() -> listChange))
+        |> Gadget.endCustom
 
 
 type ListChange
@@ -187,7 +282,7 @@ diffHelp (IR.IR _ type_) ((IR.IR _ oldData) as oldIR_) ((IR.IR _ newData) as new
 
                     ( IR.RecordValue fields1, IR.RecordValue fields2, IR.RecordType fieldTypes ) ->
                         let
-                            changes =
+                            changes_ =
                                 List.map3 diffHelp
                                     (List.map Tuple.second fieldTypes)
                                     (List.map Tuple.second fields1)
@@ -195,7 +290,7 @@ diffHelp (IR.IR _ type_) ((IR.IR _ oldData) as oldIR_) ((IR.IR _ newData) as new
                                     |> List.indexedMap Tuple.pair
                                     |> List.filter (\( _, arg ) -> arg /= Identical)
                         in
-                        case changes of
+                        case changes_ of
                             change :: restChanges ->
                                 RecordChanges change restChanges
 
@@ -384,8 +479,8 @@ areSimilar irType old new =
 
 
 size : Changes -> Int
-size changes =
-    case changes of
+size changes_ =
+    case changes_ of
         Identical ->
             0
 
@@ -608,16 +703,16 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
                         Nothing ->
                             Ok arg
 
-                        Just changes ->
-                            patchHelp changes arg argType
+                        Just changes__ ->
+                            patchHelp changes__ arg argType
 
                 toArgDiffFromDefault idx argType =
                     case Dict.get idx argsDict of
                         Nothing ->
                             Ok (default argType)
 
-                        Just changes ->
-                            patchHelp changes (default argType) argType
+                        Just changes__ ->
+                            patchHelp changes__ (default argType) argType
             in
             List.Extra.getAt diffSelected (firstVariantType :: restVariantTypes)
                 |> Result.fromMaybe "missing"

@@ -236,7 +236,7 @@ view model =
         , head "Random generator (second value, pretty-printed)"
         , pretty gadget secondValue
         , head "Diff between first & second values"
-        , show diff
+        , pretty Gadget.Adapter.Diff.changes diff
         , head "Patch first value with diff"
         , pretty (Gadget.result Gadget.string gadget) patched
         , head "Patched value equals second value?"
