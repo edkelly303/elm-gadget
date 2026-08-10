@@ -227,7 +227,7 @@ This might make it easier to debug if you have lots of different adapters.
 makeMetadataTools : String -> MetadataTools meta a
 makeMetadataTools adapterId =
     let
-        insert key metaGadget value (Metadata m) =
+        insert key metaGadget value (Metadata metadata) =
             Dict.update adapterId
                 (\maybe ->
                     case maybe of
@@ -237,31 +237,31 @@ makeMetadataTools adapterId =
                         Nothing ->
                             Just (Dict.singleton key (fromInput metaGadget value))
                 )
-                m
+                metadata
                 |> Metadata
 
-        attach key metaGadget value (Gadget c) =
+        attach key metaGadget value (Gadget gadget) =
             Gadget
                 { fromInput =
                     \input ->
                         let
                             (IR metadata inner) =
-                                c.fromInput input
+                                gadget.fromInput input
                         in
                         IR (insert key metaGadget value metadata) inner
                 , toOutput =
                     \ir_ ->
-                        c.toOutput ir_
+                        gadget.toOutput ir_
                 , irType =
                     let
                         (IR metadata inner) =
-                            c.irType
+                            gadget.irType
                     in
                     IR (insert key metaGadget value metadata) inner
                 }
 
-        get key (Metadata m) =
-            m
+        get key (Metadata metadata) =
+            metadata
                 |> Dict.get adapterId
                 |> Maybe.andThen (Dict.get key)
 
@@ -269,14 +269,14 @@ makeMetadataTools adapterId =
             get key metadata
                 |> Maybe.andThen (toOutput metaGadget >> Result.toMaybe)
 
-        debug (Metadata m) =
+        debug (Metadata metadata) =
             Dict.map
                 (\_ dict ->
                     dict
                         |> Dict.map (\_ value -> debugValue value)
                         |> Dict.toList
                 )
-                m
+                metadata
                 |> Dict.toList
 
         debugValue (IR _ value) =
