@@ -476,14 +476,8 @@ tests =
                     , Test.test
                         "1"
                         (\() ->
-                            member__Gadget_IR__MetadataTools_0
-                                |> Expect.equal Basics.True
-                        )
-                    , Test.test
-                        "2"
-                        (\() ->
                             let
-                                unused : List ( String.String, List ( String.String, Gadget.IR.IR Gadget.IR.Value ) )
+                                unused : List ( String.String, List ( String.String, String.String ) )
                                 unused =
                                     allValues__Gadget_IR__MetadataTools_0
                             in
@@ -850,21 +844,14 @@ metadata__Gadget_IR__MetadataTools_0 =
 
 
 value__Gadget_IR__MetadataTools_0 =
-    tools__Gadget_IR__MetadataTools_0.get
+    tools__Gadget_IR__MetadataTools_0.decode
         "range"
         (Gadget.tuple Gadget.int Gadget.int)
         metadata__Gadget_IR__MetadataTools_0
 
 
-member__Gadget_IR__MetadataTools_0 =
-    tools__Gadget_IR__MetadataTools_0.member
-        "range"
-        metadata__Gadget_IR__MetadataTools_0
-
-
 allValues__Gadget_IR__MetadataTools_0 =
-    tools__Gadget_IR__MetadataTools_0.export
-        metadata__Gadget_IR__MetadataTools_0
+    tools__Gadget_IR__MetadataTools_0.debug metadata__Gadget_IR__MetadataTools_0
 
 
 tools__Gadget_IR__makeMetadataTools_0 =

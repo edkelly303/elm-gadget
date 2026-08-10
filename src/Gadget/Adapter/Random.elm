@@ -165,7 +165,7 @@ generator gadget =
 
 randomAdapter : IRType -> Random.Generator IRValue
 randomAdapter (IR.IR metadata irType) =
-    case tools.getValue "choose" metadata of
+    case tools.get "choose" metadata of
         Just (IR.IR _ (IR.ListValue (choice :: choices))) ->
             Random.uniform choice choices
 
@@ -196,7 +196,7 @@ randomAdapter (IR.IR metadata irType) =
                     Random.map (IR.IR metadata) <|
                         Random.map IR.IntValue <|
                             case
-                                tools.get "range" (Gadget.tuple Gadget.int Gadget.int) metadata
+                                tools.decode "range" (Gadget.tuple Gadget.int Gadget.int) metadata
                             of
                                 Just ( lo, hi ) ->
                                     Random.int lo hi
@@ -208,7 +208,7 @@ randomAdapter (IR.IR metadata irType) =
                     Random.map (IR.IR metadata) <|
                         Random.map IR.FloatValue <|
                             case
-                                tools.get "range" (Gadget.tuple Gadget.float Gadget.float) metadata
+                                tools.decode "range" (Gadget.tuple Gadget.float Gadget.float) metadata
                             of
                                 Just ( lo, hi ) ->
                                     Random.float lo hi
@@ -277,7 +277,7 @@ randomAdapter (IR.IR metadata irType) =
                 IR.ListType itemType ->
                     let
                         ( min, max ) =
-                            tools.get "listLength" (Gadget.tuple Gadget.int Gadget.int) metadata
+                            tools.decode "listLength" (Gadget.tuple Gadget.int Gadget.int) metadata
                                 |> Maybe.withDefault ( 0, 10 )
                     in
                     Random.int min max

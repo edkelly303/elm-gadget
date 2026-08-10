@@ -66,7 +66,7 @@ htmlAdapter : IRValue -> H.Html msg
 htmlAdapter (IR.IR metadata irValue) =
     let
         viewMetadata =
-            case tools.export metadata of
+            case tools.debug metadata of
                 [] ->
                     H.text ""
 
@@ -74,7 +74,7 @@ htmlAdapter (IR.IR metadata irValue) =
                     H.aside [ HA.class "metadata" ]
                         [ H.strong [] [ H.text "Metadata" ]
                         , H.table []
-                            (tools.export metadata
+                            (tools.debug metadata
                                 |> List.concatMap
                                     (\( adapterId, kvs ) ->
                                         H.tr []
@@ -83,90 +83,17 @@ htmlAdapter (IR.IR metadata irValue) =
                                             , H.th [] [ H.text "Value" ]
                                             ]
                                             :: List.map
-                                                (\( k, IR.IR _ v ) ->
+                                                (\( k, v ) ->
                                                     H.tr []
                                                         [ H.td [] [ H.text ("\"" ++ adapterId ++ "\"") ]
                                                         , H.td [] [ H.text ("\"" ++ k ++ "\"") ]
-                                                        , H.td [] [ H.text (viewMetadataValue v) ]
+                                                        , H.td [] [ H.text v ]
                                                         ]
                                                 )
                                                 kvs
                                     )
                             )
                         ]
-
-        argsToList variant =
-            case variant of
-                IR.Variant0Value ->
-                    []
-
-                IR.Variant1Value arg ->
-                    [ arg ]
-
-                IR.Variant2Value arg1 arg2 ->
-                    [ arg1
-                    , arg2
-                    ]
-
-                IR.Variant3Value arg1 arg2 arg3 ->
-                    [ arg1
-                    , arg2
-                    , arg3
-                    ]
-
-                IR.Variant4Value arg1 arg2 arg3 arg4 ->
-                    [ arg1
-                    , arg2
-                    , arg3
-                    , arg4
-                    ]
-
-                IR.Variant5Value arg1 arg2 arg3 arg4 arg5 ->
-                    [ arg1
-                    , arg2
-                    , arg3
-                    , arg4
-                    , arg5
-                    ]
-
-        viewMetadataValue metadataValue =
-            case metadataValue of
-                IR.UnitValue ->
-                    "() : Unit"
-
-                IR.BoolValue b ->
-                    if b then
-                        "True : Bool"
-
-                    else
-                        "False : Bool"
-
-                IR.CharValue c ->
-                    "'" ++ String.fromChar c ++ "' : Char"
-
-                IR.StringValue s ->
-                    "\"" ++ s ++ "\" : String"
-
-                IR.IntValue i ->
-                    String.fromInt i ++ " : Int"
-
-                IR.FloatValue f ->
-                    String.fromFloat f ++ " : Float"
-
-                IR.CustomValue selected ( name, variant ) ->
-                    name ++ String.fromInt selected ++ " " ++ String.join " " (List.map (\(IR.IR _ v) -> viewMetadataValue v) (argsToList variant))
-
-                IR.RecordValue fields ->
-                    String.join " " (List.map (\( _, IR.IR _ v ) -> viewMetadataValue v) fields)
-
-                IR.ListValue items ->
-                    String.join " " (List.map (\(IR.IR _ v) -> viewMetadataValue v) items)
-
-                IR.TupleValue a b ->
-                    String.join " " (List.map (\(IR.IR _ v) -> viewMetadataValue v) [ a, b ])
-
-                IR.TripleValue a b c ->
-                    String.join " " (List.map (\(IR.IR _ v) -> viewMetadataValue v) [ a, b, c ])
 
         viewValue metadataHtml v =
             case v of

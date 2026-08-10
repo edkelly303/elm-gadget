@@ -32,7 +32,6 @@ various `Gadget.Adapter` modules in this package:
 -}
 
 import Dict exposing (Dict)
-import Maybe.Extra
 
 
 {-| The core type of this package. Use the functions in this module together
@@ -179,29 +178,21 @@ For example, here's how [`Gadget.Adapter.Random`](Gadget-Adapter-Random) defines
                )
 
     value =
-        tools.get "range" (Gadget.tuple Gadget.int Gadget.int) metadata
+        tools.decode "range" (Gadget.tuple Gadget.int Gadget.int) metadata
 
     value --> Just ( 0, 10 )
 
-    member =
-        tools.member "range" metadata
-
-    member --> True
-
     allValues =
-        tools.export metadata
+        tools.debug metadata
 
-    allValues --: List (String, List (String, Gadget.IR.IR Gadget.IR.Value))
+    allValues --: List (String, List (String, String))
 
 -}
 type alias MetadataTools meta a =
     { attach : String -> Gadget meta -> meta -> Gadget a -> Gadget a
-    , extract : Gadget a -> Metadata
-    , insert : String -> Gadget meta -> meta -> Metadata -> Metadata
-    , get : String -> Gadget meta -> Metadata -> Maybe meta
-    , getValue : String -> Metadata -> Maybe (IR Value)
-    , member : String -> Metadata -> Bool
-    , export : Metadata -> List ( String, List ( String, IR Value ) )
+    , get : String -> Metadata -> Maybe (IR Value)
+    , decode : String -> Gadget meta -> Metadata -> Maybe meta
+    , debug : Metadata -> List ( String, List ( String, String ) )
     }
 
 
@@ -269,35 +260,107 @@ makeMetadataTools adapterId =
                     IR (insert key metaGadget value metadata) inner
                 }
 
-        extract (Gadget g) =
-            let
-                (IR metadata _) =
-                    g.irType
-            in
-            metadata
-
-        getValue key (Metadata m) =
+        get key (Metadata m) =
             m
                 |> Dict.get adapterId
                 |> Maybe.andThen (Dict.get key)
 
-        get key metaGadget metadata =
-            getValue key metadata
+        decode key metaGadget metadata =
+            get key metadata
                 |> Maybe.andThen (toOutput metaGadget >> Result.toMaybe)
 
-        member key metadata =
-            getValue key metadata
-                |> Maybe.Extra.isJust
-
-        export (Metadata m) =
-            Dict.map (\_ v -> Dict.toList v) m
+        debug (Metadata m) =
+            Dict.map
+                (\_ dict ->
+                    dict
+                        |> Dict.map (\_ value -> debugValue value)
+                        |> Dict.toList
+                )
+                m
                 |> Dict.toList
+
+        debugValue (IR _ value) =
+            case value of
+                UnitValue ->
+                    "()"
+
+                BoolValue b ->
+                    if b then
+                        "True"
+
+                    else
+                        "False"
+
+                CharValue c ->
+                    "'" ++ String.fromChar c ++ "'"
+
+                StringValue s ->
+                    "\"" ++ escape s ++ "\""
+
+                IntValue i ->
+                    String.fromInt i
+
+                FloatValue f ->
+                    String.fromFloat f
+
+                CustomValue _ ( name, variant ) ->
+                    name ++ String.join " " (List.map debugValue (argsToList variant))
+
+                RecordValue namedFields ->
+                    "{ " ++ (List.map (\( name, field ) -> name ++ " = " ++ debugValue field) namedFields |> String.join ", ") ++ " }"
+
+                ListValue items ->
+                    "[ " ++ (List.map debugValue items |> String.join ", ") ++ " ]"
+
+                TupleValue a b ->
+                    "( " ++ debugValue a ++ ", " ++ debugValue b ++ " )"
+
+                TripleValue a b c ->
+                    "( " ++ debugValue a ++ ", " ++ debugValue b ++ debugValue c ++ " )"
+
+        escape s =
+            s
+                |> String.replace "\"" "\\\""
+                |> String.replace "\t" "\\t"
+                |> String.replace "\u{000D}" "\\r"
+                |> String.replace "\n" "\\n"
+
+        argsToList variant =
+            case variant of
+                Variant0Value ->
+                    []
+
+                Variant1Value arg ->
+                    [ arg ]
+
+                Variant2Value arg1 arg2 ->
+                    [ arg1
+                    , arg2
+                    ]
+
+                Variant3Value arg1 arg2 arg3 ->
+                    [ arg1
+                    , arg2
+                    , arg3
+                    ]
+
+                Variant4Value arg1 arg2 arg3 arg4 ->
+                    [ arg1
+                    , arg2
+                    , arg3
+                    , arg4
+                    ]
+
+                Variant5Value arg1 arg2 arg3 arg4 arg5 ->
+                    [ arg1
+                    , arg2
+                    , arg3
+                    , arg4
+                    , arg5
+                    ]
     in
     { attach = attach
-    , extract = extract
-    , insert = insert
+    , decode = decode
     , get = get
-    , getValue = getValue
-    , member = member
-    , export = export
+    , debug = debug
     }

@@ -146,7 +146,7 @@ type Override
 -}
 label : String -> IR.Gadget a -> IR.Gadget a
 label l =
-    tools.attach l Gadget.string ""
+    tools.attach l Gadget.unit ()
 
 
 {-| Override the default implementation of a `Fuzz.Fuzzer`.
@@ -167,11 +167,9 @@ fuzzAdapter overrides (IR.IR metadata irType) =
                             Just prevOverride
 
                         Nothing ->
-                            if tools.member key metadata then
-                                Just thisOverride
-
-                            else
-                                Nothing
+                            metadata
+                                |> tools.get key
+                                |> Maybe.map (\_ -> thisOverride)
                 )
                 Nothing
     of
