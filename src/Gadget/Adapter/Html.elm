@@ -25,13 +25,9 @@ debugging while I was writing this package.
 
 -}
 
-import Gadget.IR as IR
+import Gadget.IR as IR exposing (IR(..), Value(..), VariantValue(..))
 import Html as H
 import Html.Attributes as HA
-
-
-type alias IRValue =
-    IR.IR IR.Value
 
 
 tools : IR.MetadataTools meta a
@@ -62,8 +58,8 @@ view gadget value =
         |> H.article [ HA.class "elm-gadget" ]
 
 
-htmlAdapter : IRValue -> H.Html msg
-htmlAdapter (IR.IR metadata irValue) =
+htmlAdapter : IR Value -> H.Html msg
+htmlAdapter (IR metadata irValue) =
     let
         viewMetadata =
             case tools.debug metadata of
@@ -97,12 +93,12 @@ htmlAdapter (IR.IR metadata irValue) =
 
         viewValue metadataHtml v =
             case v of
-                IR.UnitValue ->
+                UnitValue ->
                     unquotedPrimitive metadataHtml
                         "Unit"
                         "()"
 
-                IR.BoolValue b ->
+                BoolValue b ->
                     unquotedPrimitive metadataHtml
                         "Bool"
                         (if b then
@@ -112,47 +108,47 @@ htmlAdapter (IR.IR metadata irValue) =
                             "False"
                         )
 
-                IR.CharValue c ->
+                CharValue c ->
                     quotedPrimitive metadataHtml "'" "Char" (String.fromChar c)
 
-                IR.StringValue s ->
+                StringValue s ->
                     quotedPrimitive metadataHtml "\"" "String" s
 
-                IR.IntValue i ->
+                IntValue i ->
                     unquotedPrimitive metadataHtml "Int" (String.fromInt i)
 
-                IR.FloatValue f ->
+                FloatValue f ->
                     unquotedPrimitive metadataHtml "Float" (String.fromFloat f)
 
-                IR.CustomValue _ ( name, variant ) ->
+                CustomValue _ ( name, variant ) ->
                     let
                         args =
                             case variant of
-                                IR.Variant0Value ->
+                                Variant0Value ->
                                     []
 
-                                IR.Variant1Value arg ->
+                                Variant1Value arg ->
                                     [ arg ]
 
-                                IR.Variant2Value arg1 arg2 ->
+                                Variant2Value arg1 arg2 ->
                                     [ arg1
                                     , arg2
                                     ]
 
-                                IR.Variant3Value arg1 arg2 arg3 ->
+                                Variant3Value arg1 arg2 arg3 ->
                                     [ arg1
                                     , arg2
                                     , arg3
                                     ]
 
-                                IR.Variant4Value arg1 arg2 arg3 arg4 ->
+                                Variant4Value arg1 arg2 arg3 arg4 ->
                                     [ arg1
                                     , arg2
                                     , arg3
                                     , arg4
                                     ]
 
-                                IR.Variant5Value arg1 arg2 arg3 arg4 arg5 ->
+                                Variant5Value arg1 arg2 arg3 arg4 arg5 ->
                                     [ arg1
                                     , arg2
                                     , arg3
@@ -180,7 +176,7 @@ htmlAdapter (IR.IR metadata irValue) =
                         )
                         (List.map (Tuple.pair "") args)
 
-                IR.RecordValue fields ->
+                RecordValue fields ->
                     let
                         count =
                             List.length fields
@@ -200,7 +196,7 @@ htmlAdapter (IR.IR metadata irValue) =
                         )
                         fields
 
-                IR.ListValue items ->
+                ListValue items ->
                     let
                         count =
                             List.length items
@@ -220,14 +216,14 @@ htmlAdapter (IR.IR metadata irValue) =
                         )
                         (List.map (Tuple.pair "") items)
 
-                IR.TupleValue a b ->
+                TupleValue a b ->
                     combinator
                         metadataHtml
                         "Tuple"
                         ""
                         (List.map (Tuple.pair "") [ a, b ])
 
-                IR.TripleValue a b c ->
+                TripleValue a b c ->
                     combinator
                         metadataHtml
                         "Triple"
@@ -256,7 +252,7 @@ unquotedPrimitive metadataHtml =
     primitive metadataHtml (H.text "") (\value -> H.code [] [ H.text value ])
 
 
-combinator : H.Html msg -> String -> String -> List ( String, IRValue ) -> H.Html msg
+combinator : H.Html msg -> String -> String -> List ( String, IR Value ) -> H.Html msg
 combinator metadataHtml typeName typeInfo items =
     if List.isEmpty items then
         H.div [ HA.class "combinator", HA.class typeName ]
