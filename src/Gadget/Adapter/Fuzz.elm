@@ -31,15 +31,7 @@ Use a Gadget to create a `Fuzz.Fuzzer` for use with functions from the
 import Dict
 import Fuzz
 import Gadget
-import Gadget.IR as IR
-
-
-type alias IRValue =
-    IR.IR IR.Value
-
-
-type alias IRType =
-    IR.IR IR.Type
+import Gadget.IR as IR exposing (Gadget, IR(..), Type(..), Value(..), VariantType(..), VariantValue(..))
 
 
 tools : IR.MetadataTools meta a
@@ -73,7 +65,7 @@ tools =
     fuzzedPerson --> [ { age = 92, name = "o \n\\" } ]
 
 -}
-fuzzer : IR.Gadget a -> Fuzz.Fuzzer a
+fuzzer : Gadget a -> Fuzz.Fuzzer a
 fuzzer gadget =
     fuzzerWithOverrides [] gadget
 
@@ -115,7 +107,7 @@ implementations of fuzzers that are defined by this module.
     fuzzedPerson --> [ { age = 105, name = "Ed" } ]
 
 -}
-fuzzerWithOverrides : List Override -> IR.Gadget a -> Fuzz.Fuzzer a
+fuzzerWithOverrides : List Override -> Gadget a -> Fuzz.Fuzzer a
 fuzzerWithOverrides overrides gadget =
     let
         overridesDict =
@@ -139,25 +131,25 @@ fuzzerWithOverrides overrides gadget =
 {-| A type used to represent overrides.
 -}
 type Override
-    = Override String (Fuzz.Fuzzer IRValue)
+    = Override String (Fuzz.Fuzzer (IR Value))
 
 
 {-| Add a label to a `Gadget` so that it can be overridden.
 -}
-label : String -> IR.Gadget a -> IR.Gadget a
+label : String -> Gadget a -> Gadget a
 label l =
     tools.attach l Gadget.unit ()
 
 
 {-| Override the default implementation of a `Fuzz.Fuzzer`.
 -}
-override : String -> IR.Gadget a -> Fuzz.Fuzzer a -> Override
+override : String -> Gadget a -> Fuzz.Fuzzer a -> Override
 override label_ gadget inputFuzzer =
     Override label_ (Fuzz.map (IR.fromInput gadget) inputFuzzer)
 
 
-fuzzAdapter : Dict.Dict String (Fuzz.Fuzzer IRValue) -> IRType -> Fuzz.Fuzzer IRValue
-fuzzAdapter overrides (IR.IR metadata irType) =
+fuzzAdapter : Dict.Dict String (Fuzz.Fuzzer (IR Value)) -> IR Type -> Fuzz.Fuzzer (IR Value)
+fuzzAdapter overrides (IR metadata irType) =
     case
         overrides
             |> Dict.foldl
@@ -178,66 +170,66 @@ fuzzAdapter overrides (IR.IR metadata irType) =
 
         Nothing ->
             case irType of
-                IR.LazyType construct ->
+                LazyType construct ->
                     Fuzz.lazy (\() -> fuzzAdapter overrides (construct ()))
 
-                IR.UnitType ->
-                    Fuzz.constant (IR.IR metadata IR.UnitValue)
+                UnitType ->
+                    Fuzz.constant (IR metadata UnitValue)
 
-                IR.BoolType ->
-                    Fuzz.bool |> Fuzz.map (IR.BoolValue >> IR.IR metadata)
+                BoolType ->
+                    Fuzz.bool |> Fuzz.map (BoolValue >> IR metadata)
 
-                IR.CharType ->
-                    Fuzz.char |> Fuzz.map (IR.CharValue >> IR.IR metadata)
+                CharType ->
+                    Fuzz.char |> Fuzz.map (CharValue >> IR metadata)
 
-                IR.StringType ->
-                    Fuzz.string |> Fuzz.map (IR.StringValue >> IR.IR metadata)
+                StringType ->
+                    Fuzz.string |> Fuzz.map (StringValue >> IR metadata)
 
-                IR.IntType ->
-                    Fuzz.int |> Fuzz.map (IR.IntValue >> IR.IR metadata)
+                IntType ->
+                    Fuzz.int |> Fuzz.map (IntValue >> IR metadata)
 
-                IR.FloatType ->
-                    Fuzz.niceFloat |> Fuzz.map (IR.FloatValue >> IR.IR metadata)
+                FloatType ->
+                    Fuzz.niceFloat |> Fuzz.map (FloatValue >> IR metadata)
 
-                IR.CustomType firstVariant restVariants ->
-                    Fuzz.map (IR.IR metadata) <|
+                CustomType firstVariant restVariants ->
+                    Fuzz.map (IR metadata) <|
                         Fuzz.oneOf
                             (List.indexedMap
                                 (\idx ( name, variant ) ->
                                     case variant of
-                                        IR.Variant0Type ->
+                                        Variant0Type ->
                                             Fuzz.constant
-                                                (IR.CustomValue idx ( name, IR.Variant0Value ))
+                                                (CustomValue idx ( name, Variant0Value ))
 
-                                        IR.Variant1Type arg ->
+                                        Variant1Type arg ->
                                             Fuzz.map
-                                                (\a -> IR.CustomValue idx ( name, IR.Variant1Value a ))
+                                                (\a -> CustomValue idx ( name, Variant1Value a ))
                                                 (fuzzAdapter overrides arg)
 
-                                        IR.Variant2Type arg1 arg2 ->
+                                        Variant2Type arg1 arg2 ->
                                             Fuzz.map2
-                                                (\a1 a2 -> IR.CustomValue idx ( name, IR.Variant2Value a1 a2 ))
+                                                (\a1 a2 -> CustomValue idx ( name, Variant2Value a1 a2 ))
                                                 (fuzzAdapter overrides arg1)
                                                 (fuzzAdapter overrides arg2)
 
-                                        IR.Variant3Type arg1 arg2 arg3 ->
+                                        Variant3Type arg1 arg2 arg3 ->
                                             Fuzz.map3
-                                                (\a1 a2 a3 -> IR.CustomValue idx ( name, IR.Variant3Value a1 a2 a3 ))
+                                                (\a1 a2 a3 -> CustomValue idx ( name, Variant3Value a1 a2 a3 ))
                                                 (fuzzAdapter overrides arg1)
                                                 (fuzzAdapter overrides arg2)
                                                 (fuzzAdapter overrides arg3)
 
-                                        IR.Variant4Type arg1 arg2 arg3 arg4 ->
+                                        Variant4Type arg1 arg2 arg3 arg4 ->
                                             Fuzz.map4
-                                                (\a1 a2 a3 a4 -> IR.CustomValue idx ( name, IR.Variant4Value a1 a2 a3 a4 ))
+                                                (\a1 a2 a3 a4 -> CustomValue idx ( name, Variant4Value a1 a2 a3 a4 ))
                                                 (fuzzAdapter overrides arg1)
                                                 (fuzzAdapter overrides arg2)
                                                 (fuzzAdapter overrides arg3)
                                                 (fuzzAdapter overrides arg4)
 
-                                        IR.Variant5Type arg1 arg2 arg3 arg4 arg5 ->
+                                        Variant5Type arg1 arg2 arg3 arg4 arg5 ->
                                             Fuzz.map5
-                                                (\a1 a2 a3 a4 a5 -> IR.CustomValue idx ( name, IR.Variant5Value a1 a2 a3 a4 a5 ))
+                                                (\a1 a2 a3 a4 a5 -> CustomValue idx ( name, Variant5Value a1 a2 a3 a4 a5 ))
                                                 (fuzzAdapter overrides arg1)
                                                 (fuzzAdapter overrides arg2)
                                                 (fuzzAdapter overrides arg3)
@@ -247,28 +239,28 @@ fuzzAdapter overrides (IR.IR metadata irType) =
                                 (firstVariant :: restVariants)
                             )
 
-                IR.RecordType fields ->
+                RecordType fields ->
                     fields
                         |> Fuzz.traverse
                             (\( name, field ) ->
                                 fuzzAdapter overrides field
                                     |> Fuzz.map (Tuple.pair name)
                             )
-                        |> Fuzz.map IR.RecordValue
-                        |> Fuzz.map (IR.IR metadata)
+                        |> Fuzz.map RecordValue
+                        |> Fuzz.map (IR metadata)
 
-                IR.ListType itemType ->
+                ListType itemType ->
                     Fuzz.list (fuzzAdapter overrides itemType)
-                        |> Fuzz.map IR.ListValue
-                        |> Fuzz.map (IR.IR metadata)
+                        |> Fuzz.map ListValue
+                        |> Fuzz.map (IR metadata)
 
-                IR.TupleType aType bType ->
-                    Fuzz.map2 (\a b -> IR.IR metadata (IR.TupleValue a b))
+                TupleType aType bType ->
+                    Fuzz.map2 (\a b -> IR metadata (TupleValue a b))
                         (fuzzAdapter overrides aType)
                         (fuzzAdapter overrides bType)
 
-                IR.TripleType aType bType cType ->
-                    Fuzz.map3 (\a b c -> IR.IR metadata (IR.TripleValue a b c))
+                TripleType aType bType cType ->
+                    Fuzz.map3 (\a b c -> IR metadata (TripleValue a b c))
                         (fuzzAdapter overrides aType)
                         (fuzzAdapter overrides bType)
                         (fuzzAdapter overrides cType)
