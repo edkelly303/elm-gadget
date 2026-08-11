@@ -56,13 +56,14 @@ probably possible with judicious (ab)use of [`Gadget.IR.Metadata`](Gadget-IR#Met
 
 @docs Changes, diff, patch
 
+@docs changes
+
 -}
 
 import Dict
 import Diff as ListDiffer
 import Gadget
 import Gadget.IR as IR
-import Html.Attributes exposing (name)
 import List.Extra
 import Maybe.Extra
 import Result.Extra
@@ -92,6 +93,13 @@ type Changes
     | TripleChange Changes Changes Changes
 
 
+{-| A Gadget for the [`Changes`](#Changes) type.
+
+You might want to use a JSON adapter to encode a `Changes` value and
+send it over the wire, for example. Or you could use a pretty-printer adapter to
+make it easy to inspect a `Changes` value for debugging purposes.
+
+-}
 changes : Gadget.Gadget Changes
 changes =
     let
@@ -151,6 +159,7 @@ changes =
         |> Gadget.endCustom
 
 
+listChange : Gadget.Gadget ListChange
 listChange =
     Gadget.custom
         (\added moved updated rangeForward rangeBackward repeat variant ->
@@ -158,20 +167,20 @@ listChange =
                 Added cs ->
                     added cs
 
-                Moved _ ->
-                    Debug.todo "branch 'Moved _' not implemented"
+                Moved idx ->
+                    moved idx
 
-                Updated _ _ ->
-                    Debug.todo "branch 'Updated _ _' not implemented"
+                Updated idx cs ->
+                    updated idx cs
 
-                RangeForward _ _ ->
-                    Debug.todo "branch 'RangeForward _ _' not implemented"
+                RangeForward start end ->
+                    rangeForward start end
 
-                RangeBackward _ _ ->
-                    Debug.todo "branch 'RangeBackward _ _' not implemented"
+                RangeBackward start end ->
+                    rangeBackward start end
 
-                Repeat _ _ ->
-                    Debug.todo "branch 'Repeat _ _' not implemented"
+                Repeat n cs ->
+                    repeat n cs
         )
         |> Gadget.variant1 "Added" Added changes
         |> Gadget.variant1 "Moved" Moved Gadget.int
@@ -191,7 +200,7 @@ type ListChange
     | Repeat Int ListChange
 
 
-{-| Compare two values and generate [Changes](#Changes).
+{-| Compare two values and generate [`Changes`](#Changes).
 -}
 diff : IR.Gadget a -> a -> a -> Changes
 diff gadget old new =
@@ -600,7 +609,7 @@ default (IR.IR metadata irType) =
             IR.IR metadata <| IR.TripleValue (default aType) (default bType) (default cType)
 
 
-{-| Use a set of [Changes](#Changes) to patch a value.
+{-| Use a set of [`Changes`](#Changes) to patch a value.
 -}
 patch : IR.Gadget a -> Changes -> a -> Result String a
 patch gadget delta old =
