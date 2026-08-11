@@ -93,57 +93,57 @@ decoder gadget =
 
 
 encodeAdapter : IR Value -> JE.Value
-encodeAdapter (IR.IR _ irValue) =
+encodeAdapter (IR _ irValue) =
     case irValue of
-        IR.UnitValue ->
+        UnitValue ->
             JE.null
 
-        IR.BoolValue b ->
+        BoolValue b ->
             JE.bool b
 
-        IR.CharValue c ->
+        CharValue c ->
             JE.string (String.fromChar c)
 
-        IR.StringValue s ->
+        StringValue s ->
             JE.string s
 
-        IR.IntValue i ->
+        IntValue i ->
             JE.int i
 
-        IR.FloatValue f ->
+        FloatValue f ->
             JE.float f
 
-        IR.CustomValue _ ( name, variant ) ->
+        CustomValue _ ( name, variant ) ->
             JE.object
                 [ ( "tag", JE.string name )
                 , ( "args"
                   , JE.list encodeAdapter
                         (case variant of
-                            IR.Variant0Value ->
+                            Variant0Value ->
                                 []
 
-                            IR.Variant1Value arg ->
+                            Variant1Value arg ->
                                 [ arg ]
 
-                            IR.Variant2Value arg1 arg2 ->
+                            Variant2Value arg1 arg2 ->
                                 [ arg1
                                 , arg2
                                 ]
 
-                            IR.Variant3Value arg1 arg2 arg3 ->
+                            Variant3Value arg1 arg2 arg3 ->
                                 [ arg1
                                 , arg2
                                 , arg3
                                 ]
 
-                            IR.Variant4Value arg1 arg2 arg3 arg4 ->
+                            Variant4Value arg1 arg2 arg3 arg4 ->
                                 [ arg1
                                 , arg2
                                 , arg3
                                 , arg4
                                 ]
 
-                            IR.Variant5Value arg1 arg2 arg3 arg4 arg5 ->
+                            Variant5Value arg1 arg2 arg3 arg4 arg5 ->
                                 [ arg1
                                 , arg2
                                 , arg3
@@ -154,16 +154,16 @@ encodeAdapter (IR.IR _ irValue) =
                   )
                 ]
 
-        IR.RecordValue fields ->
+        RecordValue fields ->
             JE.object (List.map (\( name, field ) -> ( name, encodeAdapter field )) fields)
 
-        IR.ListValue items ->
+        ListValue items ->
             JE.list encodeAdapter items
 
-        IR.TupleValue a b ->
+        TupleValue a b ->
             JE.list encodeAdapter [ a, b ]
 
-        IR.TripleValue a b c ->
+        TripleValue a b c ->
             JE.list encodeAdapter [ a, b, c ]
 
 
@@ -171,10 +171,10 @@ decodeAdapter : IR Type -> JD.Decoder (IR Value)
 decodeAdapter (IR metadata irType) =
     case irType of
         UnitType ->
-            JD.null (IR metadata IR.UnitValue)
+            JD.null (IR metadata UnitValue)
 
         BoolType ->
-            JD.bool |> JD.map IR.BoolValue |> JD.map (IR metadata)
+            JD.bool |> JD.map BoolValue |> JD.map (IR metadata)
 
         CharType ->
             JD.string
@@ -189,13 +189,13 @@ decodeAdapter (IR metadata irType) =
                     )
 
         StringType ->
-            JD.string |> JD.map IR.StringValue |> JD.map (IR metadata)
+            JD.string |> JD.map StringValue |> JD.map (IR metadata)
 
         IntType ->
-            JD.int |> JD.map IR.IntValue |> JD.map (IR metadata)
+            JD.int |> JD.map IntValue |> JD.map (IR metadata)
 
         FloatType ->
-            JD.float |> JD.map IR.FloatValue |> JD.map (IR metadata)
+            JD.float |> JD.map FloatValue |> JD.map (IR metadata)
 
         CustomType fst rst ->
             let
