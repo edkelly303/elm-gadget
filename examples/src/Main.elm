@@ -240,7 +240,7 @@ view model =
         , head "Patch first value with diff"
         , pretty (Gadget.result Gadget.string gadget) patched
         , head "Patched value equals second value?"
-        , show (patched == Ok secondValue)
+        , pretty Gadget.bool (patched == Ok secondValue)
         , head "Html viewer (first value)"
         , Gadget.Adapter.Html.view gadget firstValue
         , head "Html viewer (second value)"
@@ -261,7 +261,3 @@ view model =
 head : String -> H.Html msg
 head txt =
     H.h2 [] [ H.text txt ]
-
-
-show s =
-    H.pre [] [ H.text (Debug.toString s) ]
