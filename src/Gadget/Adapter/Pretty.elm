@@ -89,11 +89,25 @@ printHelp parentIsCustom (IR.IR _ value) =
                                         |> P.a P.line
                                         |> P.a (printHelp True arg3)
 
-                                Variant4Value _ _ _ _ ->
-                                    Debug.todo "branch 'Variant4Value _ _ _ _' not implemented"
+                                Variant4Value arg1 arg2 arg3 arg4 ->
+                                    printHelp True arg1
+                                        |> P.a P.line
+                                        |> P.a (printHelp True arg2)
+                                        |> P.a P.line
+                                        |> P.a (printHelp True arg3)
+                                        |> P.a P.line
+                                        |> P.a (printHelp True arg4)
 
-                                Variant5Value _ _ _ _ _ ->
-                                    Debug.todo "branch 'Variant5Value _ _ _ _ _' not implemented"
+                                Variant5Value arg1 arg2 arg3 arg4 arg5 ->
+                                    printHelp True arg1
+                                        |> P.a P.line
+                                        |> P.a (printHelp True arg2)
+                                        |> P.a P.line
+                                        |> P.a (printHelp True arg3)
+                                        |> P.a P.line
+                                        |> P.a (printHelp True arg4)
+                                        |> P.a P.line
+                                        |> P.a (printHelp True arg5)
                             )
                     )
                 |> P.group
