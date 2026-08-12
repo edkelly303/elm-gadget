@@ -20,6 +20,9 @@ converts between Elm values and a simple and fairly compact String
 representation. I originally wrote this adapter because I wanted to be able to
 turn Elm values into Strings so that I could hash them.
 
+If you are looking for a pretty-printer, try the
+[`Gadget.Adapter.Pretty`](Gadget-Adapter-Pretty) module.
+
 
 ## API
 

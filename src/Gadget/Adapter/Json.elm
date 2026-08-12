@@ -13,8 +13,7 @@ your own production-grade adapters that are designed for your specific use-case.
 
 ## Introduction
 
-Use a Gadget to convert Elm values into a JSON representation, and vice
-versa.
+Use a Gadget to convert Elm values into a JSON representation, and vice versa.
 
 
 ## API
