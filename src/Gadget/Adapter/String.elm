@@ -188,11 +188,11 @@ parser gadget =
 irParser : Parser IR.Value
 irParser =
     P.oneOf
-        [ P.chompIf (\c -> c == '0') |> P.map (\() -> IR.UnitValue)
+        [ unitParser |> P.map (\() -> IR.UnitValue)
         , boolParser |> P.map IR.BoolValue
         , intParser |> P.map IR.IntValue
         , floatParser |> P.map IR.FloatValue
-        , charParser
+        , charParser |> P.map IR.CharValue
         , stringParser |> P.map IR.StringValue
         , listParser
         , recordParser
@@ -200,6 +200,11 @@ irParser =
         , tupleParser
         , tripleParser
         ]
+
+
+unitParser : Parser ()
+unitParser =
+    P.chompIf (\c -> c == '0')
 
 
 floatParser : Parser Float
@@ -350,7 +355,7 @@ rawBoolParser =
             )
 
 
-charParser : Parser IR.Value
+charParser : Parser Char
 charParser =
     (P.succeed identity
         |. P.token "c"
@@ -363,7 +368,7 @@ charParser =
                         P.problem "Not a char"
 
                     Just ( c, _ ) ->
-                        P.succeed (IR.CharValue c)
+                        P.succeed c
             )
 
 
