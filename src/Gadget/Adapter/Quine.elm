@@ -48,32 +48,90 @@ quineHelp irType =
                         )
 
                 pizza =
-                    P.string "|>"
+                    P.string "|> "
 
                 field =
                     P.string "Gadget.field"
 
                 fields =
-                    P.separators " "
+                    P.join P.line
                         (List.map
                             (\( name, fld ) ->
-                                field
+                                P.tightline
+                                    |> P.a pizza
+                                    |> P.a field
+                                    |> P.a P.line
                                     |> P.a (P.string ("\"" ++ name ++ "\""))
+                                    |> P.group
+                                    |> P.a P.line
                                     |> P.a (P.string ("." ++ name))
-                                    |> P.a (quineHelp fld)
+                                    |> P.group
+                                    |> P.a P.line
+                                    |> P.a
+                                        (if needsParens fld then
+                                            parens (quineHelp fld)
+
+                                         else
+                                            quineHelp fld
+                                        )
+                                    |> P.nest 4
+                                    |> P.group
                             )
                             namedFields
                         )
+                        |> P.group
+
+                parens inner =
+                    P.group
+                        (P.flatAlt
+                            (P.char '(' |> P.a inner |> P.a (P.char ')'))
+                            (P.char '(' |> P.a inner |> P.a P.line |> P.a (P.char ')'))
+                        )
+
+                needsParens fld =
+                    case fld of
+                        UnitType _ ->
+                            False
+
+                        BoolType _ ->
+                            False
+
+                        CharType _ ->
+                            False
+
+                        StringType _ ->
+                            False
+
+                        IntType _ ->
+                            False
+
+                        FloatType _ ->
+                            False
+
+                        _ ->
+                            True
 
                 endRecord =
                     P.string "Gadget.endRecord"
             in
             P.string "Gadget.record"
-                |> P.a ctor
-                |> P.a pizza
-                |> P.a fields
-                |> P.a pizza
-                |> P.a endRecord
+                |> P.a
+                    (P.line
+                        |> P.a ctor
+                        |> P.nest 4
+                    )
+                |> P.group
+                |> P.a
+                    (P.line
+                        |> P.a fields
+                        |> P.nest 4
+                    )
+                |> P.a
+                    (P.line
+                        |> P.a pizza
+                        |> P.a endRecord
+                        |> P.nest 4
+                    )
 
         CustomType _ _ _ ->
             Debug.todo "branch 'CustomType _ _ _' not implemented"
