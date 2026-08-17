@@ -464,28 +464,6 @@ tests =
         , Test.describe
             "Gadget.IR"
             [ Test.describe
-                "MetadataTools"
-                [ Test.describe
-                    "code snippet 0"
-                    [ Test.test
-                        "0"
-                        (\() ->
-                            value__Gadget_IR__MetadataTools_0
-                                |> Expect.equal (Maybe.Just ( 0, 10 ))
-                        )
-                    , Test.test
-                        "1"
-                        (\() ->
-                            let
-                                unused : List ( String.String, List ( String.String, String.String ) )
-                                unused =
-                                    allValues__Gadget_IR__MetadataTools_0
-                            in
-                            Expect.pass
-                        )
-                    ]
-                ]
-            , Test.describe
                 "makeMetadataTools"
                 [ Test.describe
                     "code snippet 0"
@@ -821,37 +799,6 @@ printer__Gadget_Adapter_String__print_0 =
 
 printed__Gadget_Adapter_String__print_0 =
     printer__Gadget_Adapter_String__print_0 [ 1, 2, 3 ]
-
-
-tools__Gadget_IR__MetadataTools_0 =
-    Gadget.IR.makeMetadataTools "MyAdapter"
-
-
-range__Gadget_IR__MetadataTools_0 : number -> number -> Gadget.IR.Gadget number -> Gadget.IR.Gadget number
-range__Gadget_IR__MetadataTools_0 lo hi gadget =
-    tools__Gadget_IR__MetadataTools_0.attach
-        "range"
-        (Gadget.tuple gadget gadget)
-        ( lo, hi )
-        gadget
-
-
-metadata__Gadget_IR__MetadataTools_0 =
-    Gadget.int
-        |> range__Gadget_IR__MetadataTools_0 0 10
-        |> Gadget.IR.irType
-        |> (\(Gadget.IR.IR metadata_ _) -> metadata_)
-
-
-value__Gadget_IR__MetadataTools_0 =
-    tools__Gadget_IR__MetadataTools_0.decode
-        "range"
-        (Gadget.tuple Gadget.int Gadget.int)
-        metadata__Gadget_IR__MetadataTools_0
-
-
-allValues__Gadget_IR__MetadataTools_0 =
-    tools__Gadget_IR__MetadataTools_0.debug metadata__Gadget_IR__MetadataTools_0
 
 
 tools__Gadget_IR__makeMetadataTools_0 =

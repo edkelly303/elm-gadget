@@ -38,8 +38,8 @@ print gadget width input =
         |> P.pretty width
 
 
-printHelp : Bool -> IR.IR Value -> P.Doc t
-printHelp parentIsCustom (IR.IR _ value) =
+printHelp : Bool -> IR.Value -> P.Doc t
+printHelp parentIsCustom value =
     case value of
         UnitValue ->
             P.string "()"

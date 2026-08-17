@@ -34,10 +34,6 @@ import Gadget.IR as IR
 import Parser as P exposing ((|.), (|=), Parser)
 
 
-type alias IRValue =
-    IR.IR IR.Value
-
-
 {-| Convert an Elm value into a String.
 
     import Gadget
@@ -63,7 +59,7 @@ primitive typeTag typeInfo =
     typeTag ++ "(" ++ typeInfo ++ ")"
 
 
-combinator : String -> String -> List IRValue -> String
+combinator : String -> String -> List IR.Value -> String
 combinator typeTag typeInfo items =
     typeTag
         ++ typeInfo
@@ -72,8 +68,8 @@ combinator typeTag typeInfo items =
         ++ "]"
 
 
-printAdapter : IRValue -> String
-printAdapter (IR.IR _ irValue) =
+printAdapter : IR.Value -> String
+printAdapter irValue =
     case irValue of
         IR.UnitValue ->
             "0"
@@ -176,7 +172,6 @@ into an Elm value.
 parser : IR.Gadget a -> Parser a
 parser gadget =
     irParser
-        |> P.map IR.ir
         |> P.andThen
             (\ir ->
                 case IR.toOutput gadget ir of
@@ -229,7 +224,7 @@ listParser : Parser IR.Value
 listParser =
     P.sequence
         { start = "l["
-        , item = P.lazy (\() -> irParser) |> P.map IR.ir
+        , item = P.lazy (\() -> irParser)
         , end = "]"
         , separator = ","
         , spaces = P.spaces
@@ -242,7 +237,7 @@ tupleParser : Parser IR.Value
 tupleParser =
     P.sequence
         { start = "2["
-        , item = P.lazy (\() -> irParser) |> P.map IR.ir
+        , item = P.lazy (\() -> irParser)
         , end = "]"
         , separator = ","
         , spaces = P.spaces
@@ -263,7 +258,7 @@ tripleParser : Parser IR.Value
 tripleParser =
     P.sequence
         { start = "3["
-        , item = P.lazy (\() -> irParser) |> P.map IR.ir
+        , item = P.lazy (\() -> irParser)
         , end = "]"
         , separator = ","
         , spaces = P.spaces
@@ -284,7 +279,7 @@ recordParser : Parser IR.Value
 recordParser =
     P.sequence
         { start = "r["
-        , item = P.lazy (\() -> irParser) |> P.map (\ir -> ( "", IR.ir ir ))
+        , item = P.lazy (\() -> irParser) |> P.map (\ir -> ( "", ir ))
         , end = "]"
         , separator = ","
         , spaces = P.spaces
@@ -300,7 +295,7 @@ customParser =
         |= P.int
         |= (P.sequence
                 { start = "["
-                , item = P.lazy (\() -> irParser) |> P.map IR.ir
+                , item = P.lazy (\() -> irParser)
                 , end = "]"
                 , separator = ","
                 , spaces = P.spaces
