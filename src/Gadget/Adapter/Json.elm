@@ -23,7 +23,7 @@ Use a Gadget to convert Elm values into a JSON representation, and vice versa.
 -}
 
 import Dict
-import Gadget.IR as IR exposing (IR(..), Type(..), Value(..), VariantType(..), VariantValue(..))
+import Gadget.IR as IR exposing (Type(..), Value(..), VariantType(..), VariantValue(..))
 import Json.Decode as JD
 import Json.Decode.Extra
 import Json.Encode as JE
@@ -91,8 +91,8 @@ decoder gadget =
             )
 
 
-encodeAdapter : IR Value -> JE.Value
-encodeAdapter (IR _ irValue) =
+encodeAdapter : IR.Value -> JE.Value
+encodeAdapter irValue =
     case irValue of
         UnitValue ->
             JE.null
@@ -166,16 +166,16 @@ encodeAdapter (IR _ irValue) =
             JE.list encodeAdapter [ a, b, c ]
 
 
-decodeAdapter : IR Type -> JD.Decoder (IR Value)
-decodeAdapter (IR metadata irType) =
+decodeAdapter : IR.Type -> JD.Decoder IR.Value
+decodeAdapter irType =
     case irType of
-        UnitType ->
-            JD.null (IR metadata UnitValue)
+        UnitType _ ->
+            JD.null UnitValue
 
-        BoolType ->
-            JD.bool |> JD.map BoolValue |> JD.map (IR metadata)
+        BoolType _ ->
+            JD.bool |> JD.map BoolValue
 
-        CharType ->
+        CharType _ ->
             JD.string
                 |> JD.andThen
                     (\s ->
@@ -184,19 +184,19 @@ decodeAdapter (IR metadata irType) =
                                 JD.fail "not a char"
 
                             Just ( c, _ ) ->
-                                JD.succeed (IR metadata (CharValue c))
+                                JD.succeed (CharValue c)
                     )
 
-        StringType ->
-            JD.string |> JD.map StringValue |> JD.map (IR metadata)
+        StringType _ ->
+            JD.string |> JD.map StringValue
 
-        IntType ->
-            JD.int |> JD.map IntValue |> JD.map (IR metadata)
+        IntType _ ->
+            JD.int |> JD.map IntValue
 
-        FloatType ->
-            JD.float |> JD.map FloatValue |> JD.map (IR metadata)
+        FloatType _ ->
+            JD.float |> JD.map FloatValue
 
-        CustomType fst rst ->
+        CustomType _ fst rst ->
             let
                 dict =
                     (fst :: rst)
@@ -249,9 +249,8 @@ decodeAdapter (IR metadata irType) =
                             Nothing ->
                                 JD.fail (name ++ " is not a valid variant name for this type")
                     )
-                |> JD.map (IR metadata)
 
-        RecordType fieldTypes ->
+        RecordType _ fieldTypes ->
             List.map
                 (\( name, fieldType ) ->
                     JD.field name
@@ -266,23 +265,21 @@ decodeAdapter (IR metadata irType) =
                 fieldTypes
                 |> Json.Decode.Extra.combine
                 |> JD.map RecordValue
-                |> JD.map (IR metadata)
 
-        ListType itemType ->
+        ListType _ itemType ->
             JD.list (JD.lazy (\() -> decodeAdapter itemType))
                 |> JD.map ListValue
-                |> JD.map (IR metadata)
 
-        TupleType aType bType ->
-            JD.map2 (\a b -> IR metadata (TupleValue a b))
+        TupleType _ aType bType ->
+            JD.map2 (\a b -> TupleValue a b)
                 (JD.index 0 (JD.lazy (\() -> decodeAdapter aType)))
                 (JD.index 1 (JD.lazy (\() -> decodeAdapter bType)))
 
-        TripleType aType bType cType ->
-            JD.map3 (\a b c -> IR metadata (TripleValue a b c))
+        TripleType _ aType bType cType ->
+            JD.map3 (\a b c -> TripleValue a b c)
                 (JD.index 0 (JD.lazy (\() -> decodeAdapter aType)))
                 (JD.index 1 (JD.lazy (\() -> decodeAdapter bType)))
                 (JD.index 2 (JD.lazy (\() -> decodeAdapter cType)))
 
-        LazyType innerType ->
+        LazyType _ innerType ->
             JD.lazy (\() -> decodeAdapter (innerType ()))

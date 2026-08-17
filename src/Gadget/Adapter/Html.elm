@@ -25,9 +25,10 @@ debugging while I was writing this package.
 
 -}
 
-import Gadget.IR as IR exposing (IR(..), Value(..), VariantValue(..))
+import Gadget.IR as IR exposing (Type(..), Value(..), VariantType(..), VariantValue(..))
 import Html as H
 import Html.Attributes as HA
+import List.Extra
 
 
 tools : IR.MetadataTools meta a
@@ -51,26 +52,32 @@ tools =
 
 -}
 view : IR.Gadget a -> a -> H.Html msg
-view gadget value =
-    IR.fromInput gadget value
-        |> htmlAdapter
+view gadget input =
+    let
+        value =
+            IR.fromInput gadget input
+
+        irType =
+            IR.irType gadget
+    in
+    htmlAdapter value irType
         |> List.singleton
         |> H.article [ HA.class "elm-gadget" ]
 
 
-htmlAdapter : IR Value -> H.Html msg
-htmlAdapter (IR metadata irValue) =
+htmlAdapter : Value -> Type -> H.Html msg
+htmlAdapter irValue irType =
     let
-        viewMetadata =
+        viewMetadata metadata =
             case tools.debug metadata of
                 [] ->
                     H.text ""
 
-                _ ->
+                debugged ->
                     H.aside [ HA.class "metadata" ]
                         [ H.strong [] [ H.text "Metadata" ]
                         , H.table []
-                            (tools.debug metadata
+                            (debugged
                                 |> List.concatMap
                                     (\( adapterId, kvs ) ->
                                         H.tr []
@@ -91,15 +98,15 @@ htmlAdapter (IR metadata irValue) =
                             )
                         ]
 
-        viewValue metadataHtml v =
-            case v of
-                UnitValue ->
-                    unquotedPrimitive metadataHtml
+        viewValue metadataHtml v t =
+            case ( v, t ) of
+                ( UnitValue, UnitType metadata ) ->
+                    unquotedPrimitive (metadataHtml metadata)
                         "Unit"
                         "()"
 
-                BoolValue b ->
-                    unquotedPrimitive metadataHtml
+                ( BoolValue b, BoolType metadata ) ->
+                    unquotedPrimitive (metadataHtml metadata)
                         "Bool"
                         (if b then
                             "True"
@@ -108,20 +115,25 @@ htmlAdapter (IR metadata irValue) =
                             "False"
                         )
 
-                CharValue c ->
-                    quotedPrimitive metadataHtml "'" "Char" (String.fromChar c)
+                ( CharValue c, CharType metadata ) ->
+                    quotedPrimitive (metadataHtml metadata) "'" "Char" (String.fromChar c)
 
-                StringValue s ->
-                    quotedPrimitive metadataHtml "\"" "String" s
+                ( StringValue s, StringType metadata ) ->
+                    quotedPrimitive (metadataHtml metadata) "\"" "String" s
 
-                IntValue i ->
-                    unquotedPrimitive metadataHtml "Int" (String.fromInt i)
+                ( IntValue i, IntType metadata ) ->
+                    unquotedPrimitive (metadataHtml metadata) "Int" (String.fromInt i)
 
-                FloatValue f ->
-                    unquotedPrimitive metadataHtml "Float" (String.fromFloat f)
+                ( FloatValue f, FloatType metadata ) ->
+                    unquotedPrimitive (metadataHtml metadata) "Float" (String.fromFloat f)
 
-                CustomValue _ ( name, variant ) ->
+                ( CustomValue idx ( name, variant ), CustomType metadata fst rst ) ->
                     let
+                        variantType =
+                            List.Extra.getAt idx (fst :: rst)
+                                |> Maybe.map Tuple.second
+                                |> Maybe.withDefault Variant0Type
+
                         args =
                             case variant of
                                 Variant0Value ->
@@ -156,11 +168,45 @@ htmlAdapter (IR metadata irValue) =
                                     , arg5
                                     ]
 
+                        argTypes =
+                            case variantType of
+                                Variant0Type ->
+                                    []
+
+                                Variant1Type arg ->
+                                    [ arg ]
+
+                                Variant2Type arg1 arg2 ->
+                                    [ arg1
+                                    , arg2
+                                    ]
+
+                                Variant3Type arg1 arg2 arg3 ->
+                                    [ arg1
+                                    , arg2
+                                    , arg3
+                                    ]
+
+                                Variant4Type arg1 arg2 arg3 arg4 ->
+                                    [ arg1
+                                    , arg2
+                                    , arg3
+                                    , arg4
+                                    ]
+
+                                Variant5Type arg1 arg2 arg3 arg4 arg5 ->
+                                    [ arg1
+                                    , arg2
+                                    , arg3
+                                    , arg4
+                                    , arg5
+                                    ]
+
                         numArgs =
                             List.length args
                     in
                     combinator
-                        metadataHtml
+                        (metadataHtml metadata)
                         "Variant"
                         ("\""
                             ++ name
@@ -174,15 +220,15 @@ htmlAdapter (IR metadata irValue) =
                                     "s"
                                )
                         )
-                        (List.map (Tuple.pair "") args)
+                        (List.map2 (\arg argType -> ( "", arg, argType )) args argTypes)
 
-                RecordValue fields ->
+                ( RecordValue fields, RecordType metadata fieldTypes ) ->
                     let
                         count =
                             List.length fields
                     in
                     combinator
-                        metadataHtml
+                        (metadataHtml metadata)
                         "Record"
                         ("with "
                             ++ String.fromInt count
@@ -194,15 +240,19 @@ htmlAdapter (IR metadata irValue) =
                                     "s"
                                )
                         )
-                        fields
+                        (List.map2
+                            (\( name, field ) ( _, fieldType ) -> ( name, field, fieldType ))
+                            fields
+                            fieldTypes
+                        )
 
-                ListValue items ->
+                ( ListValue items, ListType metadata itemType ) ->
                     let
                         count =
                             List.length items
                     in
                     combinator
-                        metadataHtml
+                        (metadataHtml metadata)
                         "List"
                         ("with "
                             ++ String.fromInt count
@@ -214,23 +264,34 @@ htmlAdapter (IR metadata irValue) =
                                     "s"
                                )
                         )
-                        (List.map (Tuple.pair "") items)
+                        (List.map (\item -> ( "", item, itemType )) items)
 
-                TupleValue a b ->
+                ( TupleValue a b, TupleType metadata aType bType ) ->
                     combinator
-                        metadataHtml
+                        (metadataHtml metadata)
                         "Tuple"
                         ""
-                        (List.map (Tuple.pair "") [ a, b ])
+                        (List.map2
+                            (\elem elemType -> ( "", elem, elemType ))
+                            [ a, b ]
+                            [ aType, bType ]
+                        )
 
-                TripleValue a b c ->
+                ( TripleValue a b c, TripleType metadata aType bType cType ) ->
                     combinator
-                        metadataHtml
+                        (metadataHtml metadata)
                         "Triple"
                         ""
-                        (List.map (Tuple.pair "") [ a, b, c ])
+                        (List.map2
+                            (\elem elemType -> ( "", elem, elemType ))
+                            [ a, b, c ]
+                            [ aType, bType, cType ]
+                        )
+
+                _ ->
+                    H.text "Error!"
     in
-    viewValue viewMetadata irValue
+    viewValue viewMetadata irValue irType
 
 
 primitive : H.Html msg -> H.Html msg -> (String -> H.Html msg) -> String -> String -> H.Html msg
@@ -252,7 +313,7 @@ unquotedPrimitive metadataHtml =
     primitive metadataHtml (H.text "") (\value -> H.code [] [ H.text value ])
 
 
-combinator : H.Html msg -> String -> String -> List ( String, IR Value ) -> H.Html msg
+combinator : H.Html msg -> String -> String -> List ( String, Value, Type ) -> H.Html msg
 combinator metadataHtml typeName typeInfo items =
     if List.isEmpty items then
         H.div [ HA.class "combinator", HA.class typeName ]
@@ -271,7 +332,7 @@ combinator metadataHtml typeName typeInfo items =
                 ]
             , H.div []
                 [ H.ol []
-                    (List.map (\( name, item ) -> H.li [] [ H.text name, htmlAdapter item ]) items)
+                    (List.map (\( name, item, type_ ) -> H.li [] [ H.text name, htmlAdapter item type_ ]) items)
                 , metadataHtml
                 ]
             ]
