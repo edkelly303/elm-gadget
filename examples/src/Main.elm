@@ -242,7 +242,7 @@ view model =
                 )
             ]
         , head "Quine"
-        , H.pre [] [ H.text (Gadget.Adapter.Quine.quine gadget) ]
+        , H.pre [] [ H.text (Gadget.Adapter.Quine.quine model.prettyWidth gadget) ]
         , head "Random generator (first value, pretty-printed)"
         , pretty gadget firstValue
         , head "Random generator (second value, pretty-printed)"

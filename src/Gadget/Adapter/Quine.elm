@@ -1,72 +1,79 @@
 module Gadget.Adapter.Quine exposing (quine)
 
 import Gadget.IR as IR exposing (Type(..), VariantType(..))
+import Pretty as P
 
 
-quine : IR.Gadget a -> String
-quine gadget =
+quine : Int -> IR.Gadget a -> String
+quine columns gadget =
     IR.irType gadget
-        |> quineHelp 4
+        |> quineHelp
+        |> P.pretty columns
 
 
-quineHelp : Int -> Type -> String
-quineHelp indent irType =
-    let
-        spaces =
-            String.repeat indent " "
-    in
+quineHelp : Type -> P.Doc t
+quineHelp irType =
     case irType of
         UnitType _ ->
-            "Gadget.unit"
+            P.string "Gadget.unit"
 
         BoolType _ ->
-            "Gadget.bool"
+            P.string "Gadget.bool"
 
         IntType _ ->
-            "Gadget.int"
+            P.string "Gadget.int"
 
         FloatType _ ->
-            "Gadget.float"
+            P.string "Gadget.float"
 
         CharType _ ->
-            "Gadget.char"
+            P.string "Gadget.char"
 
         StringType _ ->
-            "Gadget.string"
+            P.string "Gadget.string"
 
         RecordType _ namedFields ->
-            "Gadget.record (\\"
-                ++ (List.map (\( name, field ) -> name) namedFields
-                        |> String.join " "
-                   )
-                ++ " -> { "
-                ++ (List.map (\( name, field ) -> name ++ " = " ++ name) namedFields
-                        |> String.join ", "
-                   )
-                ++ " })\n"
-                ++ spaces
-                ++ "|> "
-                ++ (List.map
-                        (\( name, field ) ->
-                            "Gadget.field \""
-                                ++ name
-                                ++ "\" ."
-                                ++ name
-                                ++ "\n"
-                                ++ spaces
-                                ++ "    "
-                                ++ quineHelp (indent + 4) field
+            let
+                ctor =
+                    P.string
+                        ("(\\"
+                            ++ (List.map (\( name, fld ) -> name) namedFields
+                                    |> String.join " "
+                               )
+                            ++ " -> { "
+                            ++ (List.map (\( name, fld ) -> name ++ " = " ++ name) namedFields
+                                    |> String.join ", "
+                               )
+                            ++ " })"
                         )
-                        namedFields
-                        |> String.join
-                            ("\n"
-                                ++ spaces
-                                ++ "|> "
+
+                pizza =
+                    P.string "|>"
+
+                field =
+                    P.string "Gadget.field"
+
+                fields =
+                    P.separators " "
+                        (List.map
+                            (\( name, fld ) ->
+                                field
+                                    |> P.a (P.string ("\"" ++ name ++ "\""))
+                                    |> P.a (P.string ("." ++ name))
+                                    |> P.a (quineHelp fld)
                             )
-                   )
-                ++ "\n"
-                ++ spaces
-                ++ "|> Gadget.endRecord"
+                            namedFields
+                        )
+
+                endRecord =
+                    P.string "Gadget.endRecord"
+            in
+            P.string "Gadget.record"
+                |> P.a ctor
+                |> P.a pizza
+                |> P.a fields
+                |> P.a pizza
+                |> P.a endRecord
 
         CustomType _ _ _ ->
             Debug.todo "branch 'CustomType _ _ _' not implemented"
