@@ -34,52 +34,88 @@ quineHelp irType =
 
         RecordType _ namedFields ->
             let
+                recordFunctionCall =
+                    P.string "Gadget.record"
+
+                fnHead =
+                    P.words
+                        [ P.string "\\"
+                            |> P.a
+                                (P.string
+                                    (List.map (\( name, fld ) -> name) namedFields
+                                        |> String.join " "
+                                    )
+                                )
+                        , P.string "->"
+                        ]
+
+                fnBody =
+                    case namedFields of
+                        [] ->
+                            P.string "{}"
+
+                        _ ->
+                            let
+                                printField ( name, fld ) =
+                                    P.string (name ++ " =")
+                                        |> P.a P.line
+                                        |> P.nest 4
+                                        |> P.a (P.string name)
+                                        |> P.group
+                            in
+                            P.surround
+                                (P.string "{ ")
+                                (P.line |> P.a (P.string "}"))
+                                (P.separators ", " (List.map printField namedFields))
+                                |> P.group
+                                |> P.align
+
                 ctor =
-                    P.string
-                        ("(\\"
-                            ++ (List.map (\( name, fld ) -> name) namedFields
-                                    |> String.join " "
-                               )
-                            ++ " -> { "
-                            ++ (List.map (\( name, fld ) -> name ++ " = " ++ name) namedFields
-                                    |> String.join ", "
-                               )
-                            ++ " })"
-                        )
+                    fnHead
+                        |> P.a P.line
+                        |> P.a fnBody
+                        |> P.nest 4
+                        |> parens
 
                 pizza =
                     P.string "|> "
 
-                field =
+                fieldFunctionCall =
                     P.string "Gadget.field"
 
                 fields =
                     P.join P.line
                         (List.map
                             (\( name, fld ) ->
-                                P.tightline
-                                    |> P.a pizza
-                                    |> P.a field
+                                pizza
+                                    |> P.a fieldFunctionCall
                                     |> P.a P.line
-                                    |> P.a (P.string ("\"" ++ name ++ "\""))
+                                    |> P.a (fieldName name)
                                     |> P.group
                                     |> P.a P.line
-                                    |> P.a (P.string ("." ++ name))
+                                    |> P.a (fieldGetter name)
                                     |> P.group
                                     |> P.a P.line
-                                    |> P.a
-                                        (if needsParens fld then
-                                            parens (quineHelp fld)
-
-                                         else
-                                            quineHelp fld
-                                        )
+                                    |> P.a (fieldGadget fld)
                                     |> P.nest 4
                                     |> P.group
                             )
                             namedFields
                         )
                         |> P.group
+
+                fieldName name =
+                    P.string ("\"" ++ name ++ "\"")
+
+                fieldGetter name =
+                    P.string ("." ++ name)
+
+                fieldGadget fld =
+                    if isPrimitive fld then
+                        parens (quineHelp fld)
+
+                    else
+                        quineHelp fld
 
                 parens inner =
                     P.group
@@ -88,7 +124,7 @@ quineHelp irType =
                             (P.char '(' |> P.a inner |> P.a P.line |> P.a (P.char ')'))
                         )
 
-                needsParens fld =
+                isPrimitive fld =
                     case fld of
                         UnitType _ ->
                             False
@@ -111,10 +147,10 @@ quineHelp irType =
                         _ ->
                             True
 
-                endRecord =
+                endRecordFunctionCall =
                     P.string "Gadget.endRecord"
             in
-            P.string "Gadget.record"
+            recordFunctionCall
                 |> P.a
                     (P.line
                         |> P.a ctor
@@ -129,7 +165,7 @@ quineHelp irType =
                 |> P.a
                     (P.line
                         |> P.a pizza
-                        |> P.a endRecord
+                        |> P.a endRecordFunctionCall
                         |> P.nest 4
                     )
 
