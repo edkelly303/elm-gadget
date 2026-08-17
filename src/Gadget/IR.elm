@@ -247,16 +247,9 @@ makeMetadataTools adapterId =
 
         attach key metaGadget value (Gadget gadget) =
             Gadget
-                { fromInput =
-                    gadget.fromInput
-                , toOutput =
-                    gadget.toOutput
-                , irType =
-                    let
-                        inner =
-                            gadget.irType
-                    in
-                    insert key metaGadget value inner
+                { gadget
+                    | irType =
+                        insert key metaGadget value gadget.irType
                 }
 
         get key (Metadata metadata) =
