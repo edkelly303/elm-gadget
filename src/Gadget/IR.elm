@@ -166,7 +166,7 @@ For example, here's how [`Gadget.Adapter.Random`](Gadget-Adapter-Random) defines
     rangedIntGadget =
         Gadget.int
             |> range 0 10
-    
+
     metadata =
         rangedIntGadget
             |> Gadget.IR.irType
