@@ -1,8 +1,9 @@
 module Gadget.IR exposing
     ( Gadget(..)
     , fromInput, irType, toOutput, Error
-    , IR(..), ir, Value(..), VariantValue(..), Type(..), VariantType(..)
+    , Value(..), VariantValue(..), Type(..), VariantType(..)
     , Metadata, MetadataTools, makeMetadataTools
+    , emptyMetadata
     )
 
 {-| Tools for creating adapters for Gadgets.
@@ -39,9 +40,9 @@ with an appropriate Gadget to convert values to and from the `IR` type.
 -}
 type Gadget a
     = Gadget
-        { fromInput : a -> IR Value
-        , toOutput : IR Value -> Result Error a
-        , irType : IR Type
+        { fromInput : a -> Value
+        , toOutput : Value -> Result Error a
+        , irType : Type
         }
 
 
@@ -49,12 +50,6 @@ type Gadget a
 -}
 type alias Error =
     String
-
-
-{-| A wrapper that attaches `Metadata` to each `Value` and `Type` node.
--}
-type IR valueOrType
-    = IR Metadata valueOrType
 
 
 {-| When an Elm value is translated into IR, its structure and contents are
@@ -68,87 +63,85 @@ type Value
     | IntValue Int
     | FloatValue Float
     | CustomValue Int ( String, VariantValue )
-    | RecordValue (List ( String, IR Value ))
-    | ListValue (List (IR Value))
-    | TupleValue (IR Value) (IR Value)
-    | TripleValue (IR Value) (IR Value) (IR Value)
+    | RecordValue (List ( String, Value ))
+    | ListValue (List Value)
+    | TupleValue Value Value
+    | TripleValue Value Value Value
 
 
 {-| A type used by the `Custom` constructor of the `Value` type.
 -}
 type VariantValue
     = Variant0Value
-    | Variant1Value (IR Value)
-    | Variant2Value (IR Value) (IR Value)
-    | Variant3Value (IR Value) (IR Value) (IR Value)
-    | Variant4Value (IR Value) (IR Value) (IR Value) (IR Value)
-    | Variant5Value (IR Value) (IR Value) (IR Value) (IR Value) (IR Value)
+    | Variant1Value Value
+    | Variant2Value Value Value
+    | Variant3Value Value Value Value
+    | Variant4Value Value Value Value Value
+    | Variant5Value Value Value Value Value Value
 
 
 {-| When translated into IR, any Elm value will have a "type" that is a variant of `Type`.
 -}
 type Type
-    = UnitType
-    | BoolType
-    | CharType
-    | StringType
-    | IntType
-    | FloatType
-    | CustomType ( String, VariantType ) (List ( String, VariantType ))
-    | RecordType (List ( String, IR Type ))
-    | ListType (IR Type)
-    | LazyType (() -> IR Type)
-    | TupleType (IR Type) (IR Type)
-    | TripleType (IR Type) (IR Type) (IR Type)
+    = UnitType Metadata
+    | BoolType Metadata
+    | CharType Metadata
+    | StringType Metadata
+    | IntType Metadata
+    | FloatType Metadata
+    | CustomType Metadata ( String, VariantType ) (List ( String, VariantType ))
+    | RecordType Metadata (List ( String, Type ))
+    | ListType Metadata Type
+    | LazyType Metadata (() -> Type)
+    | TupleType Metadata Type Type
+    | TripleType Metadata Type Type Type
 
 
 {-| A type used by the `Custom` constructor of the `Type` type.
 -}
 type VariantType
     = Variant0Type
-    | Variant1Type (IR Type)
-    | Variant2Type (IR Type) (IR Type)
-    | Variant3Type (IR Type) (IR Type) (IR Type)
-    | Variant4Type (IR Type) (IR Type) (IR Type) (IR Type)
-    | Variant5Type (IR Type) (IR Type) (IR Type) (IR Type) (IR Type)
+    | Variant1Type Type
+    | Variant2Type Type Type
+    | Variant3Type Type Type Type
+    | Variant4Type Type Type Type Type
+    | Variant5Type Type Type Type Type Type
 
 
-{-| Use an appropriate Gadget to convert an Elm value into an `IR Value`.
+{-| Use an appropriate Gadget to convert an Elm value into an `Value`.
 -}
-fromInput : Gadget a -> a -> IR Value
+fromInput : Gadget a -> a -> Value
 fromInput (Gadget c) input =
     c.fromInput input
 
 
-{-| Use an appropriate Gadget to extract the `IR Type` of an Elm value.
+{-| Use an appropriate Gadget to extract the `Type` of an Elm value.
 -}
-irType : Gadget a -> IR Type
+irType : Gadget a -> Type
 irType (Gadget c) =
     c.irType
 
 
-{-| Use an appropriate Gadget to attempt to convert an `IR Value` into an Elm
+{-| Use an appropriate Gadget to attempt to convert an `Value` into an Elm
 value.
 -}
-toOutput : Gadget a -> IR Value -> Result Error a
+toOutput : Gadget a -> Value -> Result Error a
 toOutput (Gadget c) a =
     c.toOutput a
 
 
-{-| A type used to carry metadata for `IR Value` or `IR Type` nodes.
+{-| A type used to carry metadata for `Value` or `Type` nodes.
 -}
 type Metadata
-    = Metadata (Dict String (Dict String (IR Value)))
+    = Metadata (Dict String (Dict String Value))
 
 
-{-| A helper for making new `IR` nodes
--}
-ir : valueOrType -> IR valueOrType
-ir =
-    IR (Metadata Dict.empty)
+emptyMetadata : Metadata
+emptyMetadata =
+    Metadata Dict.empty
 
 
-{-| Tools for working with `Metadata` attached to the `IR Value` or `IR Type`
+{-| Tools for working with `Metadata` attached to the `Value` or `Type`
 produced by a Gadget.
 
 For example, here's how [`Gadget.Adapter.Random`](Gadget-Adapter-Random) defines
@@ -173,7 +166,7 @@ For example, here's how [`Gadget.Adapter.Random`](Gadget-Adapter-Random) defines
         Gadget.int
             |> range 0 10
             |> Gadget.IR.irType
-            |> (\(Gadget.IR.IR metadata_ _) ->
+            |> (\(Gadget.IR.metadata_ _) ->
                 metadata_
                )
 
@@ -191,7 +184,7 @@ For example, here's how [`Gadget.Adapter.Random`](Gadget-Adapter-Random) defines
 type alias MetadataTools meta a =
     { attach : String -> Gadget meta -> meta -> Gadget a -> Gadget a
     , decode : String -> Gadget meta -> Metadata -> Maybe meta
-    , get : String -> Metadata -> Maybe (IR Value)
+    , get : String -> Metadata -> Maybe Value
     , debug : Metadata -> List ( String, List ( String, String ) )
     }
 
@@ -199,7 +192,7 @@ type alias MetadataTools meta a =
 {-| Make tools for working with `Metadata` for a specific adapter.
 
 `Metadata` is effectively a key-value store that allows adapters to attach extra
-information to the `IR Value` and `IR Type` nodes produced by Gadgets.
+information to the `Value` and `Type` nodes produced by Gadgets.
 
 To avoid spooky action at a distance and weird bugs, it's important that each
 adapter can only access the metadata values that it has inserted - it can't read
@@ -227,37 +220,35 @@ This might make it easier to debug if you have lots of different adapters.
 makeMetadataTools : String -> MetadataTools meta a
 makeMetadataTools adapterId =
     let
-        insert key metaGadget value (Metadata metadata) =
-            Dict.update adapterId
-                (\maybe ->
-                    case maybe of
-                        Just adapterDict ->
-                            Just (Dict.insert key (fromInput metaGadget value) adapterDict)
+        insert key metaGadget metaValue type_ =
+            mapMetadata
+                (\(Metadata metadata) ->
+                    Dict.update adapterId
+                        (\maybe ->
+                            case maybe of
+                                Just adapterDict ->
+                                    Just (Dict.insert key (fromInput metaGadget metaValue) adapterDict)
 
-                        Nothing ->
-                            Just (Dict.singleton key (fromInput metaGadget value))
+                                Nothing ->
+                                    Just (Dict.singleton key (fromInput metaGadget metaValue))
+                        )
+                        metadata
+                        |> Metadata
                 )
-                metadata
-                |> Metadata
+                type_
 
         attach key metaGadget value (Gadget gadget) =
             Gadget
                 { fromInput =
-                    \input ->
-                        let
-                            (IR metadata inner) =
-                                gadget.fromInput input
-                        in
-                        IR (insert key metaGadget value metadata) inner
+                    gadget.fromInput
                 , toOutput =
-                    \ir_ ->
-                        gadget.toOutput ir_
+                    gadget.toOutput
                 , irType =
                     let
-                        (IR metadata inner) =
+                        inner =
                             gadget.irType
                     in
-                    IR (insert key metaGadget value metadata) inner
+                    insert key metaGadget value inner
                 }
 
         get key (Metadata metadata) =
@@ -279,7 +270,7 @@ makeMetadataTools adapterId =
                 metadata
                 |> Dict.toList
 
-        debugValue (IR _ value) =
+        debugValue value =
             case value of
                 UnitValue ->
                     "()"
@@ -358,6 +349,44 @@ makeMetadataTools adapterId =
                     , arg4
                     , arg5
                     ]
+
+        mapMetadata f type_ =
+            case type_ of
+                UnitType m ->
+                    UnitType (f m)
+
+                BoolType m ->
+                    BoolType (f m)
+
+                CharType m ->
+                    CharType (f m)
+
+                StringType m ->
+                    StringType (f m)
+
+                IntType m ->
+                    IntType (f m)
+
+                FloatType m ->
+                    FloatType (f m)
+
+                CustomType m fst rst ->
+                    CustomType (f m) fst rst
+
+                RecordType m flds ->
+                    RecordType (f m) flds
+
+                ListType m items ->
+                    ListType (f m) items
+
+                LazyType m inner ->
+                    LazyType (f m) inner
+
+                TupleType m a b ->
+                    TupleType (f m) a b
+
+                TripleType m a b c ->
+                    TripleType (f m) a b c
     in
     { attach = attach
     , decode = decode

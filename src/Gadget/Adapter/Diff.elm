@@ -70,14 +70,6 @@ import Maybe.Extra
 import Result.Extra
 
 
-type alias IRValue =
-    IR.IR IR.Value
-
-
-type alias IRType =
-    IR.IR IR.Type
-
-
 {-| A set of changes that captures the differences between two Elm values.
 -}
 type Changes
@@ -218,10 +210,10 @@ diff gadget old new =
     diffHelp irType oldIR newIR
 
 
-diffHelp : IRType -> IRValue -> IRValue -> Changes
-diffHelp (IR.IR _ type_) ((IR.IR _ oldData) as oldIR_) ((IR.IR _ newData) as newIR_) =
+diffHelp : IR.Type -> IR.Value -> IR.Value -> Changes
+diffHelp type_ (oldData as oldIR_) (newData as newIR_) =
     case type_ of
-        IR.LazyType toInnerType ->
+        IR.LazyType _ toInnerType ->
             diffHelp (toInnerType ()) oldIR_ newIR_
 
         _ ->
@@ -245,7 +237,7 @@ diffHelp (IR.IR _ type_) ((IR.IR _ oldData) as oldIR_) ((IR.IR _ newData) as new
                     ( IR.IntValue _, IR.IntValue b2, _ ) ->
                         IntChange b2
 
-                    ( IR.ListValue oldList, IR.ListValue newList, IR.ListType itemType ) ->
+                    ( IR.ListValue oldList, IR.ListValue newList, IR.ListType _ itemType ) ->
                         ListDiffer.diffWith (areSimilar itemType) oldList newList
                             |> List.foldl
                                 (\change { idx, out } ->
@@ -284,13 +276,13 @@ diffHelp (IR.IR _ type_) ((IR.IR _ oldData) as oldIR_) ((IR.IR _ newData) as new
                             |> doRunLengthEncoding
                             |> ListChanges
 
-                    ( IR.TupleValue a1 b1, IR.TupleValue a2 b2, IR.TupleType aType bType ) ->
+                    ( IR.TupleValue a1 b1, IR.TupleValue a2 b2, IR.TupleType _ aType bType ) ->
                         TupleChange (diffHelp aType a1 a2) (diffHelp bType b1 b2)
 
-                    ( IR.TripleValue a1 b1 c1, IR.TripleValue a2 b2 c2, IR.TripleType aType bType cType ) ->
+                    ( IR.TripleValue a1 b1 c1, IR.TripleValue a2 b2 c2, IR.TripleType _ aType bType cType ) ->
                         TripleChange (diffHelp aType a1 a2) (diffHelp bType b1 b2) (diffHelp cType c1 c2)
 
-                    ( IR.RecordValue fields1, IR.RecordValue fields2, IR.RecordType fieldTypes ) ->
+                    ( IR.RecordValue fields1, IR.RecordValue fields2, IR.RecordType _ fieldTypes ) ->
                         let
                             changes_ =
                                 List.map3 diffHelp
@@ -307,7 +299,7 @@ diffHelp (IR.IR _ type_) ((IR.IR _ oldData) as oldIR_) ((IR.IR _ newData) as new
                             [] ->
                                 Identical
 
-                    ( IR.CustomValue oldSelected ( _, oldVariant ), IR.CustomValue newSelected ( _, newVariant ), IR.CustomType firstVariantType restVariantTypes ) ->
+                    ( IR.CustomValue oldSelected ( _, oldVariant ), IR.CustomValue newSelected ( _, newVariant ), IR.CustomType _ firstVariantType restVariantTypes ) ->
                         let
                             argsToList variant =
                                 case variant of
@@ -472,7 +464,7 @@ doRunLengthEncoding list =
         list
 
 
-areSimilar : IRType -> IRValue -> IRValue -> Maybe Changes
+areSimilar : IR.Type -> IR.Value -> IR.Value -> Maybe Changes
 areSimilar irType old new =
     let
         oldNewDiff =
@@ -549,65 +541,65 @@ size changes_ =
             size a + size b + size c
 
 
-default : IRType -> IRValue
-default (IR.IR metadata irType) =
-    case irType of
-        IR.LazyType construct ->
+default : IR.Type -> IR.Value
+default type_ =
+    case type_ of
+        IR.LazyType metadata construct ->
             default (construct ())
 
-        IR.UnitType ->
-            IR.IR metadata <| IR.UnitValue
+        IR.UnitType metadata ->
+            IR.UnitValue
 
-        IR.BoolType ->
-            IR.IR metadata <| IR.BoolValue True
+        IR.BoolType metadata ->
+            IR.BoolValue True
 
-        IR.CharType ->
-            IR.IR metadata <| IR.CharValue ' '
+        IR.CharType metadata ->
+            IR.CharValue ' '
 
-        IR.StringType ->
-            IR.IR metadata <| IR.StringValue ""
+        IR.StringType metadata ->
+            IR.StringValue ""
 
-        IR.IntType ->
-            IR.IR metadata <| IR.IntValue 0
+        IR.IntType metadata ->
+            IR.IntValue 0
 
-        IR.FloatType ->
-            IR.IR metadata <| IR.FloatValue 0.0
+        IR.FloatType metadata ->
+            IR.FloatValue 0.0
 
-        IR.ListType _ ->
-            IR.IR metadata <| IR.ListValue []
+        IR.ListType metadata _ ->
+            IR.ListValue []
 
-        IR.CustomType ( name, firstVariantType ) _ ->
-            IR.IR metadata <|
-                IR.CustomValue 0
-                    ( name
-                    , case firstVariantType of
-                        IR.Variant0Type ->
-                            IR.Variant0Value
+        IR.CustomType metadata ( name, firstVariantType ) _ ->
+            IR.CustomValue
+                0
+                ( name
+                , case firstVariantType of
+                    IR.Variant0Type ->
+                        IR.Variant0Value
 
-                        IR.Variant1Type arg ->
-                            IR.Variant1Value (default arg)
+                    IR.Variant1Type arg ->
+                        IR.Variant1Value (default arg)
 
-                        IR.Variant2Type arg1 arg2 ->
-                            IR.Variant2Value (default arg1) (default arg2)
+                    IR.Variant2Type arg1 arg2 ->
+                        IR.Variant2Value (default arg1) (default arg2)
 
-                        IR.Variant3Type arg1 arg2 arg3 ->
-                            IR.Variant3Value (default arg1) (default arg2) (default arg3)
+                    IR.Variant3Type arg1 arg2 arg3 ->
+                        IR.Variant3Value (default arg1) (default arg2) (default arg3)
 
-                        IR.Variant4Type arg1 arg2 arg3 arg4 ->
-                            IR.Variant4Value (default arg1) (default arg2) (default arg3) (default arg4)
+                    IR.Variant4Type arg1 arg2 arg3 arg4 ->
+                        IR.Variant4Value (default arg1) (default arg2) (default arg3) (default arg4)
 
-                        IR.Variant5Type arg1 arg2 arg3 arg4 arg5 ->
-                            IR.Variant5Value (default arg1) (default arg2) (default arg3) (default arg4) (default arg5)
-                    )
+                    IR.Variant5Type arg1 arg2 arg3 arg4 arg5 ->
+                        IR.Variant5Value (default arg1) (default arg2) (default arg3) (default arg4) (default arg5)
+                )
 
-        IR.RecordType fieldTypes ->
-            IR.IR metadata <| IR.RecordValue (List.map (Tuple.mapSecond default) fieldTypes)
+        IR.RecordType metadata fieldTypes ->
+            IR.RecordValue (List.map (Tuple.mapSecond default) fieldTypes)
 
-        IR.TupleType aType bType ->
-            IR.IR metadata <| IR.TupleValue (default aType) (default bType)
+        IR.TupleType metadata aType bType ->
+            IR.TupleValue (default aType) (default bType)
 
-        IR.TripleType aType bType cType ->
-            IR.IR metadata <| IR.TripleValue (default aType) (default bType) (default cType)
+        IR.TripleType metadata aType bType cType ->
+            IR.TripleValue (default aType) (default bType) (default cType)
 
 
 {-| Use a set of [`Changes`](#Changes) to patch a value.
@@ -630,44 +622,44 @@ patch gadget delta old =
             Err e
 
 
-patchHelp : Changes -> IRValue -> IRType -> Result String IRValue
-patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
+patchHelp : Changes -> IR.Value -> IR.Type -> Result String IR.Value
+patchHelp changes_ (oldData as old_) type_ =
     case ( changes_, oldData, type_ ) of
         ( Identical, _, _ ) ->
             Ok old_
 
-        ( _, _, IR.LazyType constructType ) ->
+        ( _, _, IR.LazyType _ constructType ) ->
             patchHelp changes_ old_ (constructType ())
 
         ( BoolChange b, IR.BoolValue _, _ ) ->
-            Ok (IR.IR metadata <| IR.BoolValue b)
+            Ok (IR.BoolValue b)
 
         ( CharChange b, IR.CharValue _, _ ) ->
-            Ok (IR.IR metadata <| IR.CharValue b)
+            Ok (IR.CharValue b)
 
         ( StringChange b, IR.StringValue _, _ ) ->
-            Ok (IR.IR metadata <| IR.StringValue b)
+            Ok (IR.StringValue b)
 
         ( IntChange b, IR.IntValue _, _ ) ->
-            Ok (IR.IR metadata <| IR.IntValue b)
+            Ok (IR.IntValue b)
 
         ( FloatChange b, IR.FloatValue _, _ ) ->
-            Ok (IR.IR metadata <| IR.FloatValue b)
+            Ok (IR.FloatValue b)
 
-        ( TupleChange aChange bChange, IR.TupleValue a b, IR.TupleType aType bType ) ->
+        ( TupleChange aChange bChange, IR.TupleValue a b, IR.TupleType _ aType bType ) ->
             Result.map2
-                (\a2 b2 -> IR.IR metadata <| IR.TupleValue a2 b2)
+                (\a2 b2 -> IR.TupleValue a2 b2)
                 (patchHelp aChange a aType)
                 (patchHelp bChange b bType)
 
-        ( TripleChange aChange bChange cChange, IR.TripleValue a b c, IR.TripleType aType bType cType ) ->
+        ( TripleChange aChange bChange cChange, IR.TripleValue a b c, IR.TripleType _ aType bType cType ) ->
             Result.map3
-                (\a2 b2 c2 -> IR.IR metadata <| IR.TripleValue a2 b2 c2)
+                (\a2 b2 c2 -> IR.TripleValue a2 b2 c2)
                 (patchHelp aChange a aType)
                 (patchHelp bChange b bType)
                 (patchHelp cChange c cType)
 
-        ( ListChanges cs, IR.ListValue oldList, IR.ListType itemType ) ->
+        ( ListChanges cs, IR.ListValue oldList, IR.ListType _ itemType ) ->
             Ok
                 (List.foldl
                     (\change out ->
@@ -678,10 +670,9 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
                     |> List.filterMap identity
                     |> List.concat
                     |> IR.ListValue
-                    |> IR.IR metadata
                 )
 
-        ( RecordChanges fieldChange restFieldChanges, IR.RecordValue oldFields, IR.RecordType fieldTypes ) ->
+        ( RecordChanges fieldChange restFieldChanges, IR.RecordValue oldFields, IR.RecordType _ fieldTypes ) ->
             let
                 fieldChangesDict =
                     Dict.fromList (fieldChange :: restFieldChanges)
@@ -701,9 +692,8 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
                     )
                 |> Result.Extra.combine
                 |> Result.map IR.RecordValue
-                |> Result.map (IR.IR metadata)
 
-        ( CustomChanges diffSelected diffVariant, IR.CustomValue oldSelected ( _, oldVariant ), IR.CustomType firstVariantType restVariantTypes ) ->
+        ( CustomChanges diffSelected diffVariant, IR.CustomValue oldSelected ( _, oldVariant ), IR.CustomType _ firstVariantType restVariantTypes ) ->
             let
                 argsDict =
                     Dict.fromList diffVariant
@@ -894,13 +884,12 @@ patchHelp changes_ ((IR.IR metadata oldData) as old_) (IR.IR _ type_) =
                                         Result.map5 IR.Variant5Value arg1Diff arg2Diff arg3Diff arg4Diff arg5Diff
                     )
                 |> Result.map (IR.CustomValue diffSelected)
-                |> Result.map (IR.IR metadata)
 
         _ ->
             Err "mismatch between diff and value"
 
 
-listPatchHelp : ListChange -> List IRValue -> IRType -> Maybe (List IRValue)
+listPatchHelp : ListChange -> List IR.Value -> IR.Type -> Maybe (List IR.Value)
 listPatchHelp change oldList itemType =
     case change of
         Added itemDiff ->

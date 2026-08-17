@@ -25,7 +25,7 @@ debugging while I was writing this package.
 
 -}
 
-import Gadget.IR as IR exposing (IR(..), Value(..), VariantValue(..))
+import Gadget.IR as IR exposing (Type(..), Value(..), VariantType(..), VariantValue(..))
 import Html as H
 import Html.Attributes as HA
 
@@ -51,26 +51,32 @@ tools =
 
 -}
 view : IR.Gadget a -> a -> H.Html msg
-view gadget value =
-    IR.fromInput gadget value
-        |> htmlAdapter
+view gadget input =
+    let
+        value =
+            IR.fromInput gadget input
+
+        irType =
+            IR.irType gadget
+    in
+    htmlAdapter value irType
         |> List.singleton
         |> H.article [ HA.class "elm-gadget" ]
 
 
-htmlAdapter : IR Value -> H.Html msg
-htmlAdapter (IR metadata irValue) =
+htmlAdapter : Value -> Type -> H.Html msg
+htmlAdapter irValue irType =
     let
         viewMetadata =
             case tools.debug metadata of
                 [] ->
                     H.text ""
 
-                _ ->
+                debugged ->
                     H.aside [ HA.class "metadata" ]
                         [ H.strong [] [ H.text "Metadata" ]
                         , H.table []
-                            (tools.debug metadata
+                            (debugged
                                 |> List.concatMap
                                     (\( adapterId, kvs ) ->
                                         H.tr []
@@ -252,7 +258,7 @@ unquotedPrimitive metadataHtml =
     primitive metadataHtml (H.text "") (\value -> H.code [] [ H.text value ])
 
 
-combinator : H.Html msg -> String -> String -> List ( String, IR Value ) -> H.Html msg
+combinator : H.Html msg -> String -> String -> List ( String, Value, Type ) -> H.Html msg
 combinator metadataHtml typeName typeInfo items =
     if List.isEmpty items then
         H.div [ HA.class "combinator", HA.class typeName ]
@@ -271,7 +277,7 @@ combinator metadataHtml typeName typeInfo items =
                 ]
             , H.div []
                 [ H.ol []
-                    (List.map (\( name, item ) -> H.li [] [ H.text name, htmlAdapter item ]) items)
+                    (List.map (\( name, item, type_ ) -> H.li [] [ H.text name, htmlAdapter item type_ ]) items)
                 , metadataHtml
                 ]
             ]
