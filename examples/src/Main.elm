@@ -10,6 +10,7 @@ import Gadget.Adapter.Json
 import Gadget.Adapter.Pretty
 import Gadget.Adapter.Random
 import Gadget.Adapter.String
+import Gadget.Adapter.Quine
 import Gadget.IR
 import Html as H
 import Html.Attributes as HA
@@ -143,7 +144,14 @@ view model =
     let
         gadget =
             --Gadget.tuple Gadget.float (Gadget.list Gadget.string)
-            personGadget
+            --personGadget
+            Gadget.record (\a b -> { a = a, b = b })
+                |> Gadget.field "a" .a Gadget.string
+                |> Gadget.field "b" .b 
+                    (Gadget.record (\x -> { x = x }) 
+                        |> Gadget.field "x" .x Gadget.int 
+                        |> Gadget.endRecord)
+                |> Gadget.endRecord
 
         fuzzOverrides =
             [ Gadget.Adapter.Fuzz.override "dogName" Gadget.string (Fuzz.oneOf (List.map Fuzz.constant [ "Fido", "Kevin", "Rover", "Fifi", "George", "Winnie" ]))
@@ -231,6 +239,8 @@ view model =
                     (List.range 0 12)
                 )
             ]
+        , head "Quine"
+        , H.pre [] [H.text (Gadget.Adapter.Quine.quine gadget)]
         , head "Random generator (first value, pretty-printed)"
         , pretty gadget firstValue
         , head "Random generator (second value, pretty-printed)"
