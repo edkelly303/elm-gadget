@@ -211,17 +211,17 @@ diff gadget old new =
 
 
 diffHelp : IR.Type -> IR.Value -> IR.Value -> Changes
-diffHelp type_ (oldData as oldIR_) (newData as newIR_) =
+diffHelp type_ oldIR_ newIR_ =
     case type_ of
         IR.LazyType _ toInnerType ->
             diffHelp (toInnerType ()) oldIR_ newIR_
 
         _ ->
-            if oldData == newData then
+            if oldIR_ == newIR_ then
                 Identical
 
             else
-                case ( oldData, newData, type_ ) of
+                case ( oldIR_, newIR_, type_ ) of
                     ( IR.BoolValue _, IR.BoolValue b2, _ ) ->
                         BoolChange b2
 
@@ -544,31 +544,31 @@ size changes_ =
 default : IR.Type -> IR.Value
 default type_ =
     case type_ of
-        IR.LazyType metadata construct ->
+        IR.LazyType _ construct ->
             default (construct ())
 
-        IR.UnitType metadata ->
+        IR.UnitType _ ->
             IR.UnitValue
 
-        IR.BoolType metadata ->
+        IR.BoolType _ ->
             IR.BoolValue True
 
-        IR.CharType metadata ->
+        IR.CharType _ ->
             IR.CharValue ' '
 
-        IR.StringType metadata ->
+        IR.StringType _ ->
             IR.StringValue ""
 
-        IR.IntType metadata ->
+        IR.IntType _ ->
             IR.IntValue 0
 
-        IR.FloatType metadata ->
+        IR.FloatType _ ->
             IR.FloatValue 0.0
 
-        IR.ListType metadata _ ->
+        IR.ListType _ _ ->
             IR.ListValue []
 
-        IR.CustomType metadata ( name, firstVariantType ) _ ->
+        IR.CustomType _ ( name, firstVariantType ) _ ->
             IR.CustomValue
                 0
                 ( name
@@ -592,13 +592,13 @@ default type_ =
                         IR.Variant5Value (default arg1) (default arg2) (default arg3) (default arg4) (default arg5)
                 )
 
-        IR.RecordType metadata fieldTypes ->
+        IR.RecordType _ fieldTypes ->
             IR.RecordValue (List.map (Tuple.mapSecond default) fieldTypes)
 
-        IR.TupleType metadata aType bType ->
+        IR.TupleType _ aType bType ->
             IR.TupleValue (default aType) (default bType)
 
-        IR.TripleType metadata aType bType cType ->
+        IR.TripleType _ aType bType cType ->
             IR.TripleValue (default aType) (default bType) (default cType)
 
 
@@ -623,8 +623,8 @@ patch gadget delta old =
 
 
 patchHelp : Changes -> IR.Value -> IR.Type -> Result String IR.Value
-patchHelp changes_ (oldData as old_) type_ =
-    case ( changes_, oldData, type_ ) of
+patchHelp changes_ old_ type_ =
+    case ( changes_, old_, type_ ) of
         ( Identical, _, _ ) ->
             Ok old_
 

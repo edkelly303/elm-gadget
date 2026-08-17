@@ -2,8 +2,7 @@ module Gadget.IR exposing
     ( Gadget(..)
     , fromInput, irType, toOutput, Error
     , Value(..), VariantValue(..), Type(..), VariantType(..)
-    , Metadata, MetadataTools, makeMetadataTools
-    , emptyMetadata
+    , Metadata, MetadataTools, makeMetadataTools, emptyMetadata
     )
 
 {-| Tools for creating adapters for Gadgets.
@@ -26,9 +25,9 @@ various `Gadget.Adapter` modules in this package:
 
 @docs fromInput, irType, toOutput, Error
 
-@docs IR, ir, Value, VariantValue, Type, VariantType
+@docs Value, VariantValue, Type, VariantType
 
-@docs Metadata, MetadataTools, makeMetadataTools
+@docs Metadata, MetadataTools, makeMetadataTools, emptyMetadata
 
 -}
 
@@ -136,6 +135,8 @@ type Metadata
     = Metadata (Dict String (Dict String Value))
 
 
+{-| TODO - can we avoid exposing this?
+-}
 emptyMetadata : Metadata
 emptyMetadata =
     Metadata Dict.empty
@@ -162,18 +163,24 @@ For example, here's how [`Gadget.Adapter.Random`](Gadget-Adapter-Random) defines
 
     -- and we can look up those values using the other tools:
 
-    metadata =
+    rangedIntGadget =
         Gadget.int
             |> range 0 10
+    
+    metadata =
+        rangedIntGadget
             |> Gadget.IR.irType
-            |> (\(Gadget.IR.metadata_ _) ->
-                metadata_
-               )
+            |> tools.extract
 
-    value =
+    irValue =
+        tools.get "range" metadata
+
+    irValue --> Just (Gadget.IR.TupleValue (Gadget.IR.IntValue 0) (Gadget.IR.IntValue 10))
+
+    elmValue =
         tools.decode "range" (Gadget.tuple Gadget.int Gadget.int) metadata
 
-    value --> Just ( 0, 10 )
+    elmValue --> Just ( 0, 10 )
 
     allValues =
         tools.debug metadata
@@ -183,6 +190,7 @@ For example, here's how [`Gadget.Adapter.Random`](Gadget-Adapter-Random) defines
 -}
 type alias MetadataTools meta a =
     { attach : String -> Gadget meta -> meta -> Gadget a -> Gadget a
+    , extract : Type -> Metadata
     , decode : String -> Gadget meta -> Metadata -> Maybe meta
     , get : String -> Metadata -> Maybe Value
     , debug : Metadata -> List ( String, List ( String, String ) )
@@ -387,9 +395,48 @@ makeMetadataTools adapterId =
 
                 TripleType m a b c ->
                     TripleType (f m) a b c
+
+        extract type_ =
+            case type_ of
+                UnitType m ->
+                    m
+
+                BoolType m ->
+                    m
+
+                CharType m ->
+                    m
+
+                StringType m ->
+                    m
+
+                IntType m ->
+                    m
+
+                FloatType m ->
+                    m
+
+                CustomType m _ _ ->
+                    m
+
+                RecordType m _ ->
+                    m
+
+                ListType m _ ->
+                    m
+
+                LazyType m _ ->
+                    m
+
+                TupleType m _ _ ->
+                    m
+
+                TripleType m _ _ _ ->
+                    m
     in
     { attach = attach
     , decode = decode
+    , extract = extract
     , get = get
     , debug = debug
     }

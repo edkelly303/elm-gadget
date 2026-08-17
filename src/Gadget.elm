@@ -109,7 +109,6 @@ import Gadget.IR as IR
         , Value(..)
         , VariantType(..)
         , VariantValue(..)
-        , emptyMetadata
         )
 import Result.Extra
 import Set

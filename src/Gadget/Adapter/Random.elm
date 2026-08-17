@@ -106,7 +106,7 @@ listLength lo hi gadget =
 -}
 choose : a -> List a -> IR.Gadget a -> IR.Gadget a
 choose first rest gadget =
-    tools.attach "choose" (Gadget.list gadget) (first :: rest) gadget
+    tools.attach "choose" (Gadget.tuple gadget (Gadget.list gadget)) ( first, rest ) gadget
 
 
 {-| Turn a Gadget into a `Random.Generator`.
@@ -157,140 +157,128 @@ generator gadget =
 
 randomAdapter : IR.Type -> Random.Generator IR.Value
 randomAdapter irType =
-    let
-        unlessOverriden metadata default =
-            case tools.get "choose" metadata of
-                Just (IR.ListValue (choice :: choices)) ->
-                    Random.uniform choice choices
+    case
+        tools.extract irType
+            |> tools.get "choose"
+    of
+        Just (IR.TupleValue choice (IR.ListValue choices)) ->
+            Random.uniform choice choices
 
-                _ ->
-                    default
-    in
-    case irType of
-        IR.LazyType metadata constructType ->
-            randomAdapter (constructType ())
-                |> unlessOverriden metadata
+        _ ->
+            case irType of
+                IR.LazyType _ constructType ->
+                    randomAdapter (constructType ())
 
-        IR.UnitType metadata ->
-            Random.constant IR.UnitValue |> unlessOverriden metadata
+                IR.UnitType _ ->
+                    Random.constant IR.UnitValue
 
-        IR.BoolType metadata ->
-            Random.uniform False [ True ]
-                |> Random.map IR.BoolValue
-                |> unlessOverriden metadata
+                IR.BoolType _ ->
+                    Random.uniform False [ True ]
+                        |> Random.map IR.BoolValue
 
-        IR.CharType metadata ->
-            Random.Char.basicLatin
-                |> Random.map IR.CharValue
-                |> unlessOverriden metadata
+                IR.CharType _ ->
+                    Random.Char.basicLatin
+                        |> Random.map IR.CharValue
 
-        IR.StringType metadata ->
-            Random.String.rangeLengthString 0 10 Random.Char.basicLatin
-                |> Random.map IR.StringValue
-                |> unlessOverriden metadata
+                IR.StringType _ ->
+                    Random.String.rangeLengthString 0 10 Random.Char.basicLatin
+                        |> Random.map IR.StringValue
 
-        IR.IntType metadata ->
-            unlessOverriden metadata <|
-                Random.map IR.IntValue <|
-                    case
-                        tools.decode "range" (Gadget.tuple Gadget.int Gadget.int) metadata
-                    of
-                        Just ( lo, hi ) ->
-                            Random.int lo hi
+                IR.IntType metadata ->
+                    Random.map IR.IntValue <|
+                        case
+                            tools.decode "range" (Gadget.tuple Gadget.int Gadget.int) metadata
+                        of
+                            Just ( lo, hi ) ->
+                                Random.int lo hi
 
-                        _ ->
-                            Random.Int.anyInt
+                            _ ->
+                                Random.Int.anyInt
 
-        IR.FloatType metadata ->
-            unlessOverriden metadata <|
-                Random.map IR.FloatValue <|
-                    case
-                        tools.decode "range" (Gadget.tuple Gadget.float Gadget.float) metadata
-                    of
-                        Just ( lo, hi ) ->
-                            Random.float lo hi
+                IR.FloatType metadata ->
+                    Random.map IR.FloatValue <|
+                        case
+                            tools.decode "range" (Gadget.tuple Gadget.float Gadget.float) metadata
+                        of
+                            Just ( lo, hi ) ->
+                                Random.float lo hi
 
-                        _ ->
-                            Random.Float.anyFloat
+                            _ ->
+                                Random.Float.anyFloat
 
-        IR.CustomType metadata firstVariant restVariants ->
-            let
-                variantTypeToGenerator idx ( name, variant ) =
-                    case variant of
-                        IR.Variant0Type ->
-                            Random.constant
-                                (IR.CustomValue idx ( name, IR.Variant0Value ))
+                IR.CustomType _ firstVariant restVariants ->
+                    let
+                        variantTypeToGenerator idx ( name, variant ) =
+                            case variant of
+                                IR.Variant0Type ->
+                                    Random.constant
+                                        (IR.CustomValue idx ( name, IR.Variant0Value ))
 
-                        IR.Variant1Type arg ->
-                            Random.map
-                                (\a -> IR.CustomValue idx ( name, IR.Variant1Value a ))
-                                (randomAdapter arg)
+                                IR.Variant1Type arg ->
+                                    Random.map
+                                        (\a -> IR.CustomValue idx ( name, IR.Variant1Value a ))
+                                        (randomAdapter arg)
 
-                        IR.Variant2Type arg1 arg2 ->
-                            Random.map2
-                                (\a1 a2 -> IR.CustomValue idx ( name, IR.Variant2Value a1 a2 ))
-                                (randomAdapter arg1)
-                                (randomAdapter arg2)
+                                IR.Variant2Type arg1 arg2 ->
+                                    Random.map2
+                                        (\a1 a2 -> IR.CustomValue idx ( name, IR.Variant2Value a1 a2 ))
+                                        (randomAdapter arg1)
+                                        (randomAdapter arg2)
 
-                        IR.Variant3Type arg1 arg2 arg3 ->
-                            Random.map3
-                                (\a1 a2 a3 -> IR.CustomValue idx ( name, IR.Variant3Value a1 a2 a3 ))
-                                (randomAdapter arg1)
-                                (randomAdapter arg2)
-                                (randomAdapter arg3)
+                                IR.Variant3Type arg1 arg2 arg3 ->
+                                    Random.map3
+                                        (\a1 a2 a3 -> IR.CustomValue idx ( name, IR.Variant3Value a1 a2 a3 ))
+                                        (randomAdapter arg1)
+                                        (randomAdapter arg2)
+                                        (randomAdapter arg3)
 
-                        IR.Variant4Type arg1 arg2 arg3 arg4 ->
-                            Random.map4
-                                (\a1 a2 a3 a4 -> IR.CustomValue idx ( name, IR.Variant4Value a1 a2 a3 a4 ))
-                                (randomAdapter arg1)
-                                (randomAdapter arg2)
-                                (randomAdapter arg3)
-                                (randomAdapter arg4)
+                                IR.Variant4Type arg1 arg2 arg3 arg4 ->
+                                    Random.map4
+                                        (\a1 a2 a3 a4 -> IR.CustomValue idx ( name, IR.Variant4Value a1 a2 a3 a4 ))
+                                        (randomAdapter arg1)
+                                        (randomAdapter arg2)
+                                        (randomAdapter arg3)
+                                        (randomAdapter arg4)
 
-                        IR.Variant5Type arg1 arg2 arg3 arg4 arg5 ->
-                            Random.map5
-                                (\a1 a2 a3 a4 a5 -> IR.CustomValue idx ( name, IR.Variant5Value a1 a2 a3 a4 a5 ))
-                                (randomAdapter arg1)
-                                (randomAdapter arg2)
-                                (randomAdapter arg3)
-                                (randomAdapter arg4)
-                                (randomAdapter arg5)
-            in
-            unlessOverriden metadata <|
-                Random.Extra.choices
-                    (variantTypeToGenerator 0 firstVariant)
-                    (List.indexedMap (\idx v -> variantTypeToGenerator (idx + 1) v) restVariants)
+                                IR.Variant5Type arg1 arg2 arg3 arg4 arg5 ->
+                                    Random.map5
+                                        (\a1 a2 a3 a4 a5 -> IR.CustomValue idx ( name, IR.Variant5Value a1 a2 a3 a4 a5 ))
+                                        (randomAdapter arg1)
+                                        (randomAdapter arg2)
+                                        (randomAdapter arg3)
+                                        (randomAdapter arg4)
+                                        (randomAdapter arg5)
+                    in
+                    Random.Extra.choices
+                        (variantTypeToGenerator 0 firstVariant)
+                        (List.indexedMap (\idx v -> variantTypeToGenerator (idx + 1) v) restVariants)
 
-        IR.RecordType metadata fields ->
-            fields
-                |> Random.Extra.traverse
-                    (\( name, fld ) ->
-                        randomAdapter fld
-                            |> Random.map (Tuple.pair name)
-                    )
-                |> Random.map IR.RecordValue
-                |> unlessOverriden metadata
+                IR.RecordType _ fields ->
+                    fields
+                        |> Random.Extra.traverse
+                            (\( name, fld ) ->
+                                randomAdapter fld
+                                    |> Random.map (Tuple.pair name)
+                            )
+                        |> Random.map IR.RecordValue
 
-        IR.ListType metadata itemType ->
-            let
-                ( min, max ) =
-                    tools.decode "listLength" (Gadget.tuple Gadget.int Gadget.int) metadata
-                        |> Maybe.withDefault ( 0, 10 )
-            in
-            Random.int min max
-                |> Random.andThen (\int -> Random.list int (randomAdapter itemType))
-                |> Random.map IR.ListValue
-                |> unlessOverriden metadata
+                IR.ListType metadata itemType ->
+                    let
+                        ( min, max ) =
+                            tools.decode "listLength" (Gadget.tuple Gadget.int Gadget.int) metadata
+                                |> Maybe.withDefault ( 0, 10 )
+                    in
+                    Random.int min max
+                        |> Random.andThen (\int -> Random.list int (randomAdapter itemType))
+                        |> Random.map IR.ListValue
 
-        IR.TupleType metadata aType bType ->
-            Random.map2 (\a b -> IR.TupleValue a b)
-                (randomAdapter aType)
-                (randomAdapter bType)
-                |> unlessOverriden metadata
+                IR.TupleType _ aType bType ->
+                    Random.map2 (\a b -> IR.TupleValue a b)
+                        (randomAdapter aType)
+                        (randomAdapter bType)
 
-        IR.TripleType metadata aType bType cType ->
-            Random.map3 (\a b c -> IR.TripleValue a b c)
-                (randomAdapter aType)
-                (randomAdapter bType)
-                (randomAdapter cType)
-                |> unlessOverriden metadata
+                IR.TripleType _ aType bType cType ->
+                    Random.map3 (\a b c -> IR.TripleValue a b c)
+                        (randomAdapter aType)
+                        (randomAdapter bType)
+                        (randomAdapter cType)
