@@ -53,7 +53,8 @@ quineHelp indent irType =
                                 ++ "\" ."
                                 ++ name
                                 ++ "\n"
-                                ++ spaces ++ "    "
+                                ++ spaces
+                                ++ "    "
                                 ++ quineHelp (indent + 4) field
                         )
                         namedFields

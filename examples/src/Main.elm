@@ -8,9 +8,9 @@ import Gadget.Adapter.Fuzz
 import Gadget.Adapter.Html
 import Gadget.Adapter.Json
 import Gadget.Adapter.Pretty
+import Gadget.Adapter.Quine
 import Gadget.Adapter.Random
 import Gadget.Adapter.String
-import Gadget.Adapter.Quine
 import Gadget.IR
 import Html as H
 import Html.Attributes as HA
@@ -147,10 +147,12 @@ view model =
             --personGadget
             Gadget.record (\a b -> { a = a, b = b })
                 |> Gadget.field "a" .a Gadget.string
-                |> Gadget.field "b" .b 
-                    (Gadget.record (\x -> { x = x }) 
-                        |> Gadget.field "x" .x Gadget.int 
-                        |> Gadget.endRecord)
+                |> Gadget.field "b"
+                    .b
+                    (Gadget.record (\x -> { x = x })
+                        |> Gadget.field "x" .x Gadget.int
+                        |> Gadget.endRecord
+                    )
                 |> Gadget.endRecord
 
         fuzzOverrides =
@@ -240,7 +242,7 @@ view model =
                 )
             ]
         , head "Quine"
-        , H.pre [] [H.text (Gadget.Adapter.Quine.quine gadget)]
+        , H.pre [] [ H.text (Gadget.Adapter.Quine.quine gadget) ]
         , head "Random generator (first value, pretty-printed)"
         , pretty gadget firstValue
         , head "Random generator (second value, pretty-printed)"
