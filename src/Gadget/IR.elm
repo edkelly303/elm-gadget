@@ -129,7 +129,7 @@ toOutput (Gadget c) a =
     c.toOutput a
 
 
-{-| A type used to carry metadata for `Value` or `Type` nodes.
+{-| A type used by `Type` variants to carry metadata.
 -}
 type Metadata
     = Metadata (Dict String (Dict String Value))
