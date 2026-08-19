@@ -143,7 +143,7 @@ view : Model -> H.Html Msg
 view model =
     let
         gadget =
-            personGadget
+            Gadget.maybe Gadget.int
 
         fuzzOverrides =
             [ Gadget.Adapter.Fuzz.override "dogName" Gadget.string (Fuzz.oneOf (List.map Fuzz.constant [ "Fido", "Kevin", "Rover", "Fifi", "George", "Winnie" ]))
