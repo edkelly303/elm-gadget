@@ -240,10 +240,10 @@ doToString acc maxWidth currentWidth docs_ =
                     case mode of
                         Unbroken ->
                             let
-                                new_width =
+                                newWidth =
                                     currentWidth + String.length unbroken
                             in
-                            doToString (acc ++ unbroken) maxWidth new_width rest
+                            doToString (acc ++ unbroken) maxWidth newWidth rest
 
                         Broken ->
                             doToString (acc ++ broken ++ "\n" ++ indentationToString indent) maxWidth indent rest
@@ -261,8 +261,7 @@ doToString acc maxWidth currentWidth docs_ =
                 Concat { docs } ->
                     let
                         newDocs =
-                            List.map (\doc -> ( indent, mode, doc )) docs
-                                |> List.append rest
+                            List.map (\doc -> ( indent, mode, doc )) docs ++ rest
                     in
                     doToString acc maxWidth currentWidth newDocs
 
