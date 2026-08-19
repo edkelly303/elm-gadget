@@ -12,10 +12,6 @@ quine columns gadget =
         |> G.toString columns
 
 
-
--- |> P.pretty columns
-
-
 quineHelp2 irType =
     case irType of
         UnitType _ ->
@@ -35,6 +31,62 @@ quineHelp2 irType =
 
         StringType _ ->
             G.fromString "Gadget.string"
+
+        RecordType _ namedFields ->
+            let
+                ctor =
+                    anonymousFunction2
+                        { args = List.map Tuple.first namedFields
+                        , body = anonymousRecord2 (List.map (\( n, _ ) -> ( n, n )) namedFields)
+                        }
+
+                fields =
+                    G.concat
+                        (List.map
+                            (\( name, fld ) ->
+                                G.group
+                                    (G.nest 4
+                                        (G.concat
+                                            [ G.group
+                                                (G.concat
+                                                    [ pizza2
+                                                    , G.fromString " "
+                                                    , G.fromString "Gadget.field"
+                                                    , G.space
+                                                    , G.fromString ("\"" ++ name ++ "\"")
+                                                    , G.space
+                                                    , G.fromString ("." ++ name)
+                                                    ]
+                                                )
+                                            , G.space
+                                            , maybeParens2 fld
+                                            ]
+                                        )
+                                    )
+                            )
+                            namedFields
+                        )
+                        |> G.group
+            in
+            G.group
+                (G.nest 4
+                    (G.concat
+                        [ G.group
+                            (G.concat
+                                [ G.fromString "Gadget.record"
+                                , G.space
+                                , ctor
+                                ]
+                            )
+                        , G.line
+                        , fields
+                        , G.line
+                        , pizza2
+                        , G.fromString " "
+                        , G.fromString "Gadget.endRecord"
+                        ]
+                    )
+                )
 
         CustomType _ ( fstName, fstType ) rstNamesAndTypes ->
             let
@@ -76,18 +128,19 @@ quineHelp2 irType =
                     anonymousFunction2
                         { args = List.map lowerInitial names ++ [ "variant" ]
                         , body =
-                            G.nest 4
-                                (G.lines
+                            G.group
+                                (G.concat
                                     [ G.fromString "case variant of"
-                                    , G.lines
+                                    , G.line
+                                    , G.concat
                                         (List.map2
                                             (\name variant ->
                                                 let
                                                     args =
                                                         variantToArgs variant
                                                 in
-                                                G.nest 4
-                                                    (G.concat
+                                                G.nest 4 <|
+                                                    G.concat
                                                         [ G.fromString name
                                                         , G.fromString " "
                                                         , G.fromString args
@@ -96,8 +149,8 @@ quineHelp2 irType =
                                                         , G.fromString (lowerInitial name)
                                                         , G.fromString " "
                                                         , G.fromString args
+                                                        , G.line
                                                         ]
-                                                    )
                                             )
                                             names
                                             types
@@ -126,8 +179,15 @@ quineHelp2 irType =
                                                     , G.fromString ("\"" ++ n ++ "\"")
                                                     , G.space
                                                     , G.fromString n
-                                                    , G.space
-                                                    , G.group (G.concat (List.map maybeParens2 (argsToList v)))
+                                                    , case argsToList v of
+                                                        [] ->
+                                                            G.empty
+
+                                                        args ->
+                                                            G.concat
+                                                                [ G.space
+                                                                , G.group (G.concat (List.map maybeParens2 args))
+                                                                ]
                                                     ]
                                                 )
                                             , G.line
@@ -444,6 +504,32 @@ anonymousRecord fieldNamesAndValues =
                 |> P.align
 
 
+anonymousRecord2 : List ( String, String ) -> G.Document
+anonymousRecord2 fieldNamesAndValues =
+    case fieldNamesAndValues of
+        [] ->
+            G.fromString "{}"
+
+        _ ->
+            let
+                printField ( name, value ) =
+                    G.concat
+                        [ G.fromString (name ++ " =")
+                        , G.space
+                        , G.nest 4 (G.fromString value)
+                        ]
+            in
+            G.group
+                (G.concat
+                    [ G.fromString "{"
+                    , G.space
+                    , G.concat (List.map printField fieldNamesAndValues)
+                    , G.flexSpace
+                    , G.fromString "}"
+                    ]
+                )
+
+
 anonymousFunction : { args : List String, body : P.Doc t } -> P.Doc t
 anonymousFunction { args, body } =
     P.words
@@ -458,20 +544,28 @@ anonymousFunction { args, body } =
 
 anonymousFunction2 : { args : List String, body : G.Document } -> G.Document
 anonymousFunction2 { args, body } =
-    parens2
-        (G.fromString ("\\" ++ String.join " " args ++ " ->")
-            |> G.prepend G.line
-            |> G.prepend body
-            |> G.nest 4
+    G.group
+        (G.nest 4
+            (parens2
+                (G.concat
+                    [ G.fromString ("\\" ++ String.join " " args ++ " ->")
+                    , G.space
+                    , body
+                    ]
+                )
+            )
         )
 
 
 parens2 : G.Document -> G.Document
 parens2 inner =
-    G.fromString "("
-        |> G.prepend inner
-        |> G.prepend G.line
-        |> G.prepend (G.fromString ")")
+    G.group
+        (G.concat
+            [ G.fromString "("
+            , inner
+            , G.fromString ")"
+            ]
+        )
 
 
 parens : P.Doc t -> P.Doc t

@@ -143,7 +143,7 @@ view : Model -> H.Html Msg
 view model =
     let
         gadget =
-            Gadget.maybe Gadget.int
+            Gadget.maybe (Gadget.record (\x -> {x = x}) |> Gadget.field "x" .x Gadget.int |> Gadget.endRecord)
 
         fuzzOverrides =
             [ Gadget.Adapter.Fuzz.override "dogName" Gadget.string (Fuzz.oneOf (List.map Fuzz.constant [ "Fido", "Kevin", "Rover", "Fifi", "George", "Winnie" ]))
