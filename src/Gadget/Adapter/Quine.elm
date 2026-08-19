@@ -114,8 +114,8 @@ quineHelp irType =
                     fstType :: List.map Tuple.second rstNamesAndTypes
 
                 variantToArgs v =
-                    List.range 1 (variantSize v)
-                        |> List.map (\n -> "arg" ++ String.fromInt n)
+                    argsToList v
+                        |> List.indexedMap (\i _ -> "arg" ++ String.fromInt (i + 1))
                         |> String.join " "
 
                 variantSize v =
