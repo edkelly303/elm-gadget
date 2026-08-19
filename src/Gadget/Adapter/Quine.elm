@@ -37,48 +37,14 @@ quineHelp irType =
                 recordFunctionCall =
                     P.string "Gadget.record"
 
-                fnHead =
-                    P.words
-                        [ P.string "\\"
-                            |> P.a
-                                (P.string
-                                    (List.map (\( name, fld ) -> name) namedFields
-                                        |> String.join " "
-                                    )
-                                )
-                        , P.string "->"
-                        ]
-
-                fnBody =
-                    case namedFields of
-                        [] ->
-                            P.string "{}"
-
-                        _ ->
-                            let
-                                printField ( name, fld ) =
-                                    P.string (name ++ " =")
-                                        |> P.a P.line
-                                        |> P.nest 4
-                                        |> P.a (P.string name)
-                                        |> P.group
-                            in
-                            P.surround
-                                (P.string "{ ")
-                                (P.line |> P.a (P.string "}"))
-                                (P.separators ", " (List.map printField namedFields))
-                                |> P.group
-                                |> P.align
-
                 ctor =
-                    fnHead
-                        |> P.a P.line
-                        |> P.a fnBody
-                        |> P.nest 4
-                        |> parens
+                    anonymousFunction
+                        { args = List.map Tuple.first namedFields
+                        , body = anonymousRecord (List.map (\( n, _ ) -> ( n, n )) namedFields)
+                        }
 
                 pizza =
-                    P.string "|> "
+                    P.string "|>"
 
                 fieldFunctionCall =
                     P.string "Gadget.field"
@@ -87,18 +53,25 @@ quineHelp irType =
                     P.join P.line
                         (List.map
                             (\( name, fld ) ->
-                                pizza
-                                    |> P.a fieldFunctionCall
-                                    |> P.a P.line
-                                    |> P.a (fieldName name)
-                                    |> P.group
-                                    |> P.a P.line
-                                    |> P.a (fieldGetter name)
-                                    |> P.group
-                                    |> P.a P.line
-                                    |> P.a (fieldGadget fld)
-                                    |> P.nest 4
-                                    |> P.group
+                                P.group
+                                    (P.nest 4
+                                        (P.words
+                                            [ pizza
+                                            , fieldFunctionCall
+                                            , P.group
+                                                (P.lines
+                                                    [ P.group
+                                                        (P.lines
+                                                            [ fieldName name
+                                                            , fieldGetter name
+                                                            ]
+                                                        )
+                                                    , fieldGadget fld
+                                                    ]
+                                                )
+                                            ]
+                                        )
+                                    )
                             )
                             namedFields
                         )
@@ -116,13 +89,6 @@ quineHelp irType =
 
                     else
                         quineHelp fld
-
-                parens inner =
-                    P.group
-                        (P.flatAlt
-                            (P.char '(' |> P.a inner |> P.a (P.char ')'))
-                            (P.char '(' |> P.a inner |> P.a P.line |> P.a (P.char ')'))
-                        )
 
                 isPrimitive fld =
                     case fld of
@@ -150,24 +116,20 @@ quineHelp irType =
                 endRecordFunctionCall =
                     P.string "Gadget.endRecord"
             in
-            recordFunctionCall
-                |> P.a
-                    (P.line
-                        |> P.a ctor
-                        |> P.nest 4
+            P.group
+                (P.nest 4
+                    (P.lines
+                        [ P.group
+                            (P.lines
+                                [ recordFunctionCall
+                                , ctor
+                                ]
+                            )
+                        , fields
+                        , P.words [ pizza, endRecordFunctionCall ]
+                        ]
                     )
-                |> P.group
-                |> P.a
-                    (P.line
-                        |> P.a fields
-                        |> P.nest 4
-                    )
-                |> P.a
-                    (P.line
-                        |> P.a pizza
-                        |> P.a endRecordFunctionCall
-                        |> P.nest 4
-                    )
+                )
 
         CustomType _ _ _ ->
             Debug.todo "branch 'CustomType _ _ _' not implemented"
@@ -183,3 +145,47 @@ quineHelp irType =
 
         TripleType _ _ _ _ ->
             Debug.todo "branch 'TripleType _ _ _ _' not implemented"
+
+
+anonymousRecord : List ( String, String ) -> P.Doc t
+anonymousRecord fieldNamesAndValues =
+    case fieldNamesAndValues of
+        [] ->
+            P.string "{}"
+
+        _ ->
+            let
+                printField ( name, value ) =
+                    P.string (name ++ " =")
+                        |> P.a P.line
+                        |> P.nest 4
+                        |> P.a (P.string value)
+                        |> P.group
+            in
+            P.surround
+                (P.string "{ ")
+                (P.line |> P.a (P.string "}"))
+                (P.separators ", " (List.map printField fieldNamesAndValues))
+                |> P.group
+                |> P.align
+
+
+anonymousFunction : { args : List String, body : P.Doc t } -> P.Doc t
+anonymousFunction { args, body } =
+    P.words
+        [ P.string ("\\" ++ String.join " " args)
+        , P.string "->"
+        ]
+        |> P.a P.line
+        |> P.a body
+        |> P.nest 4
+        |> parens
+
+
+parens : P.Doc t -> P.Doc t
+parens inner =
+    P.group
+        (P.flatAlt
+            (P.char '(' |> P.a inner |> P.a (P.char ')'))
+            (P.char '(' |> P.a inner |> P.a P.line |> P.a (P.char ')'))
+        )
