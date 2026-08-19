@@ -156,7 +156,7 @@ quineHelp irType =
                                                         [ P.words
                                                             [ P.string name
                                                             , P.string (variantToArgs variant)
-                                                            , P.string " ->"
+                                                            , P.string "->"
                                                             ]
                                                         , P.words
                                                             [ P.string (lowerInitial name)
@@ -228,7 +228,7 @@ quineHelp irType =
             P.lines [ P.string "Gadget.tuple", quineHelp a, quineHelp b ]
 
         TripleType _ a b c ->
-            P.nest 4 (P.lines [ P.string "Gadget.tuple", quineHelp a, quineHelp b, quineHelp c ])
+            P.nest 4 (P.lines [ P.string "Gadget.triple", quineHelp a, quineHelp b, quineHelp c ])
 
 
 lowerInitial : String -> String
