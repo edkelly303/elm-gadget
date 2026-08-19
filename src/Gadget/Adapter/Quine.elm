@@ -43,9 +43,6 @@ quineHelp irType =
                         , body = anonymousRecord (List.map (\( n, _ ) -> ( n, n )) namedFields)
                         }
 
-                pizza =
-                    P.string "|>"
-
                 fieldFunctionCall =
                     P.string "Gadget.field"
 
@@ -85,33 +82,10 @@ quineHelp irType =
 
                 fieldGadget fld =
                     if isPrimitive fld then
-                        parens (quineHelp fld)
-
-                    else
                         quineHelp fld
 
-                isPrimitive fld =
-                    case fld of
-                        UnitType _ ->
-                            False
-
-                        BoolType _ ->
-                            False
-
-                        CharType _ ->
-                            False
-
-                        StringType _ ->
-                            False
-
-                        IntType _ ->
-                            False
-
-                        FloatType _ ->
-                            False
-
-                        _ ->
-                            True
+                    else
+                        parens (quineHelp fld)
 
                 endRecordFunctionCall =
                     P.string "Gadget.endRecord"
@@ -131,20 +105,174 @@ quineHelp irType =
                     )
                 )
 
-        CustomType _ _ _ ->
-            Debug.todo "branch 'CustomType _ _ _' not implemented"
+        CustomType _ ( fstName, fstType ) rstNamesAndTypes ->
+            let
+                names =
+                    fstName :: List.map Tuple.first rstNamesAndTypes
 
-        ListType _ _ ->
-            Debug.todo "branch 'ListType _ _' not implemented"
+                types =
+                    fstType :: List.map Tuple.second rstNamesAndTypes
 
-        LazyType _ _ ->
-            Debug.todo "branch 'LazyType _ _' not implemented"
+                variantToArgs v =
+                    List.range 1 (variantSize v)
+                        |> List.map (\n -> "arg" ++ String.fromInt n)
+                        |> String.join " "
 
-        TupleType _ _ _ ->
-            Debug.todo "branch 'TupleType _ _ _' not implemented"
+                variantSize v =
+                    List.length (argsToList v)
 
-        TripleType _ _ _ _ ->
-            Debug.todo "branch 'TripleType _ _ _ _' not implemented"
+                argsToList v =
+                    case v of
+                        Variant0Type ->
+                            []
+
+                        Variant1Type arg1 ->
+                            [ arg1 ]
+
+                        Variant2Type arg1 arg2 ->
+                            [ arg1, arg2 ]
+
+                        Variant3Type arg1 arg2 arg3 ->
+                            [ arg1, arg2, arg3 ]
+
+                        Variant4Type arg1 arg2 arg3 arg4 ->
+                            [ arg1, arg2, arg3, arg4 ]
+
+                        Variant5Type arg1 arg2 arg3 arg4 arg5 ->
+                            [ arg1, arg2, arg3, arg4, arg5 ]
+
+                dtor =
+                    anonymousFunction
+                        { args = List.map lowerInitial names ++ [ "variant" ]
+                        , body =
+                            P.nest 4
+                                (P.lines
+                                    [ P.string "case variant of"
+                                    , P.lines
+                                        (List.map2
+                                            (\name variant ->
+                                                P.nest 4
+                                                    (P.lines
+                                                        [ P.words
+                                                            [ P.string name
+                                                            , P.string (variantToArgs variant)
+                                                            , P.string " ->"
+                                                            ]
+                                                        , P.words
+                                                            [ P.string (lowerInitial name)
+                                                            , P.string (variantToArgs variant)
+                                                            ]
+                                                        ]
+                                                    )
+                                            )
+                                            names
+                                            types
+                                        )
+                                    ]
+                                )
+                        }
+            in
+            P.group
+                (P.nest 4
+                    (P.lines
+                        [ P.lines
+                            [ P.string "Gadget.custom"
+                            , dtor
+                            ]
+                        , P.lines
+                            (List.map2
+                                (\n v ->
+                                    P.group
+                                        (P.nest 4
+                                            (P.lines
+                                                [ P.words
+                                                    [ pizza
+                                                    , P.string ("Gadget.variant" ++ String.fromInt (variantSize v))
+                                                    , P.group
+                                                        (P.lines
+                                                            [ P.string ("\"" ++ n ++ "\"")
+                                                            , P.string n
+                                                            ]
+                                                        )
+                                                    ]
+                                                , P.lines (List.map maybeParens (argsToList v))
+                                                ]
+                                            )
+                                        )
+                                )
+                                names
+                                types
+                            )
+                        , P.words
+                            [ pizza
+                            , P.string "Gadget.endCustom"
+                            ]
+                        ]
+                    )
+                )
+
+        ListType _ itemType ->
+            P.group
+                (P.nest 4
+                    (P.lines
+                        [ P.string "Gadget.list"
+                        , maybeParens itemType
+                        ]
+                    )
+                )
+
+        LazyType _ inner ->
+            quineHelp (inner ())
+
+        TupleType _ a b ->
+            P.lines [ P.string "Gadget.tuple", quineHelp a, quineHelp b ]
+
+        TripleType _ a b c ->
+            P.nest 4 (P.lines [ P.string "Gadget.tuple", quineHelp a, quineHelp b, quineHelp c ])
+
+
+lowerInitial : String -> String
+lowerInitial s =
+    case String.uncons s of
+        Just ( fst, rest ) ->
+            String.cons (Char.toLower fst) rest
+
+        Nothing ->
+            s
+
+
+maybeParens : Type -> P.Doc t
+maybeParens itemType =
+    if isPrimitive itemType then
+        quineHelp itemType
+
+    else
+        parens (quineHelp itemType)
+
+
+isPrimitive : Type -> Bool
+isPrimitive irType =
+    case irType of
+        UnitType _ ->
+            True
+
+        BoolType _ ->
+            True
+
+        CharType _ ->
+            True
+
+        StringType _ ->
+            True
+
+        IntType _ ->
+            True
+
+        FloatType _ ->
+            True
+
+        _ ->
+            False
 
 
 anonymousRecord : List ( String, String ) -> P.Doc t
@@ -189,3 +317,8 @@ parens inner =
             (P.char '(' |> P.a inner |> P.a (P.char ')'))
             (P.char '(' |> P.a inner |> P.a P.line |> P.a (P.char ')'))
         )
+
+
+pizza : P.Doc t
+pizza =
+    P.string "|>"
