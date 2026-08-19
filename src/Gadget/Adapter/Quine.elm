@@ -1,5 +1,6 @@
 module Gadget.Adapter.Quine exposing (quine)
 
+import Gadget.Adapter.Glam as G
 import Gadget.IR as IR exposing (Type(..), VariantType(..))
 import Pretty as P
 
@@ -9,6 +10,136 @@ quine columns gadget =
     IR.irType gadget
         |> quineHelp
         |> P.pretty columns
+
+
+quineHelp2 irType =
+    case irType of
+        UnitType _ ->
+            G.fromString "Gadget.unit"
+
+        BoolType _ ->
+            G.fromString "Gadget.bool"
+
+        IntType _ ->
+            G.fromString "Gadget.int"
+
+        FloatType _ ->
+            G.fromString "Gadget.float"
+
+        CharType _ ->
+            G.fromString "Gadget.char"
+
+        StringType _ ->
+            G.fromString "Gadget.string"
+
+        CustomType _ ( fstName, fstType ) rstNamesAndTypes ->
+            let
+                names =
+                    fstName :: List.map Tuple.first rstNamesAndTypes
+
+                types =
+                    fstType :: List.map Tuple.second rstNamesAndTypes
+
+                variantToArgs v =
+                    argsToList v
+                        |> List.indexedMap (\i _ -> "arg" ++ String.fromInt (i + 1))
+                        |> String.join " "
+
+                variantSize v =
+                    List.length (argsToList v)
+
+                argsToList v =
+                    case v of
+                        Variant0Type ->
+                            []
+
+                        Variant1Type arg1 ->
+                            [ arg1 ]
+
+                        Variant2Type arg1 arg2 ->
+                            [ arg1, arg2 ]
+
+                        Variant3Type arg1 arg2 arg3 ->
+                            [ arg1, arg2, arg3 ]
+
+                        Variant4Type arg1 arg2 arg3 arg4 ->
+                            [ arg1, arg2, arg3, arg4 ]
+
+                        Variant5Type arg1 arg2 arg3 arg4 arg5 ->
+                            [ arg1, arg2, arg3, arg4, arg5 ]
+
+                dtor =
+                    anonymousFunction
+                        { args = List.map lowerInitial names ++ [ "variant" ]
+                        , body =
+                            G.nest 4
+                                (G.lines
+                                    [ G.fromString "case variant of"
+                                    , G.lines
+                                        (List.map2
+                                            (\name variant ->
+                                                G.nest 4
+                                                    (G.lines
+                                                        [ G.words
+                                                            [ G.fromString name
+                                                            , G.fromString (variantToArgs variant)
+                                                            , G.fromString "->"
+                                                            ]
+                                                        , G.words
+                                                            [ G.fromString (lowerInitial name)
+                                                            , G.fromString (variantToArgs variant)
+                                                            ]
+                                                        ]
+                                                    )
+                                            )
+                                            names
+                                            types
+                                        )
+                                    ]
+                                )
+                        }
+            in
+            G.group
+                (G.nest 4
+                    (G.lines
+                        [ G.lines
+                            [ G.fromString "Gadget.custom"
+                            , dtor
+                            ]
+                        , G.lines
+                            (List.map2
+                                (\n v ->
+                                    G.group
+                                        (G.nest 4
+                                            (G.lines
+                                                [ G.words
+                                                    [ pizza
+                                                    , G.fromString ("Gadget.variant" ++ String.fromInt (variantSize v))
+                                                    , G.group
+                                                        (G.lines
+                                                            [ G.fromString ("\"" ++ n ++ "\"")
+                                                            , G.fromString n
+                                                            ]
+                                                        )
+                                                    ]
+                                                , G.lines (List.map maybeParens (argsToList v))
+                                                ]
+                                            )
+                                        )
+                                )
+                                names
+                                types
+                            )
+                        , G.words
+                            [ pizza
+                            , G.fromString "Gadget.endCustom"
+                            ]
+                        ]
+                    )
+                )
+
+        _ ->
+            Debug.todo "not implemented yet"
 
 
 quineHelp : Type -> P.Doc t
