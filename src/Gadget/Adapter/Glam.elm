@@ -27,11 +27,6 @@ appendDocs first docs =
     append first (concat docs)
 
 
-break : String -> String -> Document
-break unbroken broken =
-    Break { unbroken = unbroken, broken = broken }
-
-
 concat : List Document -> Document
 concat docs =
     Concat { docs = docs }
@@ -47,9 +42,19 @@ empty =
     Concat { docs = [] }
 
 
+break : String -> String -> Document
+break unbroken broken =
+    Break { unbroken = unbroken, broken = broken }
+
+
 flexBreak : String -> String -> Document
 flexBreak unbroken broken =
     FlexBreak { unbroken = unbroken, broken = broken }
+
+
+space : Document
+space =
+    Break { unbroken = " ", broken = "" }
 
 
 flexSpace : Document
@@ -82,14 +87,25 @@ join docs separator =
     concat (List.intersperse separator docs)
 
 
+words : List Document -> Document
+words docs =
+    join docs space
+
+
+lines : List Document -> Document
+lines docs =
+    join docs line
+
+
 line : Document
 line =
     Line { size = 1 }
 
 
-lines : Int -> Document
-lines size =
-    Line { size = size }
+
+-- lines : Int -> Document
+-- lines size =
+--     Line { size = size }
 
 
 nest : Int -> Document -> Document
@@ -120,11 +136,6 @@ prependDocs docs first =
 softBreak : Document
 softBreak =
     Break { unbroken = "", broken = "" }
-
-
-space : Document
-space =
-    Break { unbroken = " ", broken = "" }
 
 
 toString : Int -> Document -> String
@@ -160,8 +171,9 @@ fits docs_ maxWidth currentWidth =
                         fits rest maxWidth (currentWidth + length)
 
                     Nest { doc, indentation } ->
-                        ( indent + indentation, mode, doc_ )
+                        (( indent + indentation, mode, doc )
                             :: rest
+                        )
                             |> (\x -> fits x maxWidth currentWidth)
 
                     Break { unbroken } ->
@@ -214,12 +226,12 @@ doToString acc maxWidth currentWidth docs_ =
                 -- Flex breaks ignore the current mode and are always reevaluated
                 FlexBreak { unbroken, broken } ->
                     let
-                        new_unbroken_width =
+                        newUnbrokenWidth =
                             currentWidth + String.length unbroken
                     in
-                    case fits rest maxWidth new_unbroken_width of
+                    case fits rest maxWidth newUnbrokenWidth of
                         True ->
-                            doToString (acc ++ unbroken) maxWidth new_unbroken_width rest
+                            doToString (acc ++ unbroken) maxWidth newUnbrokenWidth rest
 
                         False ->
                             doToString (acc ++ broken ++ "\n" ++ indentationToString indent) maxWidth indent rest
