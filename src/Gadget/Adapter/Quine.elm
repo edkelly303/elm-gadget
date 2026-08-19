@@ -8,8 +8,12 @@ import Pretty as P
 quine : Int -> IR.Gadget a -> String
 quine columns gadget =
     IR.irType gadget
-        |> quineHelp
-        |> P.pretty columns
+        |> quineHelp2
+        |> G.toString columns
+
+
+
+-- |> P.pretty columns
 
 
 quineHelp2 irType =
@@ -69,7 +73,7 @@ quineHelp2 irType =
                             [ arg1, arg2, arg3, arg4, arg5 ]
 
                 dtor =
-                    anonymousFunction
+                    anonymousFunction2
                         { args = List.map lowerInitial names ++ [ "variant" ]
                         , body =
                             G.nest 4
@@ -78,17 +82,20 @@ quineHelp2 irType =
                                     , G.lines
                                         (List.map2
                                             (\name variant ->
+                                                let
+                                                    args =
+                                                        variantToArgs variant
+                                                in
                                                 G.nest 4
-                                                    (G.lines
-                                                        [ G.words
-                                                            [ G.fromString name
-                                                            , G.fromString (variantToArgs variant)
-                                                            , G.fromString "->"
-                                                            ]
-                                                        , G.words
-                                                            [ G.fromString (lowerInitial name)
-                                                            , G.fromString (variantToArgs variant)
-                                                            ]
+                                                    (G.concat
+                                                        [ G.fromString name
+                                                        , G.fromString " "
+                                                        , G.fromString args
+                                                        , G.fromString " ->"
+                                                        , G.line
+                                                        , G.fromString (lowerInitial name)
+                                                        , G.fromString " "
+                                                        , G.fromString args
                                                         ]
                                                     )
                                             )
@@ -99,41 +106,40 @@ quineHelp2 irType =
                                 )
                         }
             in
-            G.group
-                (G.nest 4
-                    (G.lines
-                        [ G.lines
-                            [ G.fromString "Gadget.custom"
-                            , dtor
-                            ]
-                        , G.lines
+            G.nest 4
+                (G.group
+                    (G.concat
+                        [ G.fromString "Gadget.custom"
+                        , G.line
+                        , dtor
+                        , G.line
+                        , G.concat
                             (List.map2
                                 (\n v ->
                                     G.group
-                                        (G.nest 4
-                                            (G.lines
-                                                [ G.words
-                                                    [ pizza
-                                                    , G.fromString ("Gadget.variant" ++ String.fromInt (variantSize v))
-                                                    , G.group
-                                                        (G.lines
-                                                            [ G.fromString ("\"" ++ n ++ "\"")
-                                                            , G.fromString n
-                                                            ]
-                                                        )
+                                        (G.concat
+                                            [ pizza2
+                                            , G.fromString (" Gadget.variant" ++ String.fromInt (variantSize v))
+                                            , G.nest 4
+                                                (G.concat
+                                                    [ G.space
+                                                    , G.fromString ("\"" ++ n ++ "\"")
+                                                    , G.space
+                                                    , G.fromString n
+                                                    , G.space
+                                                    , G.group (G.concat (List.map maybeParens2 (argsToList v)))
                                                     ]
-                                                , G.lines (List.map maybeParens (argsToList v))
-                                                ]
-                                            )
+                                                )
+                                            , G.line
+                                            ]
                                         )
                                 )
                                 names
                                 types
                             )
-                        , G.words
-                            [ pizza
-                            , G.fromString "Gadget.endCustom"
-                            ]
+                        , pizza2
+                        , G.fromString " "
+                        , G.fromString "Gadget.endCustom"
                         ]
                     )
                 )
@@ -381,6 +387,15 @@ maybeParens itemType =
         parens (quineHelp itemType)
 
 
+maybeParens2 : Type -> G.Document
+maybeParens2 itemType =
+    if isPrimitive itemType then
+        quineHelp2 itemType
+
+    else
+        parens2 (quineHelp2 itemType)
+
+
 isPrimitive : Type -> Bool
 isPrimitive irType =
     case irType of
@@ -441,6 +456,24 @@ anonymousFunction { args, body } =
         |> parens
 
 
+anonymousFunction2 : { args : List String, body : G.Document } -> G.Document
+anonymousFunction2 { args, body } =
+    parens2
+        (G.fromString ("\\" ++ String.join " " args ++ " ->")
+            |> G.prepend G.line
+            |> G.prepend body
+            |> G.nest 4
+        )
+
+
+parens2 : G.Document -> G.Document
+parens2 inner =
+    G.fromString "("
+        |> G.prepend inner
+        |> G.prepend G.line
+        |> G.prepend (G.fromString ")")
+
+
 parens : P.Doc t -> P.Doc t
 parens inner =
     P.group
@@ -448,6 +481,11 @@ parens inner =
             (P.char '(' |> P.a inner |> P.a (P.char ')'))
             (P.char '(' |> P.a inner |> P.a P.line |> P.a (P.char ')'))
         )
+
+
+pizza2 : G.Document
+pizza2 =
+    G.fromString "|>"
 
 
 pizza : P.Doc t
