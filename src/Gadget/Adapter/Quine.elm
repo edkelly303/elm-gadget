@@ -42,28 +42,24 @@ quineHelp isRoot irType =
                         , body = G.group (anonymousRecord (List.map (\( n, _ ) -> ( n, n )) namedFields))
                         }
 
-                fields =
+                prettyFields =
+                    G.group <| joinWithLines (List.map prettyField namedFields)
+
+                prettyField ( name, fld ) =
                     G.group <|
-                        joinWithLines
-                            (List.map
-                                (\( name, fld ) ->
-                                    G.group <|
-                                        G.nest 4 <|
-                                            joinWithSpaces
-                                                [ G.group <|
-                                                    joinWithSpaces
-                                                        [ joinWithNonBreakingSpaces
-                                                            [ pizza
-                                                            , G.fromString "Gadget.field"
-                                                            ]
-                                                        , G.fromString ("\"" ++ name ++ "\"")
-                                                        , G.fromString ("." ++ name)
-                                                        ]
-                                                , quineHelp False fld
-                                                ]
-                                )
-                                namedFields
-                            )
+                        G.nest 4 <|
+                            joinWithSpaces
+                                [ G.group <|
+                                    joinWithSpaces
+                                        [ joinWithNonBreakingSpaces
+                                            [ pizza
+                                            , G.fromString "Gadget.field"
+                                            ]
+                                        , G.fromString ("\"" ++ name ++ "\"")
+                                        , G.fromString ("." ++ name)
+                                        ]
+                                , quineHelp False fld
+                                ]
 
                 pretty =
                     G.group <|
@@ -74,7 +70,7 @@ quineHelp isRoot irType =
                                         [ G.fromString "Gadget.record"
                                         , ctor
                                         ]
-                                , fields
+                                , prettyFields
                                 , joinWithNonBreakingSpaces
                                     [ pizza
                                     , G.fromString "Gadget.endRecord"
@@ -86,7 +82,7 @@ quineHelp isRoot irType =
 
             else
                 pretty
-                    |> G.prepend (G.fromString "(")
+                    |> G.prepend (G.line |> G.append (G.fromString "("))
                     |> G.append (G.line |> G.append (G.fromString ")"))
                     |> G.group
 
@@ -166,12 +162,12 @@ quineHelp isRoot irType =
                 prettyVariant name variant =
                     G.group <|
                         G.nest 4 <|
-                            joinWithLines
+                            joinWithSpaces
                                 [ G.group <|
                                     joinWithSpaces
-                                        [ G.concat
+                                        [ joinWithNonBreakingSpaces
                                             [ pizza
-                                            , G.fromString (" Gadget.variant" ++ String.fromInt (variantSize variant))
+                                            , G.fromString ("Gadget.variant" ++ String.fromInt (variantSize variant))
                                             ]
                                         , G.fromString ("\"" ++ name ++ "\"")
                                         , G.fromString name
@@ -181,7 +177,8 @@ quineHelp isRoot irType =
                                         G.empty
 
                                     args ->
-                                        joinWithSpaces (List.map (quineHelp False) args)
+                                        G.group <|
+                                            joinWithSpaces (List.map (quineHelp False) args)
                                 ]
 
                 pretty =
@@ -201,7 +198,7 @@ quineHelp isRoot irType =
 
             else
                 pretty
-                    |> G.prepend (G.fromString "(")
+                    |> G.prepend (G.line |> G.append (G.fromString "("))
                     |> G.append (G.line |> G.append (G.fromString ")"))
                     |> G.group
 

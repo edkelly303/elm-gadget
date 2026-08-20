@@ -144,13 +144,13 @@ view model =
     let
         gadget =
             personGadget
-            -- Gadget.maybe
-            --     (Gadget.record (\x y -> { x = x, y = y })
-            --         |> Gadget.field "x" .x Gadget.int
-            --         |> Gadget.field "y" .y Gadget.int
-            --         |> Gadget.endRecord
-            --     )
 
+        -- Gadget.maybe
+        --     (Gadget.record (\x y -> { x = x, y = y })
+        --         |> Gadget.field "x" .x Gadget.int
+        --         |> Gadget.field "y" .y Gadget.int
+        --         |> Gadget.endRecord
+        --     )
         fuzzOverrides =
             [ Gadget.Adapter.Fuzz.override "dogName" Gadget.string (Fuzz.oneOf (List.map Fuzz.constant [ "Fido", "Kevin", "Rover", "Fifi", "George", "Winnie" ]))
             , Gadget.Adapter.Fuzz.override "series" Gadget.char (Fuzz.oneOf (List.range 65 90 |> List.map Char.fromCode |> List.map Fuzz.constant))
