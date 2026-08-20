@@ -23,7 +23,7 @@ import Random
 
 type alias Person =
     { name : String
-    , heightInCentimetres : Float
+    , heightInCentimetres : List Float
     , pets : List Pet
     , tuple : ( Bool, Bool )
     , triple : ( Bool, Bool, Bool )
@@ -43,7 +43,7 @@ personGadget =
             (Gadget.string |> Gadget.Adapter.Random.choose "Ed" [ "Leonardo", "Wolfgang", "Rupert", "Mario", "Martin" ])
         |> Gadget.field "heightInCentimetres"
             .heightInCentimetres
-            (Gadget.float |> Gadget.Adapter.Random.range 100 180)
+            (Gadget.list(Gadget.float |> Gadget.Adapter.Random.range 100 180))
         |> Gadget.field "pets"
             .pets
             (Gadget.list petGadget |> Gadget.Adapter.Random.listLength 0 3)
