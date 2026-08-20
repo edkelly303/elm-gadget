@@ -133,7 +133,7 @@ update msg model =
 
 init _ =
     ( { seeds = ( 0, 1 )
-      , prettyWidth = 80
+      , prettyWidth = 120
       }
     , Cmd.none
     )
@@ -143,7 +143,11 @@ view : Model -> H.Html Msg
 view model =
     let
         gadget =
-            Gadget.maybe (Gadget.record (\x -> {x = x}) |> Gadget.field "x" .x Gadget.int |> Gadget.endRecord)
+            Gadget.maybe 
+                (Gadget.record (\x y -> {x = x, y = y}) 
+                    |> Gadget.field "x" .x Gadget.int 
+                    |> Gadget.field "y" .y Gadget.int |> Gadget.endRecord
+                )
 
         fuzzOverrides =
             [ Gadget.Adapter.Fuzz.override "dogName" Gadget.string (Fuzz.oneOf (List.map Fuzz.constant [ "Fido", "Kevin", "Rover", "Fifi", "George", "Winnie" ]))

@@ -12,6 +12,21 @@ type Document
     | Group { doc : Document }
 
 
+prepend : Document -> Document -> Document
+prepend first second =
+    case first of
+        Concat { docs } ->
+            Concat { docs = second :: docs }
+
+        _ ->
+            Concat { docs = [ second, first ] }
+
+
+prependDocs : List Document -> Document -> Document
+prependDocs docs first =
+    prepend first (concat docs)
+
+
 append : Document -> Document -> Document
 append first second =
     case first of
@@ -33,38 +48,13 @@ concat docs =
 
 
 concatJoin : List Document -> List Document -> Document
-concatJoin docs separators =
-    join docs (concat separators)
+concatJoin separators docs =
+    join (concat separators) docs
 
 
 empty : Document
 empty =
     Concat { docs = [] }
-
-
-break : String -> String -> Document
-break unbroken broken =
-    Break { unbroken = unbroken, broken = broken }
-
-
-flexBreak : String -> String -> Document
-flexBreak unbroken broken =
-    FlexBreak { unbroken = unbroken, broken = broken }
-
-
-space : Document
-space =
-    Break { unbroken = " ", broken = "" }
-
-
-flexSpace : Document
-flexSpace =
-    FlexBreak { unbroken = " ", broken = "" }
-
-
-forceBreak : Document -> Document
-forceBreak doc =
-    ForceBreak { doc = doc }
 
 
 fromString : String -> Document
@@ -82,19 +72,13 @@ group doc =
     Group { doc = doc }
 
 
-join : List Document -> Document -> Document
-join docs separator =
-    concat (List.intersperse separator docs)
-
-
-words : List Document -> Document
-words docs =
-    join docs space
-
-
-lines : List Document -> Document
-lines docs =
-    join docs line
+join : Document -> List Document -> Document
+join separator docs =
+    let
+        nonEmptyDocs =
+            List.filter (\doc -> doc /= empty) docs
+    in
+    concat (List.intersperse separator nonEmptyDocs)
 
 
 line : Document
@@ -102,10 +86,39 @@ line =
     Line { size = 1 }
 
 
+lines : Int -> Document
+lines size =
+    Line { size = size }
 
--- lines : Int -> Document
--- lines size =
---     Line { size = size }
+
+space : Document
+space =
+    Break { unbroken = " ", broken = "" }
+
+
+flexSpace : Document
+flexSpace =
+    FlexBreak { unbroken = " ", broken = "" }
+
+
+break : String -> String -> Document
+break unbroken broken =
+    Break { unbroken = unbroken, broken = broken }
+
+
+softBreak : Document
+softBreak =
+    Break { unbroken = "", broken = "" }
+
+
+flexBreak : String -> String -> Document
+flexBreak unbroken broken =
+    FlexBreak { unbroken = unbroken, broken = broken }
+
+
+forceBreak : Document -> Document
+forceBreak doc =
+    ForceBreak { doc = doc }
 
 
 nest : Int -> Document -> Document
@@ -116,26 +129,6 @@ nest indentation doc =
 nestDocs : Int -> List Document -> Document
 nestDocs indentation docs =
     Nest { doc = concat docs, indentation = indentation }
-
-
-prepend : Document -> Document -> Document
-prepend first second =
-    case first of
-        Concat { docs } ->
-            Concat { docs = second :: docs }
-
-        _ ->
-            Concat { docs = [ second, first ] }
-
-
-prependDocs : List Document -> Document -> Document
-prependDocs docs first =
-    prepend first (concat docs)
-
-
-softBreak : Document
-softBreak =
-    Break { unbroken = "", broken = "" }
 
 
 toString : Int -> Document -> String
