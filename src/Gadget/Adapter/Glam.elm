@@ -212,12 +212,11 @@ doToString acc maxWidth currentWidth docs_ =
                         newUnbrokenWidth =
                             currentWidth + String.length unbroken
                     in
-                    case fits rest maxWidth newUnbrokenWidth of
-                        True ->
-                            doToString (acc ++ unbroken) maxWidth newUnbrokenWidth rest
+                    if fits rest maxWidth newUnbrokenWidth then
+                        doToString (acc ++ unbroken) maxWidth newUnbrokenWidth rest
 
-                        False ->
-                            doToString (acc ++ broken ++ "\n" ++ indentationToString indent) maxWidth indent rest
+                    else
+                        doToString (acc ++ broken ++ "\n" ++ indentationToString indent) maxWidth indent rest
 
                 Break { unbroken, broken } ->
                     case mode of
@@ -254,12 +253,11 @@ doToString acc maxWidth currentWidth docs_ =
                             fits [ ( indent, Unbroken, doc ) ] maxWidth currentWidth
 
                         newMode =
-                            case thisFits of
-                                True ->
-                                    Unbroken
+                            if thisFits then
+                                Unbroken
 
-                                False ->
-                                    Broken
+                            else
+                                Broken
 
                         docs =
                             ( indent, newMode, doc ) :: rest

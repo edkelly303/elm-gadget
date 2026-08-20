@@ -2,7 +2,6 @@ module Gadget.Adapter.Quine exposing (quine)
 
 import Gadget.Adapter.Glam as G
 import Gadget.IR as IR exposing (Type(..), VariantType(..))
-import Pretty as P
 
 
 quine : Int -> IR.Gadget a -> String
@@ -267,7 +266,7 @@ anonymousRecord fieldNamesAndValues =
         [] ->
             G.fromString "{}"
 
-        first :: rest ->
+        _ ->
             let
                 printField ( name, value ) =
                     G.group <|
