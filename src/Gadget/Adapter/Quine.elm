@@ -7,8 +7,12 @@ import Pretty as P
 
 quine : Int -> IR.Gadget a -> String
 quine columns gadget =
-    IR.irType gadget
-        |> quineHelp True
+    joinWithSpaces
+        [ G.fromString "gadget ="
+        , quineHelp True (IR.irType gadget)
+        ]
+        |> G.nest 4
+        |> G.group
         |> G.toString columns
 
 
@@ -78,14 +82,7 @@ quineHelp isRoot irType =
                                         ]
                                     ]
             in
-            if isRoot then
-                pretty
-
-            else
-                pretty
-                    |> G.prepend (G.fromString "(")
-                    |> G.append (G.softBreak |> G.append (G.fromString ")"))
-                    |> G.group
+            parenthesizeIfNotRoot isRoot pretty
 
         CustomType _ ( firstName, firstVariant ) restNamesAndVariants ->
             let
@@ -189,14 +186,7 @@ quineHelp isRoot irType =
                                     ]
                                 ]
             in
-            if isRoot then
-                pretty
-
-            else
-                pretty
-                    |> G.prepend (G.fromString "(")
-                    |> G.append (G.softBreak |> G.append (G.fromString ")"))
-                    |> G.group
+            parenthesizeIfNotRoot isRoot pretty
 
         ListType _ itemType ->
             let
@@ -208,14 +198,7 @@ quineHelp isRoot irType =
                                 , quineHelp False itemType
                                 ]
             in
-            if isRoot then
-                pretty
-
-            else
-                pretty
-                    |> G.prepend (G.fromString "(")
-                    |> G.append (G.softBreak |> G.append (G.fromString ")"))
-                    |> G.group
+            parenthesizeIfNotRoot isRoot pretty
 
         LazyType _ inner ->
             quineHelp isRoot (inner ())
@@ -231,14 +214,7 @@ quineHelp isRoot irType =
                                 , quineHelp False b
                                 ]
             in
-            if isRoot then
-                pretty
-
-            else
-                pretty
-                    |> G.prepend (G.fromString "(")
-                    |> G.append (G.softBreak |> G.append (G.fromString ")"))
-                    |> G.group
+            parenthesizeIfNotRoot isRoot pretty
 
         TripleType _ a b c ->
             let
@@ -246,20 +222,25 @@ quineHelp isRoot irType =
                     G.nest 4 <|
                         G.group <|
                             joinWithSpaces
-                                [ G.fromString "Gadget.tuple"
+                                [ G.fromString "Gadget.triple"
                                 , quineHelp False a
                                 , quineHelp False b
                                 , quineHelp False c
                                 ]
             in
-            if isRoot then
-                pretty
+            parenthesizeIfNotRoot isRoot pretty
 
-            else
-                pretty
-                    |> G.prepend (G.fromString "(")
-                    |> G.append (G.softBreak |> G.append (G.fromString ")"))
-                    |> G.group
+
+parenthesizeIfNotRoot : Bool -> G.Document -> G.Document
+parenthesizeIfNotRoot isRoot doc =
+    if isRoot then
+        doc
+
+    else
+        doc
+            |> G.prepend (G.fromString "(")
+            |> G.append (G.softBreak |> G.append (G.fromString ")"))
+            |> G.group
 
 
 joinWithSpaces : List G.Document -> G.Document
