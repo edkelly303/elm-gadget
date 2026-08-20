@@ -7,7 +7,7 @@ import Pretty as P
 
 quine : Int -> IR.Gadget a -> String
 quine columns gadget =
-    joinWithSpaces
+    breakable
         [ G.fromString "gadget ="
         , quineHelp True (IR.irType gadget)
         ]
@@ -39,23 +39,23 @@ quineHelp isRoot irType =
 
         RecordType _ namedFields ->
             let
-                ctor =
+                prettyCtor =
                     anonymousFunction
-                        { alwaysBreak = False
-                        , args = List.map Tuple.first namedFields
+                        { args = List.map Tuple.first namedFields
                         , body = G.group (anonymousRecord (List.map (\( n, _ ) -> ( n, n )) namedFields))
                         }
 
                 prettyFields =
-                    G.group <| joinWithSpaces (List.map prettyField namedFields)
+                    G.group <|
+                        breakable (List.map prettyField namedFields)
 
                 prettyField ( name, fld ) =
                     G.group <|
                         G.nest 4 <|
-                            joinWithSpaces
+                            breakable
                                 [ G.group <|
-                                    joinWithSpaces
-                                        [ joinWithNonBreakingSpaces
+                                    breakable
+                                        [ unbreakable
                                             [ pizza
                                             , G.fromString "Gadget.field"
                                             ]
@@ -64,25 +64,23 @@ quineHelp isRoot irType =
                                         ]
                                 , quineHelp False fld
                                 ]
-
-                pretty =
-                    G.group <|
-                        G.nest 4 <|
-                            G.forceBreak <|
-                                joinWithSpaces
-                                    [ G.group <|
-                                        joinWithSpaces
-                                            [ G.fromString "Gadget.record"
-                                            , ctor
-                                            ]
-                                    , prettyFields
-                                    , joinWithNonBreakingSpaces
-                                        [ pizza
-                                        , G.fromString "Gadget.endRecord"
-                                        ]
-                                    ]
             in
-            parenthesizeIfNotRoot isRoot pretty
+            parenthesizeIfNotRoot isRoot <|
+                G.group <|
+                    G.nest 4 <|
+                        G.forceBreak <|
+                            breakable
+                                [ G.group <|
+                                    breakable
+                                        [ G.fromString "Gadget.record"
+                                        , prettyCtor
+                                        ]
+                                , prettyFields
+                                , unbreakable
+                                    [ pizza
+                                    , G.fromString "Gadget.endRecord"
+                                    ]
+                                ]
 
         CustomType _ ( firstName, firstVariant ) restNamesAndVariants ->
             let
@@ -117,15 +115,14 @@ quineHelp isRoot irType =
 
                 prettyDtor =
                     anonymousFunction
-                        { alwaysBreak = True
-                        , args = List.map lowerInitial names ++ [ "variant" ]
+                        { args = List.map lowerInitial names ++ [ "variant" ]
                         , body =
                             G.group <|
                                 G.nest 4 <|
                                     G.forceBreak <|
-                                        joinWithSpaces
+                                        breakable
                                             [ G.fromString "case variant of"
-                                            , joinWithSpaces
+                                            , breakable
                                                 (List.map2 prettyDtorCase names variants)
                                             ]
                         }
@@ -137,27 +134,27 @@ quineHelp isRoot irType =
                                 |> List.indexedMap (\i _ -> G.fromString ("arg" ++ String.fromInt (i + 1)))
                     in
                     G.nest 4 <|
-                        joinWithSpaces
-                            [ joinWithNonBreakingSpaces
+                        breakable
+                            [ unbreakable
                                 [ G.fromString name
-                                , joinWithNonBreakingSpaces args
+                                , unbreakable args
                                 , G.fromString "->"
                                 ]
-                            , joinWithSpaces
-                                [ G.fromString (lowerInitial name)
-                                , joinWithSpaces args
-                                ]
-                                |> G.nest 4
-                                |> G.group
+                            , G.group <|
+                                G.nest 4 <|
+                                    breakable
+                                        [ G.fromString (lowerInitial name)
+                                        , breakable args
+                                        ]
                             ]
 
                 prettyVariant name variant =
                     G.group <|
                         G.nest 4 <|
-                            joinWithSpaces
+                            breakable
                                 [ G.group <|
-                                    joinWithSpaces
-                                        [ joinWithNonBreakingSpaces
+                                    breakable
+                                        [ unbreakable
                                             [ pizza
                                             , G.fromString ("Gadget.variant" ++ String.fromInt (variantSize variant))
                                             ]
@@ -170,65 +167,79 @@ quineHelp isRoot irType =
 
                                     args ->
                                         G.group <|
-                                            joinWithSpaces (List.map (quineHelp False) args)
-                                ]
-
-                pretty =
-                    G.nest 4 <|
-                        G.forceBreak <|
-                            joinWithSpaces
-                                [ G.fromString "Gadget.custom"
-                                , prettyDtor
-                                , joinWithSpaces (List.map2 prettyVariant names variants)
-                                , joinWithNonBreakingSpaces
-                                    [ pizza
-                                    , G.fromString "Gadget.endCustom"
-                                    ]
+                                            breakable (List.map (quineHelp False) args)
                                 ]
             in
-            parenthesizeIfNotRoot isRoot pretty
+            parenthesizeIfNotRoot isRoot <|
+                G.nest 4 <|
+                    G.forceBreak <|
+                        breakable
+                            [ G.fromString "Gadget.custom"
+                            , prettyDtor
+                            , breakable (List.map2 prettyVariant names variants)
+                            , unbreakable
+                                [ pizza
+                                , G.fromString "Gadget.endCustom"
+                                ]
+                            ]
 
         ListType _ itemType ->
-            let
-                pretty =
-                    G.nest 4 <|
-                        G.group <|
-                            joinWithSpaces
-                                [ G.fromString "Gadget.list"
-                                , quineHelp False itemType
-                                ]
-            in
-            parenthesizeIfNotRoot isRoot pretty
+            parenthesizeIfNotRoot isRoot <|
+                G.nest 4 <|
+                    G.group <|
+                        breakable
+                            [ G.fromString "Gadget.list"
+                            , quineHelp False itemType
+                            ]
 
         LazyType _ inner ->
             quineHelp isRoot (inner ())
 
         TupleType _ a b ->
-            let
-                pretty =
-                    G.nest 4 <|
-                        G.group <|
-                            joinWithSpaces
-                                [ G.fromString "Gadget.tuple"
-                                , quineHelp False a
-                                , quineHelp False b
-                                ]
-            in
-            parenthesizeIfNotRoot isRoot pretty
+            parenthesizeIfNotRoot isRoot <|
+                G.nest 4 <|
+                    G.group <|
+                        breakable
+                            [ G.fromString "Gadget.tuple"
+                            , quineHelp False a
+                            , quineHelp False b
+                            ]
 
         TripleType _ a b c ->
-            let
-                pretty =
-                    G.nest 4 <|
-                        G.group <|
-                            joinWithSpaces
-                                [ G.fromString "Gadget.triple"
-                                , quineHelp False a
-                                , quineHelp False b
-                                , quineHelp False c
-                                ]
-            in
-            parenthesizeIfNotRoot isRoot pretty
+            parenthesizeIfNotRoot isRoot <|
+                G.nest 4 <|
+                    G.group <|
+                        breakable
+                            [ G.fromString "Gadget.triple"
+                            , quineHelp False a
+                            , quineHelp False b
+                            , quineHelp False c
+                            ]
+
+
+breakable : List G.Document -> G.Document
+breakable =
+    G.join G.space
+
+
+unbreakable : List G.Document -> G.Document
+unbreakable =
+    G.join (G.fromString " ")
+
+
+pizza : G.Document
+pizza =
+    G.fromString "|>"
+
+
+parens : G.Document -> G.Document
+parens inner =
+    G.concat
+        [ G.fromString "("
+        , inner
+        , G.softBreak
+        , G.fromString ")"
+        ]
 
 
 parenthesizeIfNotRoot : Bool -> G.Document -> G.Document
@@ -237,20 +248,7 @@ parenthesizeIfNotRoot isRoot doc =
         doc
 
     else
-        doc
-            |> G.prepend (G.fromString "(")
-            |> G.append (G.softBreak |> G.append (G.fromString ")"))
-            |> G.group
-
-
-joinWithSpaces : List G.Document -> G.Document
-joinWithSpaces =
-    G.join G.space
-
-
-joinWithNonBreakingSpaces : List G.Document -> G.Document
-joinWithNonBreakingSpaces =
-    G.join (G.fromString " ")
+        parens doc
 
 
 lowerInitial : String -> String
@@ -261,31 +259,6 @@ lowerInitial s =
 
         Nothing ->
             s
-
-
-isPrimitive : Type -> Bool
-isPrimitive irType =
-    case irType of
-        UnitType _ ->
-            True
-
-        BoolType _ ->
-            True
-
-        CharType _ ->
-            True
-
-        StringType _ ->
-            True
-
-        IntType _ ->
-            True
-
-        FloatType _ ->
-            True
-
-        _ ->
-            False
 
 
 anonymousRecord : List ( String, String ) -> G.Document
@@ -299,7 +272,7 @@ anonymousRecord fieldNamesAndValues =
                 printField ( name, value ) =
                     G.group <|
                         G.nest 4 <|
-                            joinWithSpaces
+                            breakable
                                 [ G.fromString (name ++ " =")
                                 , G.fromString value
                                 ]
@@ -319,34 +292,12 @@ anonymousRecord fieldNamesAndValues =
                     ]
 
 
-anonymousFunction : { alwaysBreak : Bool, args : List String, body : G.Document } -> G.Document
-anonymousFunction { alwaysBreak, args, body } =
+anonymousFunction : { args : List String, body : G.Document } -> G.Document
+anonymousFunction { args, body } =
     G.group <|
         parens <|
             G.nest 4 <|
-                (if alwaysBreak then
-                    G.forceBreak
-
-                 else
-                    identity
-                )
-                <|
-                    joinWithSpaces
-                        [ G.fromString ("\\" ++ String.join " " args ++ " ->")
-                        , body
-                        ]
-
-
-parens : G.Document -> G.Document
-parens inner =
-    G.concat
-        [ G.fromString "("
-        , inner
-        , G.space
-        , G.fromString ")"
-        ]
-
-
-pizza : G.Document
-pizza =
-    G.fromString "|>"
+                breakable
+                    [ G.fromString ("\\" ++ String.join " " args ++ " ->")
+                    , body
+                    ]
