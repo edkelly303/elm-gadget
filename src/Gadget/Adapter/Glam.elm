@@ -12,8 +12,8 @@ type Document
     | Group { doc : Document }
 
 
-prepend : Document -> Document -> Document
-prepend first second =
+append : Document -> Document -> Document
+append first second =
     case first of
         Concat { docs } ->
             Concat { docs = second :: docs }
@@ -22,24 +22,14 @@ prepend first second =
             Concat { docs = [ second, first ] }
 
 
-prependDocs : List Document -> Document -> Document
-prependDocs docs first =
-    prepend first (concat docs)
-
-
-append : Document -> Document -> Document
-append first second =
+prepend : Document -> Document -> Document
+prepend first second =
     case first of
         Concat { docs } ->
             Concat { docs = docs ++ [ second ] }
 
         _ ->
             Concat { docs = [ first, second ] }
-
-
-appendDocs : Document -> List Document -> Document
-appendDocs first docs =
-    append first (concat docs)
 
 
 concat : List Document -> Document
