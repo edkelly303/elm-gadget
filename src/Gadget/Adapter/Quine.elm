@@ -8,12 +8,12 @@ import Pretty as P
 quine : Int -> IR.Gadget a -> String
 quine columns gadget =
     IR.irType gadget
-        |> quineHelp
+        |> quineHelp True
         |> G.toString columns
 
 
-quineHelp : Type -> G.Document
-quineHelp irType =
+quineHelp : Bool -> Type -> G.Document
+quineHelp isRoot irType =
     case irType of
         UnitType _ ->
             G.fromString "Gadget.unit"
@@ -59,26 +59,36 @@ quineHelp irType =
                                                         , G.fromString ("\"" ++ name ++ "\"")
                                                         , G.fromString ("." ++ name)
                                                         ]
-                                                , maybeParens fld
+                                                , quineHelp False fld
                                                 ]
                                 )
                                 namedFields
                             )
-            in
-            G.group <|
-                G.nest 4 <|
-                    joinWithLines
-                        [ G.group <|
+
+                pretty =
+                    G.group <|
+                        G.nest 4 <|
                             joinWithLines
-                                [ G.fromString "Gadget.record"
-                                , ctor
+                                [ G.group <|
+                                    joinWithLines
+                                        [ G.fromString "Gadget.record"
+                                        , ctor
+                                        ]
+                                , fields
+                                , joinWithNonBreakingSpaces
+                                    [ pizza
+                                    , G.fromString "Gadget.endRecord"
+                                    ]
                                 ]
-                        , fields
-                        , joinWithNonBreakingSpaces
-                            [ pizza
-                            , G.fromString "Gadget.endRecord"
-                            ]
-                        ]
+            in
+            if isRoot then
+                pretty
+
+            else
+                pretty
+                    |> G.prepend (G.fromString "(")
+                    |> G.append (G.line |> G.append (G.fromString ")"))
+                    |> G.group
 
         CustomType _ ( firstName, firstVariant ) restNamesAndVariants ->
             let
@@ -171,22 +181,92 @@ quineHelp irType =
                                         G.empty
 
                                     args ->
-                                        joinWithSpaces (List.map maybeParens args)
+                                        joinWithSpaces (List.map (quineHelp False) args)
+                                ]
+
+                pretty =
+                    G.nest 4 <|
+                        joinWithLines
+                            [ G.fromString "Gadget.custom"
+                            , prettyDtor
+                            , joinWithLines (List.map2 prettyVariant names variants)
+                            , joinWithNonBreakingSpaces
+                                [ pizza
+                                , G.fromString "Gadget.endCustom"
+                                ]
+                            ]
+            in
+            if isRoot then
+                pretty
+
+            else
+                pretty
+                    |> G.prepend (G.fromString "(")
+                    |> G.append (G.line |> G.append (G.fromString ")"))
+                    |> G.group
+
+        ListType _ itemType ->
+            let
+                pretty =
+                    G.nest 4 <|
+                        G.group <|
+                            joinWithLines
+                                [ G.fromString "Gadget.list"
+                                , quineHelp False itemType
                                 ]
             in
-            G.nest 4 <|
-                joinWithLines
-                    [ G.fromString "Gadget.custom"
-                    , prettyDtor
-                    , joinWithLines (List.map2 prettyVariant names variants)
-                    , joinWithNonBreakingSpaces
-                        [ pizza
-                        , G.fromString "Gadget.endCustom"
-                        ]
-                    ]
+            if isRoot then
+                pretty
 
-        _ ->
-            Debug.todo "not implemented yet"
+            else
+                pretty
+                    |> G.prepend (G.line |> G.append (G.fromString "("))
+                    |> G.append (G.line |> G.append (G.fromString ")"))
+                    |> G.group
+
+        LazyType _ inner ->
+            quineHelp isRoot (inner ())
+
+        TupleType _ a b ->
+            let
+                pretty =
+                    G.nest 4 <|
+                        G.group <|
+                            joinWithSpaces
+                                [ G.fromString "Gadget.tuple"
+                                , quineHelp False a
+                                , quineHelp False b
+                                ]
+            in
+            if isRoot then
+                pretty
+
+            else
+                pretty
+                    |> G.prepend (G.fromString "(")
+                    |> G.append (G.softBreak |> G.append (G.fromString ")"))
+                    |> G.group
+
+        TripleType _ a b c ->
+            let
+                pretty =
+                    G.nest 4 <|
+                        G.group <|
+                            joinWithSpaces
+                                [ G.fromString "Gadget.tuple"
+                                , quineHelp False a
+                                , quineHelp False b
+                                , quineHelp False c
+                                ]
+            in
+            if isRoot then
+                pretty
+
+            else
+                pretty
+                    |> G.prepend (G.fromString "(")
+                    |> G.append (G.softBreak |> G.append (G.fromString ")"))
+                    |> G.group
 
 
 joinWithSpaces : List G.Document -> G.Document
@@ -212,15 +292,6 @@ lowerInitial s =
 
         Nothing ->
             s
-
-
-maybeParens : Type -> G.Document
-maybeParens itemType =
-    if isPrimitive itemType then
-        quineHelp itemType
-
-    else
-        parens (quineHelp itemType)
 
 
 isPrimitive : Type -> Bool
