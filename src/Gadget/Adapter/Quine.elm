@@ -1,7 +1,8 @@
 module Gadget.Adapter.Quine exposing (quine)
 
+import Dict
 import Gadget.Adapter.Glam as G
-import Gadget.IR as IR exposing (Type(..), VariantType(..))
+import Gadget.IR as IR exposing (Metadata, Type(..), VariantType(..))
 
 
 tools : IR.MetadataTools meta a
@@ -15,38 +16,13 @@ quine columns gadget =
         [ G.fromString "gadget ="
         , quineHelp False (IR.irType gadget)
         ]
-        |> G.nest 4
-        |> G.group
+        |> nested
         |> G.toString columns
 
 
 quineHelp : Bool -> Type -> G.Document
-quineHelp needsParens irType =
+quineHelp isChildNode irType =
     let
-        debuggedMetadata =
-            tools.extract irType
-                |> tools.debug
-
-        prettyMetadata =
-            debuggedMetadata
-                |> List.concatMap
-                    (\( adapterName, fnNames ) ->
-                        List.map
-                            (\( fnName, value ) ->
-                                G.group <|
-                                    G.nest 4 <|
-                                        breakable
-                                            [ unbreakable
-                                                [ pizza
-                                                , G.fromString (adapterName ++ "." ++ fnName)
-                                                ]
-                                            , G.fromString value
-                                            ]
-                            )
-                            fnNames
-                    )
-                |> breakable
-
         prettyData =
             case irType of
                 UnitType _ ->
@@ -80,37 +56,33 @@ quineHelp needsParens irType =
                                 breakable (List.map prettyField namedFields)
 
                         prettyField ( name, fld ) =
-                            G.group <|
-                                G.nest 4 <|
-                                    breakable
-                                        [ G.group <|
-                                            breakable
-                                                [ unbreakable
-                                                    [ pizza
-                                                    , G.fromString "Gadget.field"
-                                                    ]
-                                                , G.fromString ("\"" ++ name ++ "\"")
-                                                , G.fromString ("." ++ name)
+                            nested <|
+                                breakable
+                                    [ G.group <|
+                                        breakable
+                                            [ unbreakable
+                                                [ pizza
+                                                , G.fromString "Gadget.field"
                                                 ]
-                                        , quineHelp True fld
-                                        ]
-                    in
-                    parenthesizeIf needsParens <|
-                        G.group <|
-                            G.nest 4 <|
-                                G.forceBreak <|
-                                    breakable
-                                        [ G.group <|
-                                            breakable
-                                                [ G.fromString "Gadget.record"
-                                                , prettyCtor
-                                                ]
-                                        , prettyFields
-                                        , unbreakable
-                                            [ pizza
-                                            , G.fromString "Gadget.endRecord"
+                                            , G.fromString ("\"" ++ name ++ "\"")
+                                            , G.fromString ("." ++ name)
                                             ]
-                                        ]
+                                    , quineHelp True fld
+                                    ]
+                    in
+                    G.forceBreak <|
+                        breakable
+                            [ G.group <|
+                                breakable
+                                    [ G.fromString "Gadget.record"
+                                    , prettyCtor
+                                    ]
+                            , prettyFields
+                            , unbreakable
+                                [ pizza
+                                , G.fromString "Gadget.endRecord"
+                                ]
+                            ]
 
                 CustomType _ ( firstName, firstVariant ) restNamesAndVariants ->
                     let
@@ -147,14 +119,13 @@ quineHelp needsParens irType =
                             anonymousFunction
                                 { args = List.map lowerInitial names ++ [ "variant" ]
                                 , body =
-                                    G.group <|
-                                        G.nest 4 <|
-                                            G.forceBreak <|
-                                                breakable
-                                                    [ G.fromString "case variant of"
-                                                    , breakable
-                                                        (List.map2 prettyDtorCase names variants)
-                                                    ]
+                                    nested <|
+                                        G.forceBreak <|
+                                            breakable
+                                                [ G.fromString "case variant of"
+                                                , breakable
+                                                    (List.map2 prettyDtorCase names variants)
+                                                ]
                                 }
 
                         prettyDtorCase name variant =
@@ -164,101 +135,151 @@ quineHelp needsParens irType =
                                         |> List.indexedMap (\i _ -> G.fromString ("arg" ++ String.fromInt (i + 1)))
                             in
                             G.nest 4 <|
+                                -- we want this to always break, so no G.group here, just G.nest.
                                 breakable
                                     [ unbreakable
                                         [ G.fromString name
                                         , unbreakable args
                                         , G.fromString "->"
                                         ]
-                                    , G.group <|
-                                        G.nest 4 <|
-                                            breakable
-                                                [ G.fromString (lowerInitial name)
-                                                , breakable args
-                                                ]
+                                    , nested <|
+                                        breakable
+                                            [ G.fromString (lowerInitial name)
+                                            , breakable args
+                                            ]
                                     ]
 
                         prettyVariant name variant =
-                            G.group <|
-                                G.nest 4 <|
-                                    breakable
-                                        [ G.group <|
-                                            breakable
-                                                [ unbreakable
-                                                    [ pizza
-                                                    , G.fromString ("Gadget.variant" ++ String.fromInt (variantSize variant))
-                                                    ]
-                                                , G.fromString ("\"" ++ name ++ "\"")
-                                                , G.fromString name
+                            nested <|
+                                breakable
+                                    [ G.group <|
+                                        breakable
+                                            [ unbreakable
+                                                [ pizza
+                                                , G.fromString ("Gadget.variant" ++ String.fromInt (variantSize variant))
                                                 ]
-                                        , case variantToArgsList variant of
-                                            [] ->
-                                                G.empty
-
-                                            args ->
-                                                G.group <|
-                                                    breakable (List.map (quineHelp True) args)
-                                        ]
-                    in
-                    parenthesizeIf needsParens <|
-                        G.group <|
-                            G.nest 4 <|
-                                G.forceBreak <|
-                                    breakable
-                                        [ G.fromString "Gadget.custom"
-                                        , prettyDtor
-                                        , breakable (List.map2 prettyVariant names variants)
-                                        , unbreakable
-                                            [ pizza
-                                            , G.fromString "Gadget.endCustom"
+                                            , G.fromString ("\"" ++ name ++ "\"")
+                                            , G.fromString name
                                             ]
-                                        ]
+                                    , case variantToArgsList variant of
+                                        [] ->
+                                            G.empty
+
+                                        args ->
+                                            G.group <|
+                                                breakable (List.map (quineHelp True) args)
+                                    ]
+                    in
+                    G.forceBreak <|
+                        breakable
+                            [ G.fromString "Gadget.custom"
+                            , prettyDtor
+                            , breakable (List.map2 prettyVariant names variants)
+                            , unbreakable
+                                [ pizza
+                                , G.fromString "Gadget.endCustom"
+                                ]
+                            ]
 
                 ListType _ itemType ->
-                    -- G.group <|
-                    -- parenthesizeIf needsParens <|
-                    -- G.nest 4 <|
                     breakable
                         [ G.fromString "Gadget.list"
                         , quineHelp True itemType
                         ]
 
                 LazyType _ inner ->
-                    quineHelp needsParens (inner ())
+                    quineHelp isChildNode (inner ())
 
                 TupleType _ a b ->
-                    G.group <|
-                        parenthesizeIf needsParens <|
-                            G.nest 4 <|
-                                breakable
-                                    [ G.fromString "Gadget.tuple"
-                                    , quineHelp False a
-                                    , quineHelp False b
-                                    ]
+                    breakable
+                        [ G.fromString "Gadget.tuple"
+                        , quineHelp True a
+                        , quineHelp True b
+                        ]
 
                 TripleType _ a b c ->
-                    G.group <|
-                        parenthesizeIf needsParens <|
-                            G.nest 4 <|
-                                breakable
-                                    [ G.fromString "Gadget.triple"
-                                    , quineHelp False a
-                                    , quineHelp False b
-                                    , quineHelp False c
-                                    ]
-    in
-    case debuggedMetadata of
-        [] ->
-            prettyData
+                    breakable
+                        [ G.fromString "Gadget.triple"
+                        , quineHelp True a
+                        , quineHelp True b
+                        , quineHelp True c
+                        ]
 
-        _ ->
-            G.group <|
-                parens <|
-                    G.nest 4 <|
-                        breakable
-                            [ prettyData
-                            , prettyMetadata
-                            ]
+        debuggedMetadata =
+            tools.extract irType
+                |> tools.debug
+
+        prettyMetadata =
+            debuggedMetadata
+                |> List.concatMap
+                    (\( adapterName, fnNames ) ->
+                        List.map
+                            (\( fnName, value ) ->
+                                nested <|
+                                    breakable
+                                        [ unbreakable
+                                            [ pizza
+                                            , G.fromString (adapterName ++ "." ++ fnName)
+                                            ]
+                                        , G.fromString value
+                                        ]
+                            )
+                            fnNames
+                    )
+                |> breakable
+
+        hasMetadata =
+            [] /= debuggedMetadata
+
+        isCombinator =
+            case irType of
+                UnitType m ->
+                    False
+
+                BoolType m ->
+                    False
+
+                CharType m ->
+                    False
+
+                StringType m ->
+                    False
+
+                IntType m ->
+                    False
+
+                FloatType m ->
+                    False
+
+                _ ->
+                    True
+    in
+    if hasMetadata && isChildNode then
+        parens <|
+            breakable
+                [ prettyData
+                , prettyMetadata
+                ]
+
+    else if hasMetadata then
+        nested <|
+            breakable
+                [ prettyData
+                , prettyMetadata
+                ]
+
+    else if isCombinator && isChildNode then
+        parens prettyData
+
+    else
+        nested prettyData
+
+
+nested : G.Document -> G.Document
+nested doc =
+    doc
+        |> G.nest 4
+        |> G.group
 
 
 breakable : List G.Document -> G.Document
@@ -280,19 +301,11 @@ parens : G.Document -> G.Document
 parens inner =
     G.concat
         [ G.fromString "("
-        , inner
+        , G.nest 4 inner
         , G.softBreak
         , G.fromString ")"
         ]
-
-
-parenthesizeIf : Bool -> G.Document -> G.Document
-parenthesizeIf yes doc =
-    if yes then
-        parens doc
-
-    else
-        doc
+        |> G.group
 
 
 lowerInitial : String -> String
@@ -314,12 +327,11 @@ anonymousRecord fieldNamesAndValues =
         _ ->
             let
                 printField ( name, value ) =
-                    G.group <|
-                        G.nest 4 <|
-                            breakable
-                                [ G.fromString (name ++ " =")
-                                , G.fromString value
-                                ]
+                    nested <|
+                        breakable
+                            [ G.fromString (name ++ " =")
+                            , G.fromString value
+                            ]
             in
             G.group <|
                 G.concat
@@ -338,10 +350,8 @@ anonymousRecord fieldNamesAndValues =
 
 anonymousFunction : { args : List String, body : G.Document } -> G.Document
 anonymousFunction { args, body } =
-    G.group <|
-        parens <|
-            G.nest 4 <|
-                breakable
-                    [ G.fromString ("\\" ++ String.join " " args ++ " ->")
-                    , body
-                    ]
+    parens <|
+        breakable
+            [ G.fromString ("\\" ++ String.join " " args ++ " ->")
+            , body
+            ]
