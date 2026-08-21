@@ -81,8 +81,8 @@ htmlAdapter irValue irType =
                                 |> List.concatMap
                                     (\( adapterId, kvs ) ->
                                         H.tr []
-                                            [ H.th [] [ H.text "Adapter" ]
-                                            , H.th [] [ H.text "Key" ]
+                                            [ H.th [] [ H.text "Module" ]
+                                            , H.th [] [ H.text "Function" ]
                                             , H.th [] [ H.text "Value" ]
                                             ]
                                             :: List.map
@@ -90,7 +90,7 @@ htmlAdapter irValue irType =
                                                     H.tr []
                                                         [ H.td [] [ H.text ("\"" ++ adapterId ++ "\"") ]
                                                         , H.td [] [ H.text ("\"" ++ k ++ "\"") ]
-                                                        , H.td [] [ H.text v ]
+                                                        , H.td [] [ H.text (debugValue v) ]
                                                         ]
                                                 )
                                                 kvs
@@ -169,38 +169,7 @@ htmlAdapter irValue irType =
                                     ]
 
                         argTypes =
-                            case variantType of
-                                Variant0Type ->
-                                    []
-
-                                Variant1Type arg ->
-                                    [ arg ]
-
-                                Variant2Type arg1 arg2 ->
-                                    [ arg1
-                                    , arg2
-                                    ]
-
-                                Variant3Type arg1 arg2 arg3 ->
-                                    [ arg1
-                                    , arg2
-                                    , arg3
-                                    ]
-
-                                Variant4Type arg1 arg2 arg3 arg4 ->
-                                    [ arg1
-                                    , arg2
-                                    , arg3
-                                    , arg4
-                                    ]
-
-                                Variant5Type arg1 arg2 arg3 arg4 arg5 ->
-                                    [ arg1
-                                    , arg2
-                                    , arg3
-                                    , arg4
-                                    , arg5
-                                    ]
+                            variantTypeToList variantType
 
                         numArgs =
                             List.length args
@@ -294,6 +263,78 @@ htmlAdapter irValue irType =
     viewValue viewMetadata irValue irType
 
 
+variantTypeToList : VariantType -> List Type
+variantTypeToList variantType =
+    case variantType of
+        Variant0Type ->
+            []
+
+        Variant1Type arg ->
+            [ arg ]
+
+        Variant2Type arg1 arg2 ->
+            [ arg1
+            , arg2
+            ]
+
+        Variant3Type arg1 arg2 arg3 ->
+            [ arg1
+            , arg2
+            , arg3
+            ]
+
+        Variant4Type arg1 arg2 arg3 arg4 ->
+            [ arg1
+            , arg2
+            , arg3
+            , arg4
+            ]
+
+        Variant5Type arg1 arg2 arg3 arg4 arg5 ->
+            [ arg1
+            , arg2
+            , arg3
+            , arg4
+            , arg5
+            ]
+
+
+variantValueToList : VariantValue -> List Value
+variantValueToList variant =
+    case variant of
+        Variant0Value ->
+            []
+
+        Variant1Value arg ->
+            [ arg ]
+
+        Variant2Value arg1 arg2 ->
+            [ arg1
+            , arg2
+            ]
+
+        Variant3Value arg1 arg2 arg3 ->
+            [ arg1
+            , arg2
+            , arg3
+            ]
+
+        Variant4Value arg1 arg2 arg3 arg4 ->
+            [ arg1
+            , arg2
+            , arg3
+            , arg4
+            ]
+
+        Variant5Value arg1 arg2 arg3 arg4 arg5 ->
+            [ arg1
+            , arg2
+            , arg3
+            , arg4
+            , arg5
+            ]
+
+
 primitive : H.Html msg -> H.Html msg -> (String -> H.Html msg) -> String -> String -> H.Html msg
 primitive metadataHtml quoteHtml valueWrapper typeName value =
     H.div [ HA.class "primitive", HA.class typeName ]
@@ -336,3 +377,54 @@ combinator metadataHtml typeName typeInfo items =
                 , metadataHtml
                 ]
             ]
+
+
+debugValue : Value -> String
+debugValue v =
+    case v of
+        UnitValue ->
+            "()"
+
+        BoolValue b ->
+            if b then
+                "True"
+
+            else
+                "False"
+
+        CharValue c ->
+            "'" ++ String.fromChar c ++ "'"
+
+        StringValue s ->
+            "\"" ++ escape s ++ "\""
+
+        IntValue i ->
+            String.fromInt i
+
+        FloatValue f ->
+            String.fromFloat f
+
+        CustomValue _ ( name, variant ) ->
+            name ++ String.join " " (List.map debugValue (variantValueToList variant))
+
+        RecordValue namedFields ->
+            "{ " ++ (List.map (\( name, field ) -> name ++ " = " ++ debugValue field) namedFields |> String.join ", ") ++ " }"
+
+        ListValue items ->
+            "[ " ++ (List.map debugValue items |> String.join ", ") ++ " ]"
+
+        TupleValue a b ->
+            "( " ++ debugValue a ++ ", " ++ debugValue b ++ " )"
+
+        TripleValue a b c ->
+            "( " ++ debugValue a ++ ", " ++ debugValue b ++ debugValue c ++ " )"
+
+
+escape : String -> String
+escape s =
+    s
+        |> String.replace "\"" "\\\""
+        |> String.replace "\t" "\\t"
+        |> String.replace "\u{000D}" "\\r"
+        |> String.replace "\n" "\\n"
+        |> Debug.log "TODO: learn how to escape a string properly"
