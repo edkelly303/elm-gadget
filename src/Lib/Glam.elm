@@ -1,4 +1,4 @@
-module Glam exposing (..)
+module Lib.Glam exposing (..)
 
 
 type Document
