@@ -1,4 +1,4 @@
-module Gadget.Adapter.Glam exposing (..)
+module Glam exposing (..)
 
 
 type Document
