@@ -13,6 +13,7 @@
         "Gadget.Adapter.Json",
         "Gadget.Adapter.Pretty",
         "Gadget.Adapter.Random",
+        "Gadget.Adapter.Quine",
         "Gadget.Adapter.String"
     ],
     "elm-version": "0.19.0 <= v < 0.20.0",
@@ -26,8 +27,7 @@
         "elm-community/random-extra": "3.2.0 <= v < 4.0.0",
         "elm-explorations/test": "2.2.1 <= v < 3.0.0",
         "elmcraft/core-extra": "2.2.0 <= v < 3.0.0",
-        "miniBill/elm-diff": "1.1.2 <= v < 2.0.0",
-        "the-sett/elm-pretty-printer": "3.3.1 <= v < 4.0.0"
+        "miniBill/elm-diff": "1.1.2 <= v < 2.0.0"
     },
     "test-dependencies": {}
 }
