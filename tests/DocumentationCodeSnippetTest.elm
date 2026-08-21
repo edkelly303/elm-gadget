@@ -489,7 +489,7 @@ tests =
                         "2"
                         (\() ->
                             let
-                                unused : List ( String.String, List ( String.String, String.String ) )
+                                unused : List ( String.String, List ( String.String, Gadget.IR.Value ) )
                                 unused =
                                     allValues__Gadget_IR__MetadataTools_0
                             in
