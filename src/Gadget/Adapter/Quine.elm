@@ -1,8 +1,30 @@
 module Gadget.Adapter.Quine exposing (quine)
 
-import Dict
-import Gadget.IR as IR exposing (Metadata, Type(..), VariantType(..))
-import Glam as G
+{-|
+
+
+## ☠️ **Warning:** Not designed for production use! ☠️
+
+The `Gadget.Adapter` modules are included in this package as toy adapters to
+show you what Gadgets are capable of, and provide source-code examples that you
+can use to get started with writing your own adapters. You should probably write
+your own production-grade adapters that are designed for your specific use-case.
+
+
+## Introduction
+
+Display the source code of a Gadget.
+
+
+## API
+
+@docs quine
+
+-}
+
+import Gadget.Adapter.Pretty.Elm
+import Gadget.IR as IR exposing (Type(..), VariantType(..))
+import Lib.Glam as G
 
 
 tools : IR.MetadataTools meta a
@@ -10,6 +32,8 @@ tools =
     IR.makeMetadataTools "Gadget.Adapter.Quine"
 
 
+{-| TODO: Show how to quine the heck out of all the things.
+-}
 quine : Int -> IR.Gadget a -> String
 quine columns gadget =
     breakable
@@ -221,7 +245,7 @@ quineHelp isChildNode irType =
                                             [ pizza
                                             , G.fromString (adapterName ++ "." ++ fnName)
                                             ]
-                                        , G.fromString value
+                                        , Gadget.Adapter.Pretty.Elm.toDocument value
                                         ]
                             )
                             fnNames
@@ -229,26 +253,26 @@ quineHelp isChildNode irType =
                 |> breakable
 
         hasMetadata =
-            [] /= debuggedMetadata
+            not (List.isEmpty debuggedMetadata)
 
         isCombinator =
             case irType of
-                UnitType m ->
+                UnitType _ ->
                     False
 
-                BoolType m ->
+                BoolType _ ->
                     False
 
-                CharType m ->
+                CharType _ ->
                     False
 
-                StringType m ->
+                StringType _ ->
                     False
 
-                IntType m ->
+                IntType _ ->
                     False
 
-                FloatType m ->
+                FloatType _ ->
                     False
 
                 _ ->
