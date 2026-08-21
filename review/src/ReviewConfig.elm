@@ -38,8 +38,10 @@ config =
 ignoreDocSnippets =
     List.map (Rule.ignoreErrorsForFiles [ "tests/DocumentationCodeSnippetTest.elm" ])
 
-ignoreLib = 
+
+ignoreLib =
     List.map (Rule.ignoreErrorsForDirectories [ "src/Lib" ])
+
 
 docs =
     [ Docs.NoMissing.rule
