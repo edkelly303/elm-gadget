@@ -1,8 +1,8 @@
 module Gadget.Adapter.Quine exposing (quine)
 
 import Dict
-import Glam as G
 import Gadget.IR as IR exposing (Metadata, Type(..), VariantType(..))
+import Glam as G
 
 
 tools : IR.MetadataTools meta a
