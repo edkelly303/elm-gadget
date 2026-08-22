@@ -105,7 +105,7 @@ toDocumentHelp isChildOfCustomType value =
                         breakable
                             (List.concat
                                 [ [ unbreakable [ G.fromString "{", printField h ] ]
-                                , List.map (\doc -> G.nest 2 <| unbreakable [ G.fromString ",", printField doc ]) t
+                                , List.map (\doc -> unbreakable [ G.fromString ",", printField doc ]) t
                                 , [ G.fromString "}" ]
                                 ]
                             )
