@@ -1,7 +1,8 @@
-module Gadget.Adapter.Form exposing (Model, Msg, init, submit, update, view)
+module Gadget.Adapter.Form exposing (Model, Msg, init, label, submit, update, view)
 
 import Dict exposing (Dict)
-import Gadget.IR as IR exposing (Type(..), Value(..), VariantValue(..))
+import Gadget
+import Gadget.IR as IR exposing (Type(..), Value(..))
 import Html as H
 import Html.Attributes as HA
 import Html.Events as HE
@@ -21,6 +22,16 @@ type alias Msg =
     ( Path, Value )
 
 
+tools : IR.MetadataTools meta a
+tools =
+    IR.makeMetadataTools "Gadget.Adapter.Form"
+
+
+label : String -> IR.Gadget a -> IR.Gadget a
+label l gadget =
+    tools.attach "label" Gadget.string l gadget
+
+
 init : IR.Gadget a -> Model
 init gadget =
     initHelp Dict.empty [ 0 ] (IR.irType gadget)
@@ -29,7 +40,7 @@ init gadget =
 initHelp : Model -> Path -> Type -> Model
 initHelp dict path irType =
     case irType of
-        UnitType m ->
+        UnitType _ ->
             Dict.insert path UnitValue dict
 
         BoolType _ ->
@@ -52,7 +63,7 @@ initHelp dict path irType =
 
         RecordType _ namedFieldTypes ->
             List.Extra.indexedFoldl
-                (\idx ( name, fieldType ) output ->
+                (\idx ( _, fieldType ) output ->
                     initHelp output (idx :: path) fieldType
                 )
                 dict
@@ -74,14 +85,14 @@ initHelp dict path irType =
 update : IR.Gadget a -> Msg -> Model -> Model
 update gadget ( path, msgValue ) model =
     Maybe.map2
-        (\modelValue irType -> Dict.insert path (updateHelp irType msgValue modelValue) model)
+        (\_ irType -> Dict.insert path (updateHelp irType msgValue) model)
         (Dict.get path model)
         (typeFromPath path (IR.irType gadget))
         |> Maybe.withDefault model
 
 
-updateHelp : Type -> Value -> Value -> Value
-updateHelp irType msgValue modelValue =
+updateHelp : Type -> Value -> Value
+updateHelp irType msgValue =
     case irType of
         UnitType _ ->
             UnitValue
@@ -104,7 +115,7 @@ updateHelp irType msgValue modelValue =
         CustomType _ _ _ ->
             Debug.todo "branch 'CustomType _ _ _' not implemented"
 
-        RecordType _ namedFieldTypes ->
+        RecordType _ _ ->
             Debug.todo "branch 'RecordType _ _' not implemented"
 
         ListType _ _ ->
@@ -122,38 +133,44 @@ updateHelp irType msgValue modelValue =
 
 view : IR.Gadget a -> Model -> H.Html Msg
 view gadget model =
-    let
-        irType =
-            IR.irType gadget
-    in
     Dict.map
         (\path modelValue ->
-            case typeFromPath path irType of
+            case typeFromPath path (IR.irType gadget) of
                 Just modelType ->
-                    case ( modelType, modelValue ) of
-                        ( IntType _, StringValue s ) ->
-                            H.input
-                                [ HA.type_ "number"
-                                , HE.onInput (\newS -> ( path, StringValue newS ))
-                                ]
-                                [ H.text s ]
+                    let
+                        label_ =
+                            tools.decode "label" Gadget.string (tools.extract modelType)
+                                |> Maybe.withDefault "[Label missing]"
+                    in
+                    H.div []
+                        [ H.label [ HA.for label_ ] [ H.text label_ ]
+                        , case ( modelType, modelValue ) of
+                            ( IntType _, StringValue s ) ->
+                                H.input
+                                    [ HA.id label_
+                                    , HA.type_ "number"
+                                    , HE.onInput (\newS -> ( path, StringValue newS ))
+                                    ]
+                                    [ H.text s ]
 
-                        ( StringType _, StringValue s ) ->
-                            H.input
-                                [ HA.type_ "text"
-                                , HE.onInput (\newS -> ( path, StringValue newS ))
-                                ]
-                                [ H.text s ]
+                            ( StringType _, StringValue s ) ->
+                                H.input
+                                    [ HA.id label_
+                                    , HA.type_ "text"
+                                    , HE.onInput (\newS -> ( path, StringValue newS ))
+                                    ]
+                                    [ H.text s ]
 
-                        _ ->
-                            H.text "error: mismatched modelType and modelValue"
+                            _ ->
+                                H.text "error: mismatched modelType and modelValue"
+                        ]
 
                 Nothing ->
                     H.text "error: type not found"
         )
         model
         |> Dict.values
-        |> H.div []
+        |> H.form []
 
 
 submit : IR.Gadget a -> Model -> Result String a
@@ -238,7 +255,7 @@ typeFromPathHelp thisPath soughtPath irType =
         case irType of
             RecordType _ namedFieldTypes ->
                 List.Extra.indexedFoldl
-                    (\idx ( name, fieldType ) acc ->
+                    (\idx ( _, fieldType ) acc ->
                         case acc of
                             Just foundType ->
                                 Just foundType
@@ -252,8 +269,12 @@ typeFromPathHelp thisPath soughtPath irType =
             CustomType _ _ _ ->
                 Debug.todo "branch 'CustomType _ _ _' not implemented"
 
-            ListType _ _ ->
-                Debug.todo "branch 'ListType _ _' not implemented"
+            ListType _ itemType ->
+                if List.drop 1 soughtPath == thisPath then
+                    Just itemType
+
+                else
+                    Nothing
 
             LazyType _ _ ->
                 Debug.todo "branch 'LazyType _ _' not implemented"

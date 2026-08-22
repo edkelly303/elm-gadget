@@ -152,8 +152,8 @@ gadget =
     -- personGadget
     -- Gadget.maybe
     Gadget.record (\x y -> { x = x, y = y })
-        |> Gadget.field "x" .x Gadget.int
-        |> Gadget.field "y" .y Gadget.string
+        |> Gadget.field "x" .x (Gadget.int |> Gadget.Adapter.Form.label "How much is x?")
+        |> Gadget.field "y" .y (Gadget.string |> Gadget.Adapter.Form.label "What is y?")
         |> Gadget.endRecord
 
 
