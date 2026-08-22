@@ -216,7 +216,7 @@ view model =
         , Gadget.Adapter.Form.view gadget model.form |> H.map FormUpdated
         , H.pre []
             [ H.text
-                ( (Gadget.Adapter.Form.submit gadget model.form)
+                (Gadget.Adapter.Form.submit gadget model.form
                     |> Gadget.Adapter.Pretty.print (Gadget.result Gadget.string gadget) model.prettyWidth
                 )
             ]
