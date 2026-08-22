@@ -4,6 +4,7 @@ import Browser
 import Fuzz
 import Gadget
 import Gadget.Adapter.Diff
+import Gadget.Adapter.Form
 import Gadget.Adapter.Fuzz
 import Gadget.Adapter.Html
 import Gadget.Adapter.Json
@@ -104,6 +105,7 @@ main =
 type alias Model =
     { seeds : ( Int, Int )
     , prettyWidth : Int
+    , form : Gadget.Adapter.Form.Model
     }
 
 
@@ -111,6 +113,7 @@ type Msg
     = UserClickedRegenerate
     | UserChangedPrettyWidth String
     | NewSeeds ( Int, Int )
+    | FormUpdated Gadget.Adapter.Form.Msg
 
 
 update msg model =
@@ -130,27 +133,33 @@ update msg model =
             , Cmd.none
             )
 
+        FormUpdated formMsg ->
+            ( { model | form = Gadget.Adapter.Form.update gadget formMsg model.form }
+            , Cmd.none
+            )
+
 
 init _ =
     ( { seeds = ( 0, 1 )
       , prettyWidth = 120
+      , form = Gadget.Adapter.Form.init gadget
       }
     , Cmd.none
     )
 
 
+gadget =
+    -- personGadget
+    -- Gadget.maybe
+    Gadget.record (\x y -> { x = x, y = y })
+        |> Gadget.field "x" .x Gadget.int
+        |> Gadget.field "y" .y Gadget.string
+        |> Gadget.endRecord
+
+
 view : Model -> H.Html Msg
 view model =
     let
-        gadget =
-            personGadget
-
-        -- Gadget.maybe
-        --     (Gadget.record (\x y -> { x = x, y = y })
-        --         |> Gadget.field "x" .x Gadget.int
-        --         |> Gadget.field "y" .y Gadget.int
-        --         |> Gadget.endRecord
-        --     )
         fuzzOverrides =
             [ Gadget.Adapter.Fuzz.override "dogName" Gadget.string (Fuzz.oneOf (List.map Fuzz.constant [ "Fido", "Kevin", "Rover", "Fifi", "George", "Winnie" ]))
             , Gadget.Adapter.Fuzz.override "series" Gadget.char (Fuzz.oneOf (List.range 65 90 |> List.map Char.fromCode |> List.map Fuzz.constant))
@@ -203,6 +212,14 @@ view model =
     H.div []
         [ H.h1 [] [ H.text "elm-gadget examples" ]
         , H.button [ HE.onClick UserClickedRegenerate ] [ H.text "Click to regenerate!" ]
+        , head "Form"
+        , Gadget.Adapter.Form.view gadget model.form |> H.map FormUpdated
+        , H.pre []
+            [ H.text
+                ( (Gadget.Adapter.Form.submit gadget model.form)
+                    |> Gadget.Adapter.Pretty.print (Gadget.result Gadget.string gadget) model.prettyWidth
+                )
+            ]
         , head "Pretty printer width"
         , H.span []
             [ H.input
