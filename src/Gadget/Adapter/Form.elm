@@ -37,7 +37,6 @@ TODO
 
 import Dict exposing (Dict)
 import Gadget
-import Gadget.Adapter.Pretty as Pretty
 import Gadget.IR as IR exposing (Type(..), Value(..))
 import Html as H
 import Html.Attributes as HA
