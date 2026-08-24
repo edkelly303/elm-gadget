@@ -6,11 +6,19 @@ import Lib.Glam as G
 
 toDocument : Value -> G.Document
 toDocument =
-    toDocumentHelp False
+    toDocumentHelp False False
 
 
-toDocumentHelp : Bool -> IR.Value -> G.Document
-toDocumentHelp isChildOfCustomType value =
+toDocumentHelp : Bool -> Bool -> IR.Value -> G.Document
+toDocumentHelp isChildOfCustomType isNested value =
+    let
+        nestIfNeeded =
+            if isNested then
+                G.nest 2
+
+            else
+                identity
+    in
     case value of
         UnitValue ->
             G.fromString "()"
@@ -53,36 +61,36 @@ toDocumentHelp isChildOfCustomType value =
                                     G.empty
 
                                 Variant1Value arg1 ->
-                                    toDocumentHelp True arg1
+                                    toDocumentHelp True False arg1
 
                                 Variant2Value arg1 arg2 ->
                                     breakable
-                                        [ toDocumentHelp True arg1
-                                        , toDocumentHelp True arg2
+                                        [ toDocumentHelp True False arg1
+                                        , toDocumentHelp True False arg2
                                         ]
 
                                 Variant3Value arg1 arg2 arg3 ->
                                     breakable
-                                        [ toDocumentHelp True arg1
-                                        , toDocumentHelp True arg2
-                                        , toDocumentHelp True arg3
+                                        [ toDocumentHelp True False arg1
+                                        , toDocumentHelp True False arg2
+                                        , toDocumentHelp True False arg3
                                         ]
 
                                 Variant4Value arg1 arg2 arg3 arg4 ->
                                     breakable
-                                        [ toDocumentHelp True arg1
-                                        , toDocumentHelp True arg2
-                                        , toDocumentHelp True arg3
-                                        , toDocumentHelp True arg4
+                                        [ toDocumentHelp True False arg1
+                                        , toDocumentHelp True False arg2
+                                        , toDocumentHelp True False arg3
+                                        , toDocumentHelp True False arg4
                                         ]
 
                                 Variant5Value arg1 arg2 arg3 arg4 arg5 ->
                                     breakable
-                                        [ toDocumentHelp True arg1
-                                        , toDocumentHelp True arg2
-                                        , toDocumentHelp True arg3
-                                        , toDocumentHelp True arg4
-                                        , toDocumentHelp True arg5
+                                        [ toDocumentHelp True False arg1
+                                        , toDocumentHelp True False arg2
+                                        , toDocumentHelp True False arg3
+                                        , toDocumentHelp True False arg4
+                                        , toDocumentHelp True False arg5
                                         ]
                             ]
 
@@ -98,17 +106,22 @@ toDocumentHelp isChildOfCustomType value =
                                 G.nest 4 <|
                                     breakable
                                         [ G.fromString (name ++ " =")
-                                        , toDocumentHelp False fld
+                                        , toDocumentHelp False True fld
                                         ]
                     in
                     G.group <|
-                        breakable
-                            (List.concat
-                                [ [ unbreakable [ G.fromString "{", printField h ] ]
-                                , List.map (\doc -> unbreakable [ G.fromString ",", printField doc ]) t
-                                , [ G.fromString "}" ]
-                                ]
-                            )
+                        nestIfNeeded <|
+                            G.concat
+                                (List.concat
+                                    [ [ unbreakable [ G.fromString "{", printField h ]
+                                      , G.softBreak
+                                      ]
+                                    , List.map (\doc -> unbreakable [ G.fromString ",", printField doc ]) t
+                                    , [ G.space
+                                      , G.fromString "}"
+                                      ]
+                                    ]
+                                )
 
         ListValue items ->
             case items of
@@ -117,30 +130,49 @@ toDocumentHelp isChildOfCustomType value =
 
                 h :: t ->
                     G.group <|
-                        breakable
-                            (List.concat
-                                [ [ unbreakable [ G.fromString "[", toDocumentHelp False h ] ]
-                                , List.map (\doc -> G.nest 2 <| unbreakable [ G.fromString ",", toDocumentHelp False doc ]) t
-                                , [ G.fromString "]" ]
-                                ]
-                            )
+                        nestIfNeeded <|
+                            G.concat
+                                (List.concat
+                                    [ [ unbreakable [ G.fromString "[", toDocumentHelp False True h ]
+                                      ]
+                                    , List.map
+                                        (\doc ->
+                                            G.concat
+                                                [ G.softBreak
+                                                , G.fromString ", "
+                                                , toDocumentHelp False True doc
+                                                ]
+                                        )
+                                        t
+                                    , [ G.space
+                                      , G.fromString "]"
+                                      ]
+                                    ]
+                                )
 
         TupleValue a b ->
             G.group <|
-                breakable
-                    [ unbreakable [ G.fromString "(", toDocumentHelp False a ]
-                    , unbreakable [ G.fromString ",", G.nest 2 <| toDocumentHelp False b ]
-                    , G.fromString ")"
-                    ]
+                nestIfNeeded <|
+                    G.concat
+                        [ unbreakable [ G.fromString "(", toDocumentHelp False True a ]
+                        , G.softBreak
+                        , unbreakable [ G.fromString ",", toDocumentHelp False True b ]
+                        , G.space
+                        , G.fromString ")"
+                        ]
 
         TripleValue a b c ->
             G.group <|
-                breakable
-                    [ unbreakable [ G.fromString "(", toDocumentHelp False a ]
-                    , unbreakable [ G.fromString ",", G.nest 2 <| toDocumentHelp False b ]
-                    , unbreakable [ G.fromString ",", G.nest 2 <| toDocumentHelp False c ]
-                    , G.fromString ")"
-                    ]
+                nestIfNeeded <|
+                    G.concat
+                        [ unbreakable [ G.fromString "(", toDocumentHelp False True a ]
+                        , G.softBreak
+                        , unbreakable [ G.fromString ",", toDocumentHelp False True b ]
+                        , G.softBreak
+                        , unbreakable [ G.fromString ",", toDocumentHelp False True c ]
+                        , G.space
+                        , G.fromString ")"
+                        ]
 
 
 breakable : List G.Document -> G.Document
