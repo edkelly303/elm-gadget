@@ -27,7 +27,7 @@ TODO
 
 ## API
 
-@docs Form, Model, Msg, FormConfig, fromGadget, fromGadgetWithConfig, default
+@docs Form, Model, Msg, fromGadget, fromGadgetWithConfig, FormConfig, default
 
 @docs Control, ControlConfig, control
 
