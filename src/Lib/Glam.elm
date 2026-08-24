@@ -1,6 +1,15 @@
 module Lib.Glam exposing (..)
 
+{-| Ported from Glam (https://glam.hexdocs.pm) by Giacomo Cavalieri.
 
+This is a fairly faithful port. Besides reversing the order of function
+arguments to follow Elm conventions, there is only one change to behaviour: my
+version of `join` will filter out empty documents. 
+
+NB: an empty document is defined as `Concat { docs = []}`. So `empty` produces
+an empty document, but `fromString ""` does not.
+
+-}
 type Document
     = Line { size : Int }
     | Concat { docs : List Document }
