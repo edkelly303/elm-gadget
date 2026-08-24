@@ -37,7 +37,7 @@ TODO
 
 import Dict exposing (Dict)
 import Gadget
-import Gadget.IR as IR exposing (Type(..), Value(..))
+import Gadget.IR as IR exposing (Type(..), Value(..), VariantType(..))
 import Html as H
 import Html.Attributes as HA
 import Html.Events as HE
@@ -57,13 +57,20 @@ type alias Path =
 {-| TODO
 -}
 type Model
-    = Model (Dict Path Value)
+    = Model InnerModel
+
+
+type alias InnerModel =
+    { values : Dict Path Value
+    , selectedCustomTypes : Dict Path Int
+    }
 
 
 {-| TODO
 -}
 type Msg
-    = Msg ( Path, Value )
+    = FieldUpdated ( Path, Value )
+    | CustomTypeUpdated ( Path, Int )
 
 
 {-| TODO
@@ -212,15 +219,15 @@ string =
 
 init : FormConfig -> IR.Gadget a -> Model
 init config gadget =
-    initHelp config Dict.empty [ 0 ] (IR.irType gadget)
+    initHelp config { values = Dict.empty, selectedCustomTypes = Dict.empty } [ 0 ] (IR.irType gadget)
         |> Model
 
 
-initHelp : FormConfig -> Dict Path Value -> Path -> Type -> Dict Path Value
+initHelp : FormConfig -> InnerModel -> Path -> Type -> InnerModel
 initHelp config dict path irType =
     let
         insert value =
-            Dict.insert path value dict
+            { dict | values = Dict.insert path value dict.values }
 
         go getter =
             let
@@ -248,8 +255,26 @@ initHelp config dict path irType =
         FloatType _ ->
             insert (StringValue "")
 
-        CustomType _ _ _ ->
-            Debug.todo "branch 'CustomType _ _ _' not implemented"
+        CustomType _ ( firstName, firstVariant ) restNamesAndVariants ->
+            let
+                variantTypes =
+                    firstVariant :: List.map Tuple.second restNamesAndVariants
+            in
+            List.Extra.indexedFoldl
+                (\variantIdx variantType variantTypesOutput ->
+                    List.Extra.indexedFoldl
+                        (\argIdx argType argTypesOutput ->
+                            initHelp config
+                                argTypesOutput
+                                (argIdx :: variantIdx :: path)
+                                argType
+                        )
+                        variantTypesOutput
+                        (variantTypeToArgsList variantType)
+                )
+                dict
+                variantTypes
+                |> (\d -> { d | selectedCustomTypes = Dict.insert path 0 d.selectedCustomTypes })
 
         RecordType _ namedFieldTypes ->
             List.Extra.indexedFoldl
@@ -273,15 +298,23 @@ initHelp config dict path irType =
 
 
 update : FormConfig -> IR.Gadget a -> Msg -> Model -> Model
-update config gadget (Msg ( path, msgValue )) (Model dict) =
-    Maybe.map2
-        (\modelValue irType ->
-            Dict.insert path (updateHelp config irType msgValue modelValue) dict
-                |> Model
-        )
-        (Dict.get path dict)
-        (typeFromPath path (IR.irType gadget))
-        |> Maybe.withDefault (Model dict)
+update config gadget msg (Model dict) =
+    case msg of
+        FieldUpdated ( path, msgValue ) ->
+            Maybe.map2
+                (\modelValue irType ->
+                    { dict
+                        | values =
+                            Dict.insert path (updateHelp config irType msgValue modelValue) dict.values
+                    }
+                        |> Model
+                )
+                (Dict.get path dict.values)
+                (typeFromPath path (IR.irType gadget))
+                |> Maybe.withDefault (Model dict)
+
+        CustomTypeUpdated ( path, idx ) ->
+            Model { dict | selectedCustomTypes = Dict.insert path idx dict.selectedCustomTypes }
 
 
 updateHelp : FormConfig -> Type -> Value -> Value -> Value
@@ -314,7 +347,7 @@ updateHelp config irType msgValue modelValue =
             msgValue
 
         CustomType _ _ _ ->
-            Debug.todo "branch 'CustomType _ _ _' not implemented"
+            Debug.log "implement me!" modelValue
 
         RecordType _ _ ->
             Debug.todo "branch 'RecordType _ _' not implemented"
@@ -334,51 +367,103 @@ updateHelp config irType msgValue modelValue =
 
 view : FormConfig -> IR.Gadget a -> Model -> H.Html Msg
 view config gadget (Model dict) =
-    Dict.map
-        (\path modelValue ->
-            case typeFromPath path (IR.irType gadget) of
-                Just modelType ->
-                    let
-                        label_ =
-                            tools.decode "label" Gadget.string (tools.extract modelType)
-                                |> Maybe.withDefault
-                                    ("[Label missing at "
-                                        ++ pathToString path
-                                        ++ "]"
-                                    )
+    let
+        viewSelectedCustomTypes =
+            dict.selectedCustomTypes
+                |> Dict.map
+                    (\path idx ->
+                        let
+                            variants =
+                                case typeFromPath path (IR.irType gadget) of
+                                    Just (CustomType _ fst rest) ->
+                                        fst :: rest
 
-                        do getter =
-                            let
-                                (Control c) =
-                                    getter config
-                            in
-                            c.view (pathToString path) modelValue
-                    in
-                    H.div []
-                        [ H.label [ HA.for (pathToString path) ] [ H.text label_ ]
-                        , case modelType of
-                            IntType _ ->
-                                do .int
+                                    _ ->
+                                        []
+                        in
+                        H.fieldset []
+                            (List.indexedMap
+                                (\i ( name, v ) ->
+                                    H.span
+                                        []
+                                        [ H.input
+                                            [ HA.type_ "radio"
+                                            , HA.name (pathToString path)
+                                            , HA.checked (i == idx)
+                                            , HE.onCheck (\_ -> CustomTypeUpdated ( path, i ))
+                                            , HA.id name
+                                            ]
+                                            []
+                                        , H.label [ HA.for name ] [ H.text name ]
+                                        ]
+                                )
+                                variants
+                            )
+                    )
+    in
+    dict.values
+        |> Dict.filter
+            (\path _ ->
+                List.foldr
+                    (\digit ( acc, continue ) ->
+                        case Dict.get acc dict.selectedCustomTypes of
+                            Nothing ->
+                                ( acc ++ [ digit ], continue )
 
-                            StringType _ ->
-                                do .string
+                            Just selected ->
+                                ( acc ++ [ digit ], selected == digit )
+                    )
+                    ( [], True )
+                    path
+                    |> Tuple.second
+            )
+        |> Dict.map
+            (\path modelValue ->
+                case typeFromPath path (IR.irType gadget) of
+                    Just modelType ->
+                        let
+                            label_ =
+                                tools.decode "label" Gadget.string (tools.extract modelType)
+                                    |> Maybe.withDefault
+                                        ("[Label missing at "
+                                            ++ pathToString path
+                                            ++ "]"
+                                        )
 
-                            _ ->
-                                H.text "error: mismatched modelType and modelValue"
-                        ]
-                        |> H.map (\msg -> Msg ( path, msg ))
+                            do getter =
+                                let
+                                    (Control c) =
+                                        getter config
+                                in
+                                c.view (pathToString path) modelValue
+                        in
+                        H.div []
+                            [ H.label [ HA.for (pathToString path) ] [ H.text label_ ]
+                            , case modelType of
+                                IntType _ ->
+                                    do .int
 
-                Nothing ->
-                    H.text "error: type not found"
-        )
-        dict
-        |> Dict.values
+                                StringType _ ->
+                                    do .string
+
+                                other ->
+                                    H.text ("Unhandled type: " ++ Debug.toString other)
+                            ]
+                            |> H.map (\msg -> FieldUpdated ( path, msg ))
+
+                    Nothing ->
+                        H.text "error: type not found"
+            )
+        |> Dict.union viewSelectedCustomTypes
+        |> Dict.toList
+        |> List.sortBy Tuple.first
+        |> List.map Tuple.second
         |> H.form []
 
 
 submit : FormConfig -> IR.Gadget a -> Model -> Result String a
 submit config gadget (Model dict) =
-    submitHelp config [ 0 ] (IR.irType gadget) dict
+    submitHelp config [ 0 ] (IR.irType gadget) dict.values
         |> Result.andThen (IR.toOutput gadget)
 
 
@@ -414,7 +499,7 @@ submitHelp config path irType dict =
             Debug.todo "branch 'FloatType _' not implemented"
 
         CustomType _ _ _ ->
-            Debug.todo "branch 'CustomType _ _ _' not implemented"
+            Debug.log "branch 'CustomType _ _ _' not implemented" (Err "custom type")
 
         RecordType _ namedFieldTypes ->
             List.indexedMap
@@ -441,6 +526,28 @@ submitHelp config path irType dict =
 
 
 -- helpers
+
+
+variantTypeToArgsList : VariantType -> List Type
+variantTypeToArgsList v =
+    case v of
+        Variant0Type ->
+            []
+
+        Variant1Type arg1 ->
+            [ arg1 ]
+
+        Variant2Type arg1 arg2 ->
+            [ arg1, arg2 ]
+
+        Variant3Type arg1 arg2 arg3 ->
+            [ arg1, arg2, arg3 ]
+
+        Variant4Type arg1 arg2 arg3 arg4 ->
+            [ arg1, arg2, arg3, arg4 ]
+
+        Variant5Type arg1 arg2 arg3 arg4 arg5 ->
+            [ arg1, arg2, arg3, arg4, arg5 ]
 
 
 pathToString : List Int -> String
@@ -475,8 +582,30 @@ typeFromPathHelp thisPath soughtPath irType =
                     Nothing
                     namedFieldTypes
 
-            CustomType _ _ _ ->
-                Debug.todo "branch 'CustomType _ _ _' not implemented"
+            CustomType selected ( firstName, firstVariant ) restNamesAndVariants ->
+                let
+                    variantTypes =
+                        firstVariant :: List.map Tuple.second restNamesAndVariants
+                in
+                List.Extra.indexedFoldl
+                    (\variantIdx variantType variantTypesOutput ->
+                        List.Extra.indexedFoldl
+                            (\argIdx argType argTypesOutput ->
+                                case argTypesOutput of
+                                    Just foundType ->
+                                        Just foundType
+
+                                    Nothing ->
+                                        typeFromPathHelp
+                                            (argIdx :: variantIdx :: thisPath)
+                                            soughtPath
+                                            argType
+                            )
+                            variantTypesOutput
+                            (variantTypeToArgsList variantType)
+                    )
+                    Nothing
+                    variantTypes
 
             ListType _ itemType ->
                 if List.drop 1 soughtPath == thisPath then
