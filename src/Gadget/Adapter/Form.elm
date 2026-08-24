@@ -1,13 +1,28 @@
-module Gadget.Adapter.Form exposing (Model, Msg, init, label, submit, update, view)
+module Gadget.Adapter.Form exposing
+    ( Form
+    , FormConfig
+    , Model
+    , Msg
+    , default
+    , fromGadget
+    , fromGadgetWithConfig
+    , label
+    )
 
 import Dict exposing (Dict)
 import Gadget
+import Gadget.Adapter.Pretty as Pretty
 import Gadget.IR as IR exposing (Type(..), Value(..))
 import Html as H
 import Html.Attributes as HA
 import Html.Events as HE
 import List.Extra
 import Result.Extra
+
+
+tools : IR.MetadataTools meta a
+tools =
+    IR.makeMetadataTools "Gadget.Adapter.Form"
 
 
 type alias Path =
@@ -22,9 +37,58 @@ type alias Msg =
     ( Path, Value )
 
 
-tools : IR.MetadataTools meta a
-tools =
-    IR.makeMetadataTools "Gadget.Adapter.Form"
+type alias Form a msg =
+    { init : Model
+    , update : Msg -> Model -> Model
+    , view : Model -> H.Html msg
+    , submit : Model -> Result String a
+    }
+
+
+type alias FormConfig =
+    { int : Control
+    , string : Control
+    }
+
+
+type alias Control =
+    { init : Value
+    , update : Value -> Value -> Value
+    , view : String -> Value -> H.Html Value
+    , submit : Value -> Result String Value
+    }
+
+
+type alias ControlConfig msg model output =
+    { msg : IR.Gadget msg
+    , model : IR.Gadget model
+    , output : IR.Gadget output
+    , init : model
+    , update : msg -> model -> model
+    , view : String -> model -> H.Html msg
+    , submit : model -> Result String output
+    }
+
+
+default : FormConfig
+default =
+    { int = int
+    , string = string
+    }
+
+
+fromGadget : (Msg -> msg) -> IR.Gadget a -> Form a msg
+fromGadget toMsg gadget =
+    fromGadgetWithConfig default toMsg gadget
+
+
+fromGadgetWithConfig : FormConfig -> (Msg -> msg) -> IR.Gadget a -> Form a msg
+fromGadgetWithConfig config toMsg gadget =
+    { init = init config gadget
+    , update = update config gadget
+    , view = view config gadget >> H.map toMsg
+    , submit = submit config gadget
+    }
 
 
 label : String -> IR.Gadget a -> IR.Gadget a
@@ -32,31 +96,103 @@ label l gadget =
     tools.attach "label" Gadget.string l gadget
 
 
-init : IR.Gadget a -> Model
-init gadget =
-    initHelp Dict.empty [ 0 ] (IR.irType gadget)
+control : ControlConfig msg model output -> Control
+control config =
+    { init = IR.fromInput config.model config.init
+    , update =
+        \msg model ->
+            Result.map2 config.update
+                (IR.toOutput config.msg msg)
+                (IR.toOutput config.model model)
+                |> Result.map (IR.fromInput config.model)
+                |> Result.withDefault model
+    , view =
+        \id model ->
+            Result.map (config.view id) (IR.toOutput config.model model)
+                |> Result.Extra.extract H.text
+                |> H.map (\msg -> IR.fromInput config.msg msg)
+    , submit =
+        \model ->
+            Result.andThen config.submit (IR.toOutput config.model model)
+                |> Result.map (IR.fromInput config.output)
+    }
 
 
-initHelp : Model -> Path -> Type -> Model
-initHelp dict path irType =
+int : Control
+int =
+    control
+        { model = Gadget.string
+        , msg = Gadget.string
+        , output = Gadget.int
+        , init = ""
+        , update = \msg _ -> msg
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "number"
+                    , HE.onInput identity
+                    , HA.id id
+                    ]
+                    [ H.text model ]
+        , submit =
+            \model ->
+                String.toInt model
+                    |> Result.fromMaybe "Not an integer"
+        }
+
+
+string : Control
+string =
+    control
+        { model = Gadget.string
+        , msg = Gadget.string
+        , output = Gadget.string
+        , init = ""
+        , update = \msg _ -> msg
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "text"
+                    , HE.onInput identity
+                    , HA.id id
+                    ]
+                    [ H.text model ]
+        , submit = Ok
+        }
+
+
+init : FormConfig -> IR.Gadget a -> Model
+init config gadget =
+    initHelp config Dict.empty [ 0 ] (IR.irType gadget)
+
+
+initHelp : FormConfig -> Model -> Path -> Type -> Model
+initHelp config dict path irType =
+    let
+        insert value =
+            Dict.insert path value dict
+
+        go control_ =
+            insert (.init (control_ config))
+    in
     case irType of
         UnitType _ ->
-            Dict.insert path UnitValue dict
+            insert UnitValue
 
         BoolType _ ->
-            Dict.insert path (BoolValue False) dict
+            insert (BoolValue False)
 
         CharType _ ->
-            Dict.insert path (StringValue "") dict
+            insert (StringValue "")
 
         StringType _ ->
-            Dict.insert path (StringValue "") dict
+            go .string
 
         IntType _ ->
-            Dict.insert path (StringValue "") dict
+            go .int
 
         FloatType _ ->
-            Dict.insert path (StringValue "") dict
+            insert (StringValue "")
 
         CustomType _ _ _ ->
             Debug.todo "branch 'CustomType _ _ _' not implemented"
@@ -64,7 +200,7 @@ initHelp dict path irType =
         RecordType _ namedFieldTypes ->
             List.Extra.indexedFoldl
                 (\idx ( _, fieldType ) output ->
-                    initHelp output (idx :: path) fieldType
+                    initHelp config output (idx :: path) fieldType
                 )
                 dict
                 namedFieldTypes
@@ -82,17 +218,21 @@ initHelp dict path irType =
             Debug.todo "branch 'TripleType _ _ _ _' not implemented"
 
 
-update : IR.Gadget a -> Msg -> Model -> Model
-update gadget ( path, msgValue ) model =
+update : FormConfig -> IR.Gadget a -> Msg -> Model -> Model
+update config gadget ( path, msgValue ) model =
     Maybe.map2
-        (\_ irType -> Dict.insert path (updateHelp irType msgValue) model)
+        (\modelValue irType -> Dict.insert path (updateHelp config irType msgValue modelValue) model)
         (Dict.get path model)
         (typeFromPath path (IR.irType gadget))
         |> Maybe.withDefault model
 
 
-updateHelp : Type -> Value -> Value
-updateHelp irType msgValue =
+updateHelp : FormConfig -> Type -> Value -> Value -> Value
+updateHelp config irType msgValue modelValue =
+    let
+        do getter =
+            (getter config).update msgValue modelValue
+    in
     case irType of
         UnitType _ ->
             UnitValue
@@ -104,10 +244,10 @@ updateHelp irType msgValue =
             msgValue
 
         StringType _ ->
-            msgValue
+            do .string
 
         IntType _ ->
-            msgValue
+            do .int
 
         FloatType _ ->
             msgValue
@@ -131,8 +271,8 @@ updateHelp irType msgValue =
             Debug.todo "branch 'TripleType _ _ _ _' not implemented"
 
 
-view : IR.Gadget a -> Model -> H.Html Msg
-view gadget model =
+view : FormConfig -> IR.Gadget a -> Model -> H.Html Msg
+view config gadget model =
     Dict.map
         (\path modelValue ->
             case typeFromPath path (IR.irType gadget) of
@@ -140,30 +280,28 @@ view gadget model =
                     let
                         label_ =
                             tools.decode "label" Gadget.string (tools.extract modelType)
-                                |> Maybe.withDefault "[Label missing]"
+                                |> Maybe.withDefault
+                                    ("[Label missing at "
+                                        ++ pathToString path
+                                        ++ "]"
+                                    )
+
+                        do getter =
+                            (getter config).view (pathToString path) modelValue
                     in
                     H.div []
-                        [ H.label [ HA.for label_ ] [ H.text label_ ]
-                        , case ( modelType, modelValue ) of
-                            ( IntType _, StringValue s ) ->
-                                H.input
-                                    [ HA.id label_
-                                    , HA.type_ "number"
-                                    , HE.onInput (\newS -> ( path, StringValue newS ))
-                                    ]
-                                    [ H.text s ]
+                        [ H.label [ HA.for (pathToString path) ] [ H.text label_ ]
+                        , case modelType of
+                            IntType _ ->
+                                do .int
 
-                            ( StringType _, StringValue s ) ->
-                                H.input
-                                    [ HA.id label_
-                                    , HA.type_ "text"
-                                    , HE.onInput (\newS -> ( path, StringValue newS ))
-                                    ]
-                                    [ H.text s ]
+                            StringType _ ->
+                                do .string
 
                             _ ->
                                 H.text "error: mismatched modelType and modelValue"
                         ]
+                        |> H.map (Tuple.pair path)
 
                 Nothing ->
                     H.text "error: type not found"
@@ -173,34 +311,29 @@ view gadget model =
         |> H.form []
 
 
-submit : IR.Gadget a -> Model -> Result String a
-submit gadget model =
-    submitHelp [ 0 ] (IR.irType gadget) model
+submit : FormConfig -> IR.Gadget a -> Model -> Result String a
+submit config gadget model =
+    submitHelp config [ 0 ] (IR.irType gadget) model
         |> Result.andThen (IR.toOutput gadget)
 
 
-submitHelp : Path -> Type -> Model -> Result String Value
-submitHelp path irType model =
+submitHelp : FormConfig -> Path -> Type -> Model -> Result String Value
+submitHelp config path irType model =
+    let
+        output getter =
+            Dict.get path model
+                |> Result.fromMaybe ("Value not found at path" ++ pathToString path)
+                |> Result.andThen (.submit (getter config))
+    in
     case irType of
         UnitType _ ->
             Ok UnitValue
 
         StringType _ ->
-            Dict.get path model
-                |> Result.fromMaybe "error"
+            output .string
 
         IntType _ ->
-            case Dict.get path model of
-                Just (StringValue s) ->
-                    case String.toInt s of
-                        Just i ->
-                            Ok (IntValue i)
-
-                        Nothing ->
-                            Err "Not a valid integer"
-
-                _ ->
-                    Err "error"
+            output .int
 
         BoolType _ ->
             Debug.todo "branch 'BoolType _' not implemented"
@@ -217,7 +350,7 @@ submitHelp path irType model =
         RecordType _ namedFieldTypes ->
             List.indexedMap
                 (\idx ( name, fieldType ) ->
-                    submitHelp (idx :: path) fieldType model
+                    submitHelp config (idx :: path) fieldType model
                         |> Result.map (Tuple.pair name)
                 )
                 namedFieldTypes
@@ -239,6 +372,13 @@ submitHelp path irType model =
 
 
 -- helpers
+
+
+pathToString : List Int -> String
+pathToString path =
+    List.reverse path
+        |> List.map String.fromInt
+        |> String.join "-"
 
 
 typeFromPath : Path -> Type -> Maybe Type

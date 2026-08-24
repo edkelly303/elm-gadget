@@ -134,15 +134,19 @@ update msg model =
             )
 
         FormUpdated formMsg ->
-            ( { model | form = Gadget.Adapter.Form.update gadget formMsg model.form }
+            ( { model | form = form.update formMsg model.form }
             , Cmd.none
             )
+
+
+form =
+    Gadget.Adapter.Form.fromGadget FormUpdated gadget
 
 
 init _ =
     ( { seeds = ( 0, 1 )
       , prettyWidth = 120
-      , form = Gadget.Adapter.Form.init gadget
+      , form = form.init
       }
     , Cmd.none
     )
@@ -213,10 +217,10 @@ view model =
         [ H.h1 [] [ H.text "elm-gadget examples" ]
         , H.button [ HE.onClick UserClickedRegenerate ] [ H.text "Click to regenerate!" ]
         , head "Form"
-        , Gadget.Adapter.Form.view gadget model.form |> H.map FormUpdated
+        , form.view model.form
         , H.pre []
             [ H.text
-                (Gadget.Adapter.Form.submit gadget model.form
+                (form.submit model.form
                     |> Gadget.Adapter.Pretty.print (Gadget.result Gadget.string gadget) model.prettyWidth
                 )
             ]
