@@ -57,14 +57,14 @@ type alias Path =
 
 {-| TODO
 -}
-type alias Model =
-    Dict Path Value
+type Model
+    = Model (Dict Path Value)
 
 
 {-| TODO
 -}
-type alias Msg =
-    ( Path, Value )
+type Msg
+    = Msg ( Path, Value )
 
 
 {-| TODO
@@ -87,12 +87,13 @@ type alias FormConfig =
 
 {-| TODO
 -}
-type alias Control =
-    { init : Value
-    , update : Value -> Value -> Value
-    , view : String -> Value -> H.Html Value
-    , submit : Value -> Result String Value
-    }
+type Control
+    = Control
+        { init : Value
+        , update : Value -> Value -> Value
+        , view : String -> Value -> H.Html Value
+        , submit : Value -> Result String Value
+        }
 
 
 {-| TODO
@@ -146,24 +147,25 @@ label l gadget =
 -}
 control : ControlConfig msg model output -> Control
 control config =
-    { init = IR.fromInput config.model config.init
-    , update =
-        \msg model ->
-            Result.map2 config.update
-                (IR.toOutput config.msg msg)
-                (IR.toOutput config.model model)
-                |> Result.map (IR.fromInput config.model)
-                |> Result.withDefault model
-    , view =
-        \id model ->
-            Result.map (config.view id) (IR.toOutput config.model model)
-                |> Result.Extra.extract H.text
-                |> H.map (\msg -> IR.fromInput config.msg msg)
-    , submit =
-        \model ->
-            Result.andThen config.submit (IR.toOutput config.model model)
-                |> Result.map (IR.fromInput config.output)
-    }
+    Control
+        { init = IR.fromInput config.model config.init
+        , update =
+            \msg model ->
+                Result.map2 config.update
+                    (IR.toOutput config.msg msg)
+                    (IR.toOutput config.model model)
+                    |> Result.map (IR.fromInput config.model)
+                    |> Result.withDefault model
+        , view =
+            \id model ->
+                Result.map (config.view id) (IR.toOutput config.model model)
+                    |> Result.Extra.extract H.text
+                    |> H.map (\msg -> IR.fromInput config.msg msg)
+        , submit =
+            \model ->
+                Result.andThen config.submit (IR.toOutput config.model model)
+                    |> Result.map (IR.fromInput config.output)
+        }
 
 
 int : Control
@@ -212,16 +214,21 @@ string =
 init : FormConfig -> IR.Gadget a -> Model
 init config gadget =
     initHelp config Dict.empty [ 0 ] (IR.irType gadget)
+        |> Model
 
 
-initHelp : FormConfig -> Model -> Path -> Type -> Model
+initHelp : FormConfig -> Dict Path Value -> Path -> Type -> Dict Path Value
 initHelp config dict path irType =
     let
         insert value =
             Dict.insert path value dict
 
-        go control_ =
-            insert (.init (control_ config))
+        go getter =
+            let
+                (Control c) =
+                    getter config
+            in
+            insert c.init
     in
     case irType of
         UnitType _ ->
@@ -267,19 +274,26 @@ initHelp config dict path irType =
 
 
 update : FormConfig -> IR.Gadget a -> Msg -> Model -> Model
-update config gadget ( path, msgValue ) model =
+update config gadget (Msg ( path, msgValue )) (Model dict) =
     Maybe.map2
-        (\modelValue irType -> Dict.insert path (updateHelp config irType msgValue modelValue) model)
-        (Dict.get path model)
+        (\modelValue irType ->
+            Dict.insert path (updateHelp config irType msgValue modelValue) dict
+                |> Model
+        )
+        (Dict.get path dict)
         (typeFromPath path (IR.irType gadget))
-        |> Maybe.withDefault model
+        |> Maybe.withDefault (Model dict)
 
 
 updateHelp : FormConfig -> Type -> Value -> Value -> Value
 updateHelp config irType msgValue modelValue =
     let
         do getter =
-            (getter config).update msgValue modelValue
+            let
+                (Control c) =
+                    getter config
+            in
+            c.update msgValue modelValue
     in
     case irType of
         UnitType _ ->
@@ -320,7 +334,7 @@ updateHelp config irType msgValue modelValue =
 
 
 view : FormConfig -> IR.Gadget a -> Model -> H.Html Msg
-view config gadget model =
+view config gadget (Model dict) =
     Dict.map
         (\path modelValue ->
             case typeFromPath path (IR.irType gadget) of
@@ -335,7 +349,11 @@ view config gadget model =
                                     )
 
                         do getter =
-                            (getter config).view (pathToString path) modelValue
+                            let
+                                (Control c) =
+                                    getter config
+                            in
+                            c.view (pathToString path) modelValue
                     in
                     H.div []
                         [ H.label [ HA.for (pathToString path) ] [ H.text label_ ]
@@ -349,29 +367,33 @@ view config gadget model =
                             _ ->
                                 H.text "error: mismatched modelType and modelValue"
                         ]
-                        |> H.map (Tuple.pair path)
+                        |> H.map (\msg -> Msg ( path, msg ))
 
                 Nothing ->
                     H.text "error: type not found"
         )
-        model
+        dict
         |> Dict.values
         |> H.form []
 
 
 submit : FormConfig -> IR.Gadget a -> Model -> Result String a
-submit config gadget model =
-    submitHelp config [ 0 ] (IR.irType gadget) model
+submit config gadget (Model dict) =
+    submitHelp config [ 0 ] (IR.irType gadget) dict
         |> Result.andThen (IR.toOutput gadget)
 
 
-submitHelp : FormConfig -> Path -> Type -> Model -> Result String Value
-submitHelp config path irType model =
+submitHelp : FormConfig -> Path -> Type -> Dict Path Value -> Result String Value
+submitHelp config path irType dict =
     let
         output getter =
-            Dict.get path model
+            let
+                (Control c) =
+                    getter config
+            in
+            Dict.get path dict
                 |> Result.fromMaybe ("Value not found at path" ++ pathToString path)
-                |> Result.andThen (.submit (getter config))
+                |> Result.andThen c.submit
     in
     case irType of
         UnitType _ ->
@@ -398,7 +420,7 @@ submitHelp config path irType model =
         RecordType _ namedFieldTypes ->
             List.indexedMap
                 (\idx ( name, fieldType ) ->
-                    submitHelp config (idx :: path) fieldType model
+                    submitHelp config (idx :: path) fieldType dict
                         |> Result.map (Tuple.pair name)
                 )
                 namedFieldTypes
