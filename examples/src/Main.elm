@@ -160,10 +160,13 @@ gadget =
     -- Gadget.maybe Gadget.int
     -- Gadget.result (Gadget.result Gadget.int Gadget.int) (Gadget.result Gadget.int Gadget.int)
     petGadget
-    -- Gadget.record (\x y -> { x = x, y = y })
-    --     |> Gadget.field "x" .x (Gadget.int |> Gadget.Adapter.Form.label "How much is x?")
-    --     |> Gadget.field "y" .y (Gadget.string |> Gadget.Adapter.Form.label "What is y?")
-    --     |> Gadget.endRecord
+
+
+
+-- Gadget.record (\x y -> { x = x, y = y })
+--     |> Gadget.field "x" .x (Gadget.int |> Gadget.Adapter.Form.label "How much is x?")
+--     |> Gadget.field "y" .y (Gadget.string |> Gadget.Adapter.Form.label "What is y?")
+--     |> Gadget.endRecord
 
 
 view : Model -> H.Html Msg
