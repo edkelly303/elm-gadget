@@ -73,6 +73,7 @@ petGadget =
                     (Gadget.string
                         |> Gadget.Adapter.Fuzz.label "dogName"
                         |> Gadget.Adapter.Random.choose "Rex" [ "Fido", "Kevin", "Rover", "Fifi", "George", "Winnie" ]
+                        |> Gadget.Adapter.Form.label "What is your dog's name?"
                     )
                 |> Gadget.endRecord
             )
@@ -82,11 +83,13 @@ petGadget =
             (Gadget.char
                 |> Gadget.Adapter.Fuzz.label "series"
                 |> Gadget.Adapter.Random.choose 'A' (List.range 66 90 |> List.map Char.fromCode)
+                |> Gadget.Adapter.Form.label "What is your robot's model series?"
             )
             (Gadget.maybe
                 (Gadget.int
                     |> Gadget.Adapter.Fuzz.label "model"
                     |> Gadget.Adapter.Random.range 1000 5000
+                    |> Gadget.Adapter.Form.label "What is your robot's model number?"
                 )
             )
         |> Gadget.endCustom
@@ -154,11 +157,13 @@ init _ =
 
 gadget =
     -- personGadget
-    -- Gadget.maybe
-    Gadget.record (\x y -> { x = x, y = y })
-        |> Gadget.field "x" .x (Gadget.int |> Gadget.Adapter.Form.label "How much is x?")
-        |> Gadget.field "y" .y (Gadget.string |> Gadget.Adapter.Form.label "What is y?")
-        |> Gadget.endRecord
+    -- Gadget.maybe Gadget.int
+    -- Gadget.result (Gadget.result Gadget.int Gadget.int) (Gadget.result Gadget.int Gadget.int)
+    petGadget
+    -- Gadget.record (\x y -> { x = x, y = y })
+    --     |> Gadget.field "x" .x (Gadget.int |> Gadget.Adapter.Form.label "How much is x?")
+    --     |> Gadget.field "y" .y (Gadget.string |> Gadget.Adapter.Form.label "What is y?")
+    --     |> Gadget.endRecord
 
 
 view : Model -> H.Html Msg
@@ -218,6 +223,7 @@ view model =
         , H.button [ HE.onClick UserClickedRegenerate ] [ H.text "Click to regenerate!" ]
         , head "Form"
         , form.view model.form
+        , H.text (Debug.toString model.form)
         , H.pre []
             [ H.text
                 (form.submit model.form
