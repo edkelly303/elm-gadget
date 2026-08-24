@@ -1,5 +1,5 @@
 module Gadget.Adapter.Form exposing
-    ( Form, Model, Msg, FormConfig, fromGadget, fromGadgetWithConfig, default
+    ( Form, Model, Msg, fromGadget, fromGadgetWithConfig, FormConfig, default
     , Control, ControlConfig, control
     , label
     )
