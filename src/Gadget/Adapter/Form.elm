@@ -1,13 +1,39 @@
 module Gadget.Adapter.Form exposing
-    ( Form
-    , FormConfig
-    , Model
-    , Msg
-    , default
-    , fromGadget
-    , fromGadgetWithConfig
+    ( Form, Model, Msg, FormConfig, fromGadget, fromGadgetWithConfig, default
+    , Control, ControlConfig, control
     , label
     )
+
+{-|
+
+
+## ☠️ **Warning:** Not designed for production use! ☠️
+
+The `Gadget.Adapter` modules are included in this package as toy adapters to
+show you what Gadgets are capable of, and provide source-code examples that you
+can use to get started with writing your own adapters. You should probably write
+your own production-grade adapters that are designed for your specific use-case.
+
+
+## Introduction
+
+TODO
+
+
+## Example
+
+    TODO
+
+
+## API
+
+@docs Form, Model, Msg, FormConfig, fromGadget, fromGadgetWithConfig, default
+
+@docs Control, ControlConfig, control
+
+@docs label
+
+-}
 
 import Dict exposing (Dict)
 import Gadget
@@ -29,14 +55,20 @@ type alias Path =
     List Int
 
 
+{-| TODO
+-}
 type alias Model =
     Dict Path Value
 
 
+{-| TODO
+-}
 type alias Msg =
     ( Path, Value )
 
 
+{-| TODO
+-}
 type alias Form a msg =
     { init : Model
     , update : Msg -> Model -> Model
@@ -45,12 +77,16 @@ type alias Form a msg =
     }
 
 
+{-| TODO
+-}
 type alias FormConfig =
     { int : Control
     , string : Control
     }
 
 
+{-| TODO
+-}
 type alias Control =
     { init : Value
     , update : Value -> Value -> Value
@@ -59,6 +95,8 @@ type alias Control =
     }
 
 
+{-| TODO
+-}
 type alias ControlConfig msg model output =
     { msg : IR.Gadget msg
     , model : IR.Gadget model
@@ -70,6 +108,8 @@ type alias ControlConfig msg model output =
     }
 
 
+{-| TODO
+-}
 default : FormConfig
 default =
     { int = int
@@ -77,11 +117,15 @@ default =
     }
 
 
+{-| TODO
+-}
 fromGadget : (Msg -> msg) -> IR.Gadget a -> Form a msg
 fromGadget toMsg gadget =
     fromGadgetWithConfig default toMsg gadget
 
 
+{-| TODO
+-}
 fromGadgetWithConfig : FormConfig -> (Msg -> msg) -> IR.Gadget a -> Form a msg
 fromGadgetWithConfig config toMsg gadget =
     { init = init config gadget
@@ -91,11 +135,15 @@ fromGadgetWithConfig config toMsg gadget =
     }
 
 
+{-| TODO
+-}
 label : String -> IR.Gadget a -> IR.Gadget a
 label l gadget =
     tools.attach "label" Gadget.string l gadget
 
 
+{-| TODO
+-}
 control : ControlConfig msg model output -> Control
 control config =
     { init = IR.fromInput config.model config.init
