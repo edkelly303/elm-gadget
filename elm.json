@@ -8,6 +8,7 @@
         "Gadget",
         "Gadget.IR",
         "Gadget.Adapter.Diff",
+        "Gadget.Adapter.Form",
         "Gadget.Adapter.Fuzz",
         "Gadget.Adapter.Html",
         "Gadget.Adapter.Json",
