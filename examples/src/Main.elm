@@ -158,7 +158,12 @@ init _ =
 gadget =
     -- personGadget
     --Gadget.maybe Gadget.int
-    Gadget.result (Gadget.result Gadget.int Gadget.int) (Gadget.result Gadget.int Gadget.int)
+    Gadget.result
+        (Gadget.result
+            (Gadget.int |> Gadget.Adapter.Form.label "hello")
+            (Gadget.int |> Gadget.Adapter.Form.label "world")
+        )
+        (Gadget.result Gadget.int Gadget.int)
 
 
 

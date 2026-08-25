@@ -111,8 +111,8 @@ default =
 
 
 type Model
-    = Combinator CombinatorType (Array.Array Model)
-    | Primitive PrimitiveType Value
+    = Combinator CombinatorType IR.Metadata (Array.Array Model)
+    | Primitive PrimitiveType IR.Metadata Value
 
 
 type Msg
@@ -156,62 +156,62 @@ initHelp config irType =
             run .init config
     in
     case irType of
-        UnitType _ ->
-            Primitive PUnit UnitValue
+        UnitType m ->
+            Primitive PUnit m UnitValue
 
-        BoolType _ ->
-            Primitive PBool (BoolValue False)
+        BoolType m ->
+            Primitive PBool m (BoolValue False)
 
-        CharType _ ->
-            Primitive PChar (StringValue "")
+        CharType m ->
+            Primitive PChar m (StringValue "")
 
-        StringType _ ->
-            Primitive PString (initFor .string)
+        StringType m ->
+            Primitive PString m (initFor .string)
 
-        IntType _ ->
-            Primitive PInt (initFor .int)
+        IntType m ->
+            Primitive PInt m (initFor .int)
 
-        FloatType _ ->
-            Primitive PFloat (StringValue "")
+        FloatType m ->
+            Primitive PFloat m (StringValue "")
 
-        CustomType _ ( _, firstVariantType ) restNamesAndVariantTypes ->
+        CustomType m firstNameAndVariantType restNamesAndVariantTypes ->
             let
                 variantTypes =
-                    firstVariantType :: List.map Tuple.second restNamesAndVariantTypes
+                    firstNameAndVariantType :: restNamesAndVariantTypes
 
                 variants =
                     variantTypes
                         |> List.map
-                            (\v ->
+                            (\( n, v ) ->
                                 v
                                     |> variantTypeToArgsArray
                                     |> Array.map (initHelp config)
-                                    |> Combinator Variant
+                                    |> Combinator Variant IR.emptyMetadata
                             )
                         |> Array.fromList
             in
-            Combinator (Sum 0) variants
+            Combinator (Sum 0) m variants
 
-        RecordType _ namedFieldTypes ->
+        RecordType m namedFieldTypes ->
             let
                 fields =
                     namedFieldTypes
                         |> List.map (\( _, fieldType ) -> initHelp config fieldType)
                         |> Array.fromList
             in
-            Combinator Product fields
+            Combinator Product m fields
 
-        ListType _ _ ->
-            Combinator Collection Array.empty
+        ListType m _ ->
+            Combinator Collection m Array.empty
 
-        LazyType _ innerType ->
+        LazyType m innerType ->
             initHelp config (innerType ())
 
-        TupleType _ a b ->
-            Combinator Product (Array.fromList (List.map (initHelp config) [ a, b ]))
+        TupleType m a b ->
+            Combinator Product m (Array.fromList (List.map (initHelp config) [ a, b ]))
 
-        TripleType _ a b c ->
-            Combinator Product (Array.fromList (List.map (initHelp config) [ a, b, c ]))
+        TripleType m a b c ->
+            Combinator Product m (Array.fromList (List.map (initHelp config) [ a, b, c ]))
 
 
 update : FormConfig -> Msg -> Model -> Model
@@ -226,8 +226,8 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
             run .update config
     in
     case model of
-        Primitive primitiveType modelValue ->
-            Primitive primitiveType <|
+        Primitive primitiveType metadata modelValue ->
+            Primitive primitiveType metadata <|
                 if modelPath == msgPath then
                     case primitiveType of
                         PUnit ->
@@ -253,14 +253,14 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
                 else
                     modelValue |> Debug.log "no match"
 
-        Combinator combinatorType childModels ->
+        Combinator combinatorType metadata childModels ->
             case matchPath msgPath modelPath |> Debug.log "match" of
                 FullMatch ->
                     case combinatorType of
                         Sum selected ->
                             case msgValue of
                                 IntValue i ->
-                                    Combinator (Sum i) childModels
+                                    Combinator (Sum i) metadata childModels
 
                                 _ ->
                                     model
@@ -270,7 +270,7 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
 
                 PrefixMatch { next } ->
                     Array.Extra.update next (updateHelp config (next :: modelPath) msg) childModels
-                        |> Combinator combinatorType
+                        |> Combinator combinatorType metadata
 
                 NoMatch ->
                     model
@@ -328,12 +328,16 @@ viewHelp config modelPath model =
 
         viewFor typ =
             run .view config typ id
+
+        label_ defaultLabel metadata =
+            tools.decode "label" Gadget.string metadata
+                |> Maybe.withDefault defaultLabel
     in
     case model of
-        Primitive primitiveType modelValue ->
+        Primitive primitiveType metadata modelValue ->
             H.map (\msg -> Msg modelPath msg) <|
                 H.div []
-                    [ H.label [ HA.for id ] [ H.text "Label" ]
+                    [ H.label [ HA.for id ] [ H.text (label_ id metadata) ]
                     , case primitiveType of
                         PUnit ->
                             Debug.todo "unit"
@@ -354,7 +358,7 @@ viewHelp config modelPath model =
                             Debug.todo "branch 'PBool' not implemented"
                     ]
 
-        Combinator combinatorType childModels ->
+        Combinator combinatorType metadata childModels ->
             case combinatorType of
                 Sum selected ->
                     let
@@ -379,7 +383,7 @@ viewHelp config modelPath model =
                                             , HA.checked (selected == idx)
                                             ]
                                             []
-                                        , H.label [ HA.for childId ] [ H.text childId ]
+                                        , H.label [ HA.for childId ] [ H.text (label_ childId metadata) ]
                                         ]
                                 )
                                 (Array.toList childModels)
