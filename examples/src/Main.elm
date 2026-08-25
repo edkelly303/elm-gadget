@@ -159,10 +159,10 @@ gadget =
     -- personGadget
     --Gadget.maybe Gadget.int
     Gadget.result (Gadget.result Gadget.int Gadget.int) (Gadget.result Gadget.int Gadget.int)
-    -- petGadget
 
 
 
+-- petGadget
 -- Gadget.record (\x y -> { x = x, y = y })
 --     |> Gadget.field "x" .x (Gadget.int |> Gadget.Adapter.Form.label "How much is x?")
 --     |> Gadget.field "y" .y (Gadget.string |> Gadget.Adapter.Form.label "What is y?")
