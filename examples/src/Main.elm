@@ -157,9 +157,9 @@ init _ =
 
 gadget =
     -- personGadget
-    -- Gadget.maybe Gadget.int
-    -- Gadget.result (Gadget.result Gadget.int Gadget.int) (Gadget.result Gadget.int Gadget.int)
-    petGadget
+    --Gadget.maybe Gadget.int
+    Gadget.result (Gadget.result Gadget.int Gadget.int) (Gadget.result Gadget.int Gadget.int)
+    -- petGadget
 
 
 

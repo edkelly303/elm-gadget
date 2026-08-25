@@ -35,6 +35,8 @@ TODO
 
 -}
 
+import Array exposing (Array)
+import Array.Extra
 import Dict exposing (Dict)
 import Gadget
 import Gadget.IR as IR exposing (Type(..), Value(..), VariantType(..))
@@ -52,25 +54,6 @@ tools =
 
 type alias Path =
     List Int
-
-
-{-| TODO
--}
-type Model
-    = Model InnerModel
-
-
-type alias InnerModel =
-    { values : Dict Path Value
-    , selectedCustomTypes : Dict Path Int
-    }
-
-
-{-| TODO
--}
-type Msg
-    = FieldUpdated ( Path, Value )
-    | CustomTypeUpdated ( Path, Int )
 
 
 {-| TODO
@@ -94,12 +77,15 @@ type alias FormConfig =
 {-| TODO
 -}
 type Control
-    = Control
-        { init : Value
-        , update : Value -> Value -> Value
-        , view : String -> Value -> H.Html Value
-        , submit : Value -> Result String Value
-        }
+    = Control InnerControl
+
+
+type alias InnerControl =
+    { init : Value
+    , update : Value -> Value -> Value
+    , view : String -> Value -> H.Html Value
+    , submit : Value -> Result String Value
+    }
 
 
 {-| TODO
@@ -124,6 +110,300 @@ default =
     }
 
 
+type Model
+    = Combinator CombinatorType (Array.Array Model)
+    | Primitive PrimitiveType Value
+
+
+type Msg
+    = Msg Path Value
+
+
+type CombinatorType
+    = Collection
+    | Variant
+    | Product
+    | Sum Int
+
+
+type PrimitiveType
+    = PString
+    | PChar
+    | PInt
+    | PFloat
+    | PBool
+    | PUnit
+
+
+init : FormConfig -> IR.Gadget a -> Model
+init config gadget =
+    initHelp config (IR.irType gadget)
+
+
+run : (InnerControl -> method) -> FormConfig -> (FormConfig -> Control) -> method
+run getMethod config getType =
+    let
+        (Control c) =
+            getType config
+    in
+    getMethod c
+
+
+initHelp : FormConfig -> Type -> Model
+initHelp config irType =
+    let
+        initFor =
+            run .init config
+    in
+    case irType of
+        UnitType _ ->
+            Primitive PUnit UnitValue
+
+        BoolType _ ->
+            Primitive PBool (BoolValue False)
+
+        CharType _ ->
+            Primitive PChar (StringValue "")
+
+        StringType _ ->
+            Primitive PString (initFor .string)
+
+        IntType _ ->
+            Primitive PInt (initFor .int)
+
+        FloatType _ ->
+            Primitive PFloat (StringValue "")
+
+        CustomType _ ( _, firstVariantType ) restNamesAndVariantTypes ->
+            let
+                variantTypes =
+                    firstVariantType :: List.map Tuple.second restNamesAndVariantTypes
+
+                variants =
+                    variantTypes
+                        |> List.map
+                            (\v ->
+                                v
+                                    |> variantTypeToArgsArray
+                                    |> Array.map (initHelp config)
+                                    |> Combinator Variant
+                            )
+                        |> Array.fromList
+            in
+            Combinator (Sum 0) variants
+
+        RecordType _ namedFieldTypes ->
+            let
+                fields =
+                    namedFieldTypes
+                        |> List.map (\( _, fieldType ) -> initHelp config fieldType)
+                        |> Array.fromList
+            in
+            Combinator Product fields
+
+        ListType _ _ ->
+            Combinator Collection Array.empty
+
+        LazyType _ innerType ->
+            initHelp config (innerType ())
+
+        TupleType _ a b ->
+            Combinator Product (Array.fromList (List.map (initHelp config) [ a, b ]))
+
+        TripleType _ a b c ->
+            Combinator Product (Array.fromList (List.map (initHelp config) [ a, b, c ]))
+
+
+update : FormConfig -> Msg -> Model -> Model
+update config msg model =
+    updateHelp config [ 0 ] (msg |> Debug.log "msg") model
+
+
+updateHelp : FormConfig -> Path -> Msg -> Model -> Model
+updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
+    let
+        updateFor =
+            run .update config
+    in
+    case model of
+        Primitive primitiveType modelValue ->
+            Primitive primitiveType <|
+                if modelPath == msgPath then
+                    case primitiveType of
+                        PUnit ->
+                            modelValue
+
+                        PString ->
+                            updateFor .string msgValue modelValue
+                                |> Debug.log "string updated"
+
+                        PChar ->
+                            Debug.todo "branch 'PChar' not implemented"
+
+                        PInt ->
+                            updateFor .int msgValue modelValue
+                                |> Debug.log "int updated"
+
+                        PFloat ->
+                            Debug.todo "branch 'PFloat' not implemented"
+
+                        PBool ->
+                            Debug.todo "branch 'PBool' not implemented"
+
+                else
+                    modelValue |> Debug.log "no match"
+
+        Combinator combinatorType childModels ->
+            case matchPath msgPath modelPath |> Debug.log "match" of
+                FullMatch ->
+                    case combinatorType of
+                        Sum selected ->
+                            case msgValue of
+                                IntValue i ->
+                                    Combinator (Sum i) childModels
+
+                                _ ->
+                                    model
+
+                        _ ->
+                            model
+
+                PrefixMatch { next } ->
+                    Array.Extra.update next (updateHelp config (next :: modelPath) msg) childModels
+                        |> Combinator combinatorType
+
+                NoMatch ->
+                    model
+
+
+matchPath : Path -> Path -> Match
+matchPath revSought revGot =
+    let
+        sought =
+            List.reverse revSought
+
+        got =
+            List.reverse revGot
+    in
+    if got == sought then
+        FullMatch
+
+    else
+        let
+            gotPrefix =
+                List.take (List.length sought) got
+
+            soughtPrefix =
+                List.take (List.length got) sought
+        in
+        if gotPrefix == soughtPrefix then
+            let
+                next =
+                    List.drop (List.length got) sought
+                        |> List.head
+                        |> Maybe.withDefault 0
+            in
+            PrefixMatch { next = next }
+
+        else
+            NoMatch
+
+
+type Match
+    = FullMatch
+    | PrefixMatch { next : Int }
+    | NoMatch
+
+
+view : FormConfig -> Model -> H.Html Msg
+view config model =
+    viewHelp config [ 0 ] model
+
+
+viewHelp : FormConfig -> Path -> Model -> H.Html Msg
+viewHelp config modelPath model =
+    let
+        id =
+            pathToString modelPath
+
+        viewFor typ =
+            run .view config typ id
+    in
+    case model of
+        Primitive primitiveType modelValue ->
+            H.map (\msg -> Msg modelPath msg) <|
+                H.div []
+                    [ H.label [ HA.for id ] [ H.text "Label" ]
+                    , case primitiveType of
+                        PUnit ->
+                            Debug.todo "unit"
+
+                        PString ->
+                            viewFor .string modelValue
+
+                        PChar ->
+                            Debug.todo "branch 'PChar' not implemented"
+
+                        PInt ->
+                            viewFor .int modelValue
+
+                        PFloat ->
+                            Debug.todo "branch 'PFloat' not implemented"
+
+                        PBool ->
+                            Debug.todo "branch 'PBool' not implemented"
+                    ]
+
+        Combinator combinatorType childModels ->
+            case combinatorType of
+                Sum selected ->
+                    let
+                        childView =
+                            Array.get selected childModels
+                                |> Maybe.map (viewHelp config (selected :: modelPath))
+                                |> Maybe.withDefault (H.text "sum error")
+                    in
+                    H.div []
+                        [ H.fieldset []
+                            (List.indexedMap
+                                (\idx _ ->
+                                    let
+                                        childId =
+                                            pathToString (idx :: modelPath)
+                                    in
+                                    H.span []
+                                        [ H.input
+                                            [ HA.id childId
+                                            , HA.type_ "radio"
+                                            , HE.onCheck (\_ -> Msg modelPath (IntValue idx))
+                                            , HA.checked (selected == idx)
+                                            ]
+                                            []
+                                        , H.label [ HA.for childId ] [ H.text childId ]
+                                        ]
+                                )
+                                (Array.toList childModels)
+                            )
+                        , childView
+                        ]
+
+                _ ->
+                    Array.indexedMap (\idx childModel -> viewHelp config (idx :: modelPath) childModel) childModels
+                        |> Array.toList
+                        |> H.div []
+
+
+submit : FormConfig -> IR.Gadget a -> Model -> Result String a
+submit config gadget model =
+    submitHelp config [ 0 ] model
+        |> Result.andThen (IR.toOutput gadget)
+
+
+submitHelp : FormConfig -> Path -> Model -> Result String Value
+submitHelp config path model =
+    Err ""
+
+
 {-| TODO
 -}
 fromGadget : (Msg -> msg) -> IR.Gadget a -> Form a msg
@@ -136,8 +416,8 @@ fromGadget toMsg gadget =
 fromGadgetWithConfig : FormConfig -> (Msg -> msg) -> IR.Gadget a -> Form a msg
 fromGadgetWithConfig config toMsg gadget =
     { init = init config gadget
-    , update = update config gadget
-    , view = view config gadget >> H.map toMsg
+    , update = update config
+    , view = view config >> H.map toMsg
     , submit = submit config gadget
     }
 
@@ -217,337 +497,27 @@ string =
         }
 
 
-init : FormConfig -> IR.Gadget a -> Model
-init config gadget =
-    initHelp config { values = Dict.empty, selectedCustomTypes = Dict.empty } [ 0 ] (IR.irType gadget)
-        |> Model
+variantTypeToArgsArray : VariantType -> Array Type
+variantTypeToArgsArray v =
+    Array.fromList <|
+        case v of
+            Variant0Type ->
+                []
 
+            Variant1Type arg1 ->
+                [ arg1 ]
 
-initHelp : FormConfig -> InnerModel -> Path -> Type -> InnerModel
-initHelp config dict path irType =
-    let
-        insert value =
-            { dict | values = Dict.insert path value dict.values }
+            Variant2Type arg1 arg2 ->
+                [ arg1, arg2 ]
 
-        go getter =
-            let
-                (Control c) =
-                    getter config
-            in
-            insert c.init
-    in
-    case irType of
-        UnitType _ ->
-            insert UnitValue
+            Variant3Type arg1 arg2 arg3 ->
+                [ arg1, arg2, arg3 ]
 
-        BoolType _ ->
-            insert (BoolValue False)
+            Variant4Type arg1 arg2 arg3 arg4 ->
+                [ arg1, arg2, arg3, arg4 ]
 
-        CharType _ ->
-            insert (StringValue "")
-
-        StringType _ ->
-            go .string
-
-        IntType _ ->
-            go .int
-
-        FloatType _ ->
-            insert (StringValue "")
-
-        CustomType _ ( firstName, firstVariant ) restNamesAndVariants ->
-            let
-                variantTypes =
-                    firstVariant :: List.map Tuple.second restNamesAndVariants
-            in
-            List.Extra.indexedFoldl
-                (\variantIdx variantType variantTypesOutput ->
-                    List.Extra.indexedFoldl
-                        (\argIdx argType argTypesOutput ->
-                            initHelp config
-                                argTypesOutput
-                                (argIdx :: variantIdx :: path)
-                                argType
-                        )
-                        variantTypesOutput
-                        (variantTypeToArgsList variantType)
-                )
-                dict
-                variantTypes
-                |> (\d -> { d | selectedCustomTypes = Dict.insert path 0 d.selectedCustomTypes })
-
-        RecordType _ namedFieldTypes ->
-            List.Extra.indexedFoldl
-                (\idx ( _, fieldType ) output ->
-                    initHelp config output (idx :: path) fieldType
-                )
-                dict
-                namedFieldTypes
-
-        ListType _ _ ->
-            Debug.todo "branch 'ListType _ _' not implemented"
-
-        LazyType _ _ ->
-            Debug.todo "branch 'LazyType _ _' not implemented"
-
-        TupleType _ _ _ ->
-            Debug.todo "branch 'TupleType _ _ _' not implemented"
-
-        TripleType _ _ _ _ ->
-            Debug.todo "branch 'TripleType _ _ _ _' not implemented"
-
-
-update : FormConfig -> IR.Gadget a -> Msg -> Model -> Model
-update config gadget msg (Model dict) =
-    case msg of
-        FieldUpdated ( path, msgValue ) ->
-            Maybe.map2
-                (\modelValue irType ->
-                    { dict
-                        | values =
-                            Dict.insert path (updateHelp config irType msgValue modelValue) dict.values
-                    }
-                        |> Model
-                )
-                (Dict.get path dict.values)
-                (typeFromPath path (IR.irType gadget))
-                |> Maybe.withDefault (Model dict)
-
-        CustomTypeUpdated ( path, idx ) ->
-            Model { dict | selectedCustomTypes = Dict.insert path idx dict.selectedCustomTypes }
-
-
-updateHelp : FormConfig -> Type -> Value -> Value -> Value
-updateHelp config irType msgValue modelValue =
-    let
-        do getter =
-            let
-                (Control c) =
-                    getter config
-            in
-            c.update msgValue modelValue
-    in
-    case irType of
-        UnitType _ ->
-            UnitValue
-
-        BoolType _ ->
-            msgValue
-
-        CharType _ ->
-            msgValue
-
-        StringType _ ->
-            do .string
-
-        IntType _ ->
-            do .int
-
-        FloatType _ ->
-            msgValue
-
-        CustomType _ _ _ ->
-            Debug.log "implement me!" modelValue
-
-        RecordType _ _ ->
-            Debug.todo "branch 'RecordType _ _' not implemented"
-
-        ListType _ _ ->
-            Debug.todo "branch 'ListType _ _' not implemented"
-
-        LazyType _ _ ->
-            Debug.todo "branch 'LazyType _ _' not implemented"
-
-        TupleType _ _ _ ->
-            Debug.todo "branch 'TupleType _ _ _' not implemented"
-
-        TripleType _ _ _ _ ->
-            Debug.todo "branch 'TripleType _ _ _ _' not implemented"
-
-
-view : FormConfig -> IR.Gadget a -> Model -> H.Html Msg
-view config gadget (Model dict) =
-    let
-        viewSelectedCustomTypes =
-            dict.selectedCustomTypes
-                |> Dict.map
-                    (\path idx ->
-                        let
-                            variants =
-                                case typeFromPath path (IR.irType gadget) of
-                                    Just (CustomType _ fst rest) ->
-                                        fst :: rest
-
-                                    _ ->
-                                        []
-                        in
-                        H.fieldset []
-                            (List.indexedMap
-                                (\i ( name, v ) ->
-                                    H.span
-                                        []
-                                        [ H.input
-                                            [ HA.type_ "radio"
-                                            , HA.name (pathToString path)
-                                            , HA.checked (i == idx)
-                                            , HE.onCheck (\_ -> CustomTypeUpdated ( path, i ))
-                                            , HA.id name
-                                            ]
-                                            []
-                                        , H.label [ HA.for name ] [ H.text name ]
-                                        ]
-                                )
-                                variants
-                            )
-                    )
-    in
-    dict.values
-        |> Dict.filter
-            (\path _ ->
-                List.foldr
-                    (\digit ( acc, continue ) ->
-                        case Dict.get acc dict.selectedCustomTypes of
-                            Nothing ->
-                                ( acc ++ [ digit ], continue )
-
-                            Just selected ->
-                                ( acc ++ [ digit ], selected == digit )
-                    )
-                    ( [], True )
-                    path
-                    |> Tuple.second
-            )
-        |> Dict.map
-            (\path modelValue ->
-                case typeFromPath path (IR.irType gadget) of
-                    Just modelType ->
-                        let
-                            label_ =
-                                tools.decode "label" Gadget.string (tools.extract modelType)
-                                    |> Maybe.withDefault
-                                        ("[Label missing at "
-                                            ++ pathToString path
-                                            ++ "]"
-                                        )
-
-                            do getter =
-                                let
-                                    (Control c) =
-                                        getter config
-                                in
-                                c.view (pathToString path) modelValue
-                        in
-                        H.div []
-                            [ H.label [ HA.for (pathToString path) ] [ H.text label_ ]
-                            , case modelType of
-                                IntType _ ->
-                                    do .int
-
-                                StringType _ ->
-                                    do .string
-
-                                other ->
-                                    H.text ("Unhandled type: " ++ Debug.toString other)
-                            ]
-                            |> H.map (\msg -> FieldUpdated ( path, msg ))
-
-                    Nothing ->
-                        H.text "error: type not found"
-            )
-        |> Dict.union viewSelectedCustomTypes
-        |> Dict.toList
-        |> List.sortBy Tuple.first
-        |> List.map Tuple.second
-        |> H.form []
-
-
-submit : FormConfig -> IR.Gadget a -> Model -> Result String a
-submit config gadget (Model dict) =
-    submitHelp config [ 0 ] (IR.irType gadget) dict.values
-        |> Result.andThen (IR.toOutput gadget)
-
-
-submitHelp : FormConfig -> Path -> Type -> Dict Path Value -> Result String Value
-submitHelp config path irType dict =
-    let
-        output getter =
-            let
-                (Control c) =
-                    getter config
-            in
-            Dict.get path dict
-                |> Result.fromMaybe ("Value not found at path" ++ pathToString path)
-                |> Result.andThen c.submit
-    in
-    case irType of
-        UnitType _ ->
-            Ok UnitValue
-
-        StringType _ ->
-            output .string
-
-        IntType _ ->
-            output .int
-
-        BoolType _ ->
-            Debug.todo "branch 'BoolType _' not implemented"
-
-        CharType _ ->
-            Debug.todo "branch 'CharType _' not implemented"
-
-        FloatType _ ->
-            Debug.todo "branch 'FloatType _' not implemented"
-
-        CustomType _ _ _ ->
-            Debug.log "branch 'CustomType _ _ _' not implemented" (Err "custom type")
-
-        RecordType _ namedFieldTypes ->
-            List.indexedMap
-                (\idx ( name, fieldType ) ->
-                    submitHelp config (idx :: path) fieldType dict
-                        |> Result.map (Tuple.pair name)
-                )
-                namedFieldTypes
-                |> Result.Extra.combine
-                |> Result.map RecordValue
-
-        ListType _ _ ->
-            Debug.todo "branch 'ListType _ _' not implemented"
-
-        LazyType _ _ ->
-            Debug.todo "branch 'LazyType _ _' not implemented"
-
-        TupleType _ _ _ ->
-            Debug.todo "branch 'TupleType _ _ _' not implemented"
-
-        TripleType _ _ _ _ ->
-            Debug.todo "branch 'TripleType _ _ _ _' not implemented"
-
-
-
--- helpers
-
-
-variantTypeToArgsList : VariantType -> List Type
-variantTypeToArgsList v =
-    case v of
-        Variant0Type ->
-            []
-
-        Variant1Type arg1 ->
-            [ arg1 ]
-
-        Variant2Type arg1 arg2 ->
-            [ arg1, arg2 ]
-
-        Variant3Type arg1 arg2 arg3 ->
-            [ arg1, arg2, arg3 ]
-
-        Variant4Type arg1 arg2 arg3 arg4 ->
-            [ arg1, arg2, arg3, arg4 ]
-
-        Variant5Type arg1 arg2 arg3 arg4 arg5 ->
-            [ arg1, arg2, arg3, arg4, arg5 ]
+            Variant5Type arg1 arg2 arg3 arg4 arg5 ->
+                [ arg1, arg2, arg3, arg4, arg5 ]
 
 
 pathToString : List Int -> String
@@ -555,73 +525,3 @@ pathToString path =
     List.reverse path
         |> List.map String.fromInt
         |> String.join "-"
-
-
-typeFromPath : Path -> Type -> Maybe Type
-typeFromPath soughtPath irType =
-    typeFromPathHelp [ 0 ] soughtPath irType
-
-
-typeFromPathHelp : Path -> Path -> Type -> Maybe Type
-typeFromPathHelp thisPath soughtPath irType =
-    if thisPath == soughtPath then
-        Just irType
-
-    else
-        case irType of
-            RecordType _ namedFieldTypes ->
-                List.Extra.indexedFoldl
-                    (\idx ( _, fieldType ) acc ->
-                        case acc of
-                            Just foundType ->
-                                Just foundType
-
-                            Nothing ->
-                                typeFromPathHelp (idx :: thisPath) soughtPath fieldType
-                    )
-                    Nothing
-                    namedFieldTypes
-
-            CustomType selected ( firstName, firstVariant ) restNamesAndVariants ->
-                let
-                    variantTypes =
-                        firstVariant :: List.map Tuple.second restNamesAndVariants
-                in
-                List.Extra.indexedFoldl
-                    (\variantIdx variantType variantTypesOutput ->
-                        List.Extra.indexedFoldl
-                            (\argIdx argType argTypesOutput ->
-                                case argTypesOutput of
-                                    Just foundType ->
-                                        Just foundType
-
-                                    Nothing ->
-                                        typeFromPathHelp
-                                            (argIdx :: variantIdx :: thisPath)
-                                            soughtPath
-                                            argType
-                            )
-                            variantTypesOutput
-                            (variantTypeToArgsList variantType)
-                    )
-                    Nothing
-                    variantTypes
-
-            ListType _ itemType ->
-                if List.drop 1 soughtPath == thisPath then
-                    Just itemType
-
-                else
-                    Nothing
-
-            LazyType _ _ ->
-                Debug.todo "branch 'LazyType _ _' not implemented"
-
-            TupleType _ _ _ ->
-                Debug.todo "branch 'TupleType _ _ _' not implemented"
-
-            TripleType _ _ _ _ ->
-                Debug.todo "branch 'TripleType _ _ _ _' not implemented"
-
-            _ ->
-                Nothing
