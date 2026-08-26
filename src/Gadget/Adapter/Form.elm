@@ -2,6 +2,7 @@ module Gadget.Adapter.Form exposing
     ( Form, Model, Msg, fromGadget, fromGadgetWithConfig, FormConfig, default
     , Control, ControlConfig, control
     , label
+    , customLabels
     )
 
 {-|
@@ -39,7 +40,7 @@ import Array exposing (Array)
 import Array.Extra
 import Dict exposing (Dict)
 import Gadget
-import Gadget.IR as IR exposing (Type(..), Value(..), VariantType(..))
+import Gadget.IR as IR exposing (Type(..), Value(..), VariantType(..), VariantValue(..))
 import Html as H
 import Html.Attributes as HA
 import Html.Events as HE
@@ -366,27 +367,37 @@ viewHelp config modelPath model =
                             Array.get selected childModels
                                 |> Maybe.map (viewHelp config (selected :: modelPath))
                                 |> Maybe.withDefault (H.text "sum error")
+
+                        ( customLabel_, variantLabels ) =
+                            tools.decode "customLabel" (Gadget.tuple Gadget.string (Gadget.list Gadget.string)) metadata
+                                |> Maybe.withDefault ( pathToString modelPath, [] )
                     in
                     H.div []
                         [ H.fieldset []
-                            (List.indexedMap
-                                (\idx _ ->
-                                    let
-                                        childId =
-                                            pathToString (idx :: modelPath)
-                                    in
-                                    H.span []
-                                        [ H.input
-                                            [ HA.id childId
-                                            , HA.type_ "radio"
-                                            , HE.onCheck (\_ -> Msg modelPath (IntValue idx))
-                                            , HA.checked (selected == idx)
+                            (H.legend [] [ H.text customLabel_ ]
+                                :: List.indexedMap
+                                    (\idx _ ->
+                                        let
+                                            childId =
+                                                pathToString (idx :: modelPath)
+                                        in
+                                        H.span []
+                                            [ H.input
+                                                [ HA.id childId
+                                                , HA.type_ "radio"
+                                                , HE.onCheck (\_ -> Msg modelPath (IntValue idx))
+                                                , HA.checked (selected == idx)
+                                                ]
+                                                []
+                                            , H.label [ HA.for childId ]
+                                                [ H.text
+                                                    (List.Extra.getAt idx variantLabels
+                                                        |> Maybe.withDefault (label_ childId metadata)
+                                                    )
+                                                ]
                                             ]
-                                            []
-                                        , H.label [ HA.for childId ] [ H.text (label_ childId metadata) ]
-                                        ]
-                                )
-                                (Array.toList childModels)
+                                    )
+                                    (Array.toList childModels)
                             )
                         , childView
                         ]
@@ -443,30 +454,10 @@ submitHelp config path model =
                             (\v ->
                                 case v of
                                     Combinator Variant _ args ->
-                                        case
-                                            Array.toList args
-                                                |> List.indexedMap (\idx arg -> submitHelp config (idx :: path) arg)
-                                        of
-                                            [] ->
-                                                Ok IR.Variant0Value
-
-                                            [ arg1 ] ->
-                                                Result.map IR.Variant1Value arg1
-
-                                            [ arg1, arg2 ] ->
-                                                Result.map2 IR.Variant2Value arg1 arg2
-
-                                            [ arg1, arg2, arg3 ] ->
-                                                Result.map3 IR.Variant3Value arg1 arg2 arg3
-
-                                            [ arg1, arg2, arg3, arg4 ] ->
-                                                Result.map4 IR.Variant4Value arg1 arg2 arg3 arg4
-
-                                            [ arg1, arg2, arg3, arg4, arg5 ] ->
-                                                Result.map5 IR.Variant5Value arg1 arg2 arg3 arg4 arg5
-
-                                            _ ->
-                                                Err "Variant has too many args"
+                                        Array.toList args
+                                            |> List.indexedMap (\idx arg -> submitHelp config (idx :: path) arg)
+                                            |> Result.Extra.combine
+                                            |> Result.andThen argsListToVariantValue
 
                                     _ ->
                                         Err "The child of a Sum should always be a Variant"
@@ -474,7 +465,10 @@ submitHelp config path model =
                         |> Result.map (\v -> CustomValue selected ( "", v ))
 
                 Collection ->
-                    Debug.todo "branch 'Collection' not implemented"
+                    Array.toList children
+                        |> List.indexedMap (\idx child -> submitHelp config (idx :: path) child)
+                        |> Result.Extra.combine
+                        |> Result.map IR.ListValue
 
                 Variant ->
                     Err "This branch should be unreachable, as Variants should always be handled by the Sum case"
@@ -510,6 +504,14 @@ fromGadgetWithConfig config toMsg gadget =
 label : String -> IR.Gadget a -> IR.Gadget a
 label l gadget =
     tools.attach "label" Gadget.string l gadget
+
+
+customLabels : String -> List String -> IR.Gadget d -> IR.Gadget d
+customLabels l ls gadget =
+    tools.attach "customLabel"
+        (Gadget.tuple Gadget.string (Gadget.list Gadget.string))
+        ( l, ls )
+        gadget
 
 
 {-| TODO
@@ -578,6 +580,31 @@ string =
                     [ H.text model ]
         , submit = Ok
         }
+
+
+argsListToVariantValue : List Value -> Result String IR.VariantValue
+argsListToVariantValue l =
+    case l of
+        [] ->
+            Ok IR.Variant0Value
+
+        [ arg1 ] ->
+            Ok <| IR.Variant1Value arg1
+
+        [ arg1, arg2 ] ->
+            Ok <| IR.Variant2Value arg1 arg2
+
+        [ arg1, arg2, arg3 ] ->
+            Ok <| IR.Variant3Value arg1 arg2 arg3
+
+        [ arg1, arg2, arg3, arg4 ] ->
+            Ok <| IR.Variant4Value arg1 arg2 arg3 arg4
+
+        [ arg1, arg2, arg3, arg4, arg5 ] ->
+            Ok <| IR.Variant5Value arg1 arg2 arg3 arg4 arg5
+
+        _ ->
+            Err "Variant has too many args"
 
 
 variantTypeToArgsArray : VariantType -> Array Type

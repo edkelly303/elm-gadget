@@ -164,13 +164,11 @@ gadget =
     --         (Gadget.int |> Gadget.Adapter.Form.label "world")
     --     )
     --     (Gadget.result Gadget.int Gadget.int)
-
-
-
--- petGadget
+    -- petGadget
     Gadget.record (\x y -> { x = x, y = y })
         |> Gadget.field "x" .x (Gadget.int |> Gadget.Adapter.Form.label "How much is x?")
-        |> Gadget.field "y" .y (Gadget.maybe (Gadget.string |> Gadget.Adapter.Form.label "What is y?"))
+        |> Gadget.field "y" .y (Gadget.maybe (Gadget.string |> Gadget.Adapter.Form.label "What is y?")|> Gadget.Adapter.Form.customLabels "What is y?" 
+        ["Just", "Nothing"])
         |> Gadget.endRecord
 
 
