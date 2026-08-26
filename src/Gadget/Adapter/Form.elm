@@ -405,7 +405,86 @@ submit config gadget model =
 
 submitHelp : FormConfig -> Path -> Model -> Result String Value
 submitHelp config path model =
-    Err ""
+    let
+        submit_ getter =
+            let
+                (Control c) =
+                    getter config
+            in
+            c.submit
+    in
+    case model of
+        Primitive primitiveType metadata value ->
+            case primitiveType of
+                PUnit ->
+                    Ok UnitValue
+
+                PString ->
+                    submit_ .string value
+
+                PChar ->
+                    Debug.todo "branch 'PChar' not implemented"
+
+                PInt ->
+                    submit_ .int value
+
+                PFloat ->
+                    Debug.todo "branch 'PFloat' not implemented"
+
+                PBool ->
+                    Debug.todo "branch 'PBool' not implemented"
+
+        Combinator combinatorType metadata children ->
+            case combinatorType of
+                Sum selected ->
+                    Array.get selected children
+                        |> Result.fromMaybe ("Invalid Sum variant selection at " ++ pathToString path)
+                        |> Result.andThen
+                            (\v ->
+                                case v of
+                                    Combinator Variant _ args ->
+                                        case
+                                            Array.toList args
+                                                |> List.indexedMap (\idx arg -> submitHelp config (idx :: path) arg)
+                                        of
+                                            [] ->
+                                                Ok IR.Variant0Value
+
+                                            [ arg1 ] ->
+                                                Result.map IR.Variant1Value arg1
+
+                                            [ arg1, arg2 ] ->
+                                                Result.map2 IR.Variant2Value arg1 arg2
+
+                                            [ arg1, arg2, arg3 ] ->
+                                                Result.map3 IR.Variant3Value arg1 arg2 arg3
+
+                                            [ arg1, arg2, arg3, arg4 ] ->
+                                                Result.map4 IR.Variant4Value arg1 arg2 arg3 arg4
+
+                                            [ arg1, arg2, arg3, arg4, arg5 ] ->
+                                                Result.map5 IR.Variant5Value arg1 arg2 arg3 arg4 arg5
+
+                                            _ ->
+                                                Err "Variant has too many args"
+
+                                    _ ->
+                                        Err "The child of a Sum should always be a Variant"
+                            )
+                        |> Result.map (\v -> CustomValue selected ( "", v ))
+
+                Collection ->
+                    Debug.todo "branch 'Collection' not implemented"
+
+                Variant ->
+                    Err "This branch should be unreachable, as Variants should always be handled by the Sum case"
+
+                Product ->
+                    Array.toList children
+                        |> List.indexedMap (\idx child -> submitHelp config (idx :: path) child)
+                        |> Result.Extra.combine
+                        |> Result.map (List.map (Tuple.pair ""))
+                        |> Result.map IR.RecordValue
 
 
 {-| TODO
