@@ -67,6 +67,7 @@ type alias Form a msg =
 
 type alias Error =
     { id : String
+    , path : Path
     , error : String
     }
 
@@ -81,7 +82,7 @@ type alias InnerControl =
     { init : Value
     , update : Value -> Value -> Value
     , view : String -> Value -> H.Html Value
-    , submit : String -> Value -> Result Error Value
+    , submit : Path -> Value -> Result Error Value
     }
 
 
@@ -106,6 +107,7 @@ type alias FormConfig =
     , float : Control
     , char : Control
     , string : Control
+    , feedback : String -> H.Html Msg
     }
 
 
@@ -118,6 +120,7 @@ default =
     , float = float
     , char = char
     , string = string
+    , feedback = \error -> H.strong [ HA.style "color" "red" ] [ H.text error ]
     }
 
 
@@ -342,13 +345,17 @@ type Match
     | NoMatch
 
 
-view : FormConfig -> Model -> H.Html Msg
-view config model =
-    viewHelp config [ 0 ] model
+view : FormConfig -> IR.Gadget a -> Model -> H.Html Msg
+view config gadget model =
+    let
+        err =
+            submit config gadget model
+    in
+    viewHelp config err [ 0 ] model
 
 
-viewHelp : FormConfig -> Path -> Model -> H.Html Msg
-viewHelp config modelPath model =
+viewHelp : FormConfig -> Result Error a -> Path -> Model -> H.Html Msg
+viewHelp config err modelPath model =
     let
         id =
             pathToString modelPath
@@ -356,105 +363,123 @@ viewHelp config modelPath model =
         label_ defaultLabel metadata =
             tools.decode "label" Gadget.string metadata
                 |> Maybe.withDefault defaultLabel
-    in
-    case model of
-        Primitive primitiveType metadata modelValue ->
-            let
-                viewFor typ =
-                    run .view config typ id modelValue
-            in
-            H.map (\msg -> Msg modelPath msg) <|
-                H.div []
-                    [ H.label [ HA.for id ] [ H.text (label_ id metadata) ]
-                    , case primitiveType of
-                        PUnit ->
-                            H.text ""
 
-                        PString ->
-                            viewFor .string
+        feedback =
+            case err of
+                Err { path, error } ->
+                    if path == modelPath then
+                        config.feedback error
 
-                        PChar ->
-                            viewFor .char
+                    else
+                        H.text ""
 
-                        PInt ->
-                            viewFor .int
+                Ok _ ->
+                    H.text ""
 
-                        PFloat ->
-                            viewFor .float
-
-                        PBool ->
-                            viewFor .bool
-                    ]
-
-        Combinator combinatorType metadata childModels ->
-            case combinatorType of
-                Sum selected ->
+        input =
+            case model of
+                Primitive primitiveType metadata modelValue ->
                     let
-                        childView =
-                            Array.get selected childModels
-                                |> Maybe.map (viewHelp config (selected :: modelPath))
-                                |> Maybe.withDefault (H.text "sum error")
-
-                        ( customLabel_, variantLabels ) =
-                            tools.decode "customLabel" (Gadget.tuple Gadget.string (Gadget.list Gadget.string)) metadata
-                                |> Maybe.withDefault ( pathToString modelPath, [] )
+                        viewFor typ =
+                            run .view config typ id modelValue
                     in
-                    H.div []
-                        [ H.fieldset []
-                            (H.legend [] [ H.text customLabel_ ]
-                                :: List.indexedMap
-                                    (\idx _ ->
-                                        let
-                                            childId =
-                                                pathToString (idx :: modelPath)
-                                        in
-                                        H.span []
-                                            [ H.input
-                                                [ HA.id childId
-                                                , HA.type_ "radio"
-                                                , HE.onCheck (\_ -> Msg modelPath (IntValue idx))
-                                                , HA.checked (selected == idx)
-                                                ]
-                                                []
-                                            , H.label [ HA.for childId ]
-                                                [ H.text
-                                                    (List.Extra.getAt idx variantLabels
-                                                        |> Maybe.withDefault (label_ childId metadata)
-                                                    )
-                                                ]
-                                            ]
+                    H.map (\msg -> Msg modelPath msg) <|
+                        H.div []
+                            [ H.label [ HA.for id ] [ H.text (label_ id metadata) ]
+                            , case primitiveType of
+                                PUnit ->
+                                    H.text ""
+
+                                PString ->
+                                    viewFor .string
+
+                                PChar ->
+                                    viewFor .char
+
+                                PInt ->
+                                    viewFor .int
+
+                                PFloat ->
+                                    viewFor .float
+
+                                PBool ->
+                                    viewFor .bool
+                            ]
+
+                Combinator combinatorType metadata childModels ->
+                    case combinatorType of
+                        Sum selected ->
+                            let
+                                childView =
+                                    Array.get selected childModels
+                                        |> Maybe.map (viewHelp config err (selected :: modelPath))
+                                        |> Maybe.withDefault (H.text "sum error")
+
+                                ( customLabel_, variantLabels ) =
+                                    tools.decode "customLabel" (Gadget.tuple Gadget.string (Gadget.list Gadget.string)) metadata
+                                        |> Maybe.withDefault ( pathToString modelPath, [] )
+                            in
+                            H.div []
+                                [ H.fieldset []
+                                    (H.legend [] [ H.text customLabel_ ]
+                                        :: List.indexedMap
+                                            (\idx _ ->
+                                                let
+                                                    childId =
+                                                        pathToString (idx :: modelPath)
+                                                in
+                                                H.span []
+                                                    [ H.input
+                                                        [ HA.id childId
+                                                        , HA.type_ "radio"
+                                                        , HE.onCheck (\_ -> Msg modelPath (IntValue idx))
+                                                        , HA.checked (selected == idx)
+                                                        ]
+                                                        []
+                                                    , H.label [ HA.for childId ]
+                                                        [ H.text
+                                                            (List.Extra.getAt idx variantLabels
+                                                                |> Maybe.withDefault (label_ childId metadata)
+                                                            )
+                                                        ]
+                                                    ]
+                                            )
+                                            (Array.toList childModels)
                                     )
-                                    (Array.toList childModels)
-                            )
-                        , childView
-                        ]
+                                , childView
+                                ]
 
-                Product _ ->
-                    Array.indexedMap (\idx childModel -> viewHelp config (idx :: modelPath) childModel) childModels
-                        |> Array.toList
-                        |> H.div []
-
-                Collection _ ->
-                    H.fieldset []
-                        [ H.legend [] [ H.text (label_ "List" metadata) ]
-                        , H.input [ HA.type_ "button", HE.onClick (Msg modelPath UnitValue), HA.value "+" ] []
-                        , H.div []
-                            (childModels
-                                |> Array.indexedMap (\idx childModel -> viewHelp config (idx :: modelPath) childModel)
+                        Product _ ->
+                            Array.indexedMap (\idx childModel -> viewHelp config err (idx :: modelPath) childModel) childModels
                                 |> Array.toList
-                            )
-                        ]
+                                |> H.div []
 
-                Variant ->
-                    Array.indexedMap (\idx childModel -> viewHelp config (idx :: modelPath) childModel) childModels
-                        |> Array.toList
-                        |> H.div []
+                        Collection _ ->
+                            H.fieldset []
+                                [ H.legend [] [ H.text (label_ "List" metadata) ]
+                                , H.input [ HA.type_ "button", HE.onClick (Msg modelPath UnitValue), HA.value "+" ] []
+                                , H.div []
+                                    (childModels
+                                        |> Array.indexedMap (\idx childModel -> viewHelp config err (idx :: modelPath) childModel)
+                                        |> Array.toList
+                                    )
+                                ]
+
+                        Variant ->
+                            Array.indexedMap (\idx childModel -> viewHelp config err (idx :: modelPath) childModel) childModels
+                                |> Array.toList
+                                |> H.div []
+    in
+    H.div []
+        [ input
+        , feedback
+        ]
 
 
 submit : FormConfig -> IR.Gadget a -> Model -> Result Error a
 submit config gadget model =
     submitHelp config [ 0 ] model
-        |> Result.andThen (\ir -> IR.toOutput gadget ir |> Result.mapError (\error -> { id = "", error = error }))
+        |> Result.andThen (\ir -> IR.toOutput gadget ir |> Result.mapError (\error -> { id = "", path = [], error = error }))
 
 
 submitHelp : FormConfig -> Path -> Model -> Result Error Value
@@ -467,7 +492,7 @@ submitHelp config path model =
                         (Control c) =
                             getter config
                     in
-                    c.submit (pathToString path) modelValue
+                    c.submit path modelValue
             in
             case primitiveType of
                 PUnit ->
@@ -492,18 +517,18 @@ submitHelp config path model =
             case combinatorType of
                 Sum selected ->
                     Array.get selected children
-                        |> Result.fromMaybe { id = pathToString path, error = "Invalid Sum variant selection" }
+                        |> Result.fromMaybe { id = pathToString path, path = path, error = "Invalid Sum variant selection" }
                         |> Result.andThen
                             (\v ->
                                 case v of
                                     Combinator Variant _ args ->
                                         Array.toList args
-                                            |> List.indexedMap (\idx arg -> submitHelp config (idx :: path) arg)
+                                            |> List.indexedMap (\idx arg -> submitHelp config (idx :: selected :: path) arg)
                                             |> Result.Extra.combine
-                                            |> Result.andThen (argsListToVariantValue >> Result.mapError (\error -> { id = "", error = error }))
+                                            |> Result.andThen (argsListToVariantValue >> Result.mapError (\error -> { id = "", path = selected :: path, error = error }))
 
                                     _ ->
-                                        Err { id = pathToString path, error = "The child of a Sum should always be a Variant" }
+                                        Err { id = pathToString path, path = path, error = "The child of a Sum should always be a Variant" }
                             )
                         |> Result.map (\v -> CustomValue selected ( "", v ))
 
@@ -514,7 +539,7 @@ submitHelp config path model =
                         |> Result.map IR.ListValue
 
                 Variant ->
-                    Err { id = pathToString path, error = "This branch should be unreachable, as Variants should always be handled by the Sum case" }
+                    Err { id = pathToString path, path = path, error = "This branch should be unreachable, as Variants should always be handled by the Sum case" }
 
                 Product productType ->
                     Array.toList children
@@ -532,7 +557,7 @@ submitHelp config path model =
                                                 IR.TupleValue a b |> Ok
 
                                             _ ->
-                                                Err { id = "", error = "Tuple has wrong number of elements" }
+                                                Err { id = "", path = path, error = "Tuple has wrong number of elements" }
 
                                     Triple ->
                                         case fields of
@@ -540,7 +565,7 @@ submitHelp config path model =
                                                 IR.TripleValue a b c |> Ok
 
                                             _ ->
-                                                Err { id = "", error = "Triple has wrong number of elements" }
+                                                Err { id = "", path = path, error = "Triple has wrong number of elements" }
                             )
 
 
@@ -557,7 +582,7 @@ fromGadgetWithConfig : FormConfig -> (Msg -> msg) -> IR.Gadget a -> Form a msg
 fromGadgetWithConfig config toMsg gadget =
     { init = init config gadget
     , update = update config
-    , view = view config >> H.map toMsg
+    , view = view config gadget >> H.map toMsg
     , submit = submit config gadget
     }
 
@@ -598,10 +623,10 @@ control config =
                     |> Result.Extra.extract H.text
                     |> H.map (\msg -> IR.fromInput config.msg msg)
         , submit =
-            \id model ->
+            \path model ->
                 IR.toOutput config.model model
                     |> Result.andThen config.submit
-                    |> Result.mapError (\error -> { id = id, error = error })
+                    |> Result.mapError (\error -> { id = pathToString path, path = path, error = error })
                     |> Result.map (IR.fromInput config.output)
         }
 
