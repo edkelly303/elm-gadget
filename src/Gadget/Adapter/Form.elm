@@ -356,10 +356,10 @@ view config gadget model =
                 Err errs_ ->
                     errs_
     in
-    viewHelp config errs [ 0 ] model
+    H.form [] (viewHelp config errs [ 0 ] model)
 
 
-viewHelp : FormConfig -> List Error -> Path -> Model -> H.Html Msg
+viewHelp : FormConfig -> List Error -> Path -> Model -> List (H.Html Msg)
 viewHelp config errs modelPath model =
     let
         id =
@@ -371,15 +371,14 @@ viewHelp config errs modelPath model =
 
         feedback =
             errs
-                |> List.filterMap
+                |> List.concatMap
                     (\{ path, error } ->
                         if path == modelPath then
-                            Just (config.feedback error)
+                            [ config.feedback error ]
 
                         else
-                            Nothing
+                            []
                     )
-                |> H.div []
 
         input =
             case model of
@@ -387,29 +386,29 @@ viewHelp config errs modelPath model =
                     let
                         viewFor typ =
                             run .view config typ id modelValue
+                                |> List.singleton
                     in
-                    H.map (\msg -> Msg modelPath msg) <|
-                        H.div []
-                            [ H.label [ HA.for id ] [ H.text (label_ id metadata) ]
-                            , case primitiveType of
-                                PUnit ->
-                                    H.text ""
+                    List.map (H.map (\msg -> Msg modelPath msg)) <|
+                        H.label [ HA.for id ] [ H.text (label_ id metadata) ]
+                            :: (case primitiveType of
+                                    PUnit ->
+                                        []
 
-                                PString ->
-                                    viewFor .string
+                                    PString ->
+                                        viewFor .string
 
-                                PChar ->
-                                    viewFor .char
+                                    PChar ->
+                                        viewFor .char
 
-                                PInt ->
-                                    viewFor .int
+                                    PInt ->
+                                        viewFor .int
 
-                                PFloat ->
-                                    viewFor .float
+                                    PFloat ->
+                                        viewFor .float
 
-                                PBool ->
-                                    viewFor .bool
-                            ]
+                                    PBool ->
+                                        viewFor .bool
+                               )
 
                 Combinator combinatorType metadata childModels ->
                     case combinatorType of
@@ -418,67 +417,68 @@ viewHelp config errs modelPath model =
                                 childView =
                                     Array.get selected childModels
                                         |> Maybe.map (viewHelp config errs (selected :: modelPath))
-                                        |> Maybe.withDefault (H.text "sum error")
+                                        |> Maybe.withDefault [ H.text "sum error" ]
 
                                 ( customLabel_, variantLabels ) =
                                     tools.decode "customLabel" (Gadget.tuple Gadget.string (Gadget.list Gadget.string)) metadata
                                         |> Maybe.withDefault ( pathToString modelPath, [] )
                             in
-                            H.div []
-                                [ H.fieldset []
-                                    (H.legend [] [ H.text customLabel_ ]
-                                        :: List.indexedMap
-                                            (\idx _ ->
-                                                let
-                                                    childId =
-                                                        pathToString (idx :: modelPath)
-                                                in
-                                                H.span []
-                                                    [ H.input
-                                                        [ HA.id childId
-                                                        , HA.type_ "radio"
-                                                        , HE.onCheck (\_ -> Msg modelPath (IntValue idx))
-                                                        , HA.checked (selected == idx)
+                            H.fieldset []
+                                (H.legend [] [ H.text customLabel_ ]
+                                    :: (childModels
+                                            |> Array.toList
+                                            |> List.indexedMap
+                                                (\idx _ ->
+                                                    let
+                                                        childId =
+                                                            pathToString (idx :: modelPath)
+                                                    in
+                                                    H.span []
+                                                        [ H.input
+                                                            [ HA.id childId
+                                                            , HA.type_ "radio"
+                                                            , HE.onCheck (\_ -> Msg modelPath (IntValue idx))
+                                                            , HA.checked (selected == idx)
+                                                            ]
+                                                            []
+                                                        , H.label [ HA.for childId ]
+                                                            [ H.text
+                                                                (List.Extra.getAt idx variantLabels
+                                                                    |> Maybe.withDefault (label_ childId metadata)
+                                                                )
+                                                            ]
                                                         ]
-                                                        []
-                                                    , H.label [ HA.for childId ]
-                                                        [ H.text
-                                                            (List.Extra.getAt idx variantLabels
-                                                                |> Maybe.withDefault (label_ childId metadata)
-                                                            )
-                                                        ]
-                                                    ]
-                                            )
-                                            (Array.toList childModels)
-                                    )
-                                , childView
-                                ]
+                                                )
+                                       )
+                                )
+                                :: childView
 
                         Product _ ->
-                            Array.indexedMap (\idx childModel -> viewHelp config errs (idx :: modelPath) childModel) childModels
-                                |> Array.toList
-                                |> H.div []
+                            H.h4 [] [ H.text (label_ "" metadata) ]
+                                :: (Array.indexedMap (\idx childModel -> viewHelp config errs (idx :: modelPath) childModel) childModels
+                                        |> Array.toList
+                                        |> List.concat
+                                   )
 
                         Collection _ ->
-                            H.fieldset []
-                                [ H.legend [] [ H.text (label_ "List" metadata) ]
-                                , H.input [ HA.type_ "button", HE.onClick (Msg modelPath UnitValue), HA.value "+" ] []
-                                , H.div []
-                                    (childModels
-                                        |> Array.indexedMap (\idx childModel -> viewHelp config errs (idx :: modelPath) childModel)
-                                        |> Array.toList
-                                    )
-                                ]
+                            [ H.fieldset []
+                                ([ H.legend [] [ H.text (label_ "List" metadata) ]
+                                 , H.input [ HA.type_ "button", HE.onClick (Msg modelPath UnitValue), HA.value "+" ] []
+                                 ]
+                                    ++ (childModels
+                                            |> Array.indexedMap (\idx childModel -> viewHelp config errs (idx :: modelPath) childModel)
+                                            |> Array.toList
+                                            |> List.concat
+                                       )
+                                )
+                            ]
 
                         Variant ->
                             Array.indexedMap (\idx childModel -> viewHelp config errs (idx :: modelPath) childModel) childModels
                                 |> Array.toList
-                                |> H.div []
+                                |> List.concat
     in
-    H.div []
-        [ input
-        , feedback
-        ]
+    input ++ feedback
 
 
 submit : FormConfig -> IR.Gadget a -> Model -> Result (List Error) a
