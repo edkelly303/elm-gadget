@@ -106,7 +106,7 @@ main =
 
 
 type alias Model =
-    { seeds : ( Int, Int )
+    { seed : Int
     , prettyWidth : Int
     , form : Gadget.Adapter.Form.Model
     }
@@ -115,7 +115,7 @@ type alias Model =
 type Msg
     = UserClickedRegenerate
     | UserChangedPrettyWidth String
-    | NewSeeds ( Int, Int )
+    | NewSeed Int
     | FormUpdated Gadget.Adapter.Form.Msg
 
 
@@ -123,7 +123,7 @@ update msg model =
     case msg of
         UserClickedRegenerate ->
             ( model
-            , Random.generate NewSeeds (Random.pair (Random.int 0 Random.maxInt) (Random.int 0 Random.maxInt))
+            , Random.generate NewSeed (Random.int 0 Random.maxInt)
             )
 
         UserChangedPrettyWidth s ->
@@ -131,8 +131,8 @@ update msg model =
             , Cmd.none
             )
 
-        NewSeeds newSeeds ->
-            ( { model | seeds = newSeeds }
+        NewSeed newSeed ->
+            ( { model | seed = newSeed }
             , Cmd.none
             )
 
@@ -147,7 +147,7 @@ form =
 
 
 init _ =
-    ( { seeds = ( 0, 1 )
+    ( { seed = 0
       , prettyWidth = 120
       , form = form.init
       }
@@ -170,8 +170,8 @@ gadget =
         |> Gadget.field "y"
             .y
             (Gadget.maybe (Gadget.string |> Gadget.Adapter.Form.label "What is y?")
-                |> Gadget.Adapter.Form.customLabels "What is y?"
-                    [ "Just", "Nothing" ]
+                |> Gadget.Adapter.Form.customLabels "Is there a value for y?"
+                    [ "Yes", "No" ]
             )
         |> Gadget.endRecord
 
@@ -194,25 +194,22 @@ view model =
         randomGenerator =
             Gadget.Adapter.Random.generator gadget
 
-        ( seed1, seed2 ) =
-            model.seeds
-
         firstValue =
-            Random.step randomGenerator (Random.initialSeed seed1)
+            Random.step randomGenerator (Random.initialSeed model.seed)
                 |> Tuple.first
-
-        secondValue =
-            Random.step randomGenerator (Random.initialSeed seed2)
-                |> Tuple.first
-
+        
+        formOutput = 
+            form.submit model.form
+                |> Result.mapError (\{id, error} -> error)
+        
         pretty g x =
             H.pre [] [ H.text (Gadget.Adapter.Pretty.print g model.prettyWidth x) ]
 
         diff =
-            Gadget.Adapter.Diff.diff gadget firstValue secondValue
+            Result.map (Gadget.Adapter.Diff.diff gadget firstValue) formOutput
 
         patched =
-            Gadget.Adapter.Diff.patch gadget diff firstValue
+            Result.andThen (\diff_ -> Gadget.Adapter.Diff.patch gadget diff_ firstValue) diff
 
         encoded =
             JE.encode 2 (Gadget.Adapter.Json.encode gadget firstValue)
@@ -233,11 +230,20 @@ view model =
         , H.button [ HE.onClick UserClickedRegenerate ] [ H.text "Click to regenerate!" ]
         , head "Form"
         , form.view model.form
-        , H.text (Debug.toString model.form)
         , H.pre []
             [ H.text
-                (form.submit model.form
-                    |> Gadget.Adapter.Pretty.print (Gadget.result Gadget.string gadget) model.prettyWidth
+                (formOutput
+                    |> Gadget.Adapter.Pretty.print
+                        (Gadget.result
+                            Gadget.string 
+                            -- (Gadget.record (\id error -> { id = id, error = error })
+                            --     |> Gadget.field "id" .id Gadget.string
+                            --     |> Gadget.field "error" .error Gadget.string
+                            --     |> Gadget.endRecord
+                            -- )
+                            gadget
+                        )
+                        model.prettyWidth
                 )
             ]
         , head "Pretty printer width"
@@ -276,27 +282,23 @@ view model =
             ]
         , head "Quine"
         , H.pre [] [ H.text (Gadget.Adapter.Quine.quine model.prettyWidth gadget) ]
-        , head "Random generator (first value, pretty-printed)"
+        , head "Randomly generated value"
         , pretty gadget firstValue
-        , head "Random generator (second value, pretty-printed)"
-        , pretty gadget secondValue
-        , head "Diff between first & second values"
-        , pretty Gadget.Adapter.Diff.changes diff
-        , head "Patch first value with diff"
+        , head "Diff between generated and form values"
+        , pretty (Gadget.result Gadget.string Gadget.Adapter.Diff.changes) diff
+        , head "Patch generated value with diff"
         , pretty (Gadget.result Gadget.string gadget) patched
-        , head "Patched value equals second value?"
-        , pretty Gadget.bool (patched == Ok secondValue)
-        , head "Html viewer (first value)"
+        , head "Patched value equals form value?"
+        , pretty Gadget.bool (patched == formOutput)
+        , head "Html viewer (generated value)"
         , Gadget.Adapter.Html.view gadget firstValue
-        , head "Html viewer (second value)"
-        , Gadget.Adapter.Html.view gadget secondValue
-        , head "String printer (first value)"
+        , head "String printer (generated value)"
         , H.code [ HA.class "withoutSpaces" ] [ H.text printed ]
-        , head "String parser (first value)"
+        , head "String parser (generated value)"
         , pretty (Gadget.result Gadget.string gadget) parsed
-        , head "JSON encoder (first value)"
+        , head "JSON encoder (generated value)"
         , H.pre [] [ H.text encoded ]
-        , head "JSON decoder (first value)"
+        , head "JSON decoder (generated value)"
         , pretty (Gadget.result Gadget.string gadget) decoded
         , head "Fuzzer"
         , pretty (Gadget.list gadget) fuzzed
