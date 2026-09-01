@@ -197,11 +197,11 @@ view model =
         firstValue =
             Random.step randomGenerator (Random.initialSeed model.seed)
                 |> Tuple.first
-        
-        formOutput = 
+
+        formOutput =
             form.submit model.form
-                |> Result.mapError (\{id, error} -> error)
-        
+                |> Result.mapError (\{ id, error } -> error)
+
         pretty g x =
             H.pre [] [ H.text (Gadget.Adapter.Pretty.print g model.prettyWidth x) ]
 
@@ -235,7 +235,7 @@ view model =
                 (formOutput
                     |> Gadget.Adapter.Pretty.print
                         (Gadget.result
-                            Gadget.string 
+                            Gadget.string
                             -- (Gadget.record (\id error -> { id = id, error = error })
                             --     |> Gadget.field "id" .id Gadget.string
                             --     |> Gadget.field "error" .error Gadget.string
