@@ -1,8 +1,7 @@
 module Gadget.Adapter.Form exposing
     ( Form, Model, Msg, fromGadget, fromGadgetWithConfig, FormConfig, default
     , Control, ControlConfig, control
-    , label
-    , customLabels
+    , label, customLabels
     )
 
 {-|
@@ -32,7 +31,7 @@ TODO
 
 @docs Control, ControlConfig, control
 
-@docs label
+@docs label, customLabels
 
 -}
 
@@ -63,15 +62,13 @@ type alias Form a msg =
     { init : Model
     , update : Msg -> Model -> Model
     , view : Model -> H.Html msg
-    , submit : Model -> Result String a
+    , submit : Model -> Result Error a
     }
 
 
-{-| TODO
--}
-type alias FormConfig =
-    { int : Control
-    , string : Control
+type alias Error =
+    { id : String
+    , error : String
     }
 
 
@@ -85,7 +82,7 @@ type alias InnerControl =
     { init : Value
     , update : Value -> Value -> Value
     , view : String -> Value -> H.Html Value
-    , submit : Value -> Result String Value
+    , submit : String -> Value -> Result Error Value
     }
 
 
@@ -104,18 +101,36 @@ type alias ControlConfig msg model output =
 
 {-| TODO
 -}
+type alias FormConfig =
+    { bool : Control
+    , int : Control
+    , float : Control
+    , char : Control
+    , string : Control
+    }
+
+
+{-| TODO
+-}
 default : FormConfig
 default =
-    { int = int
+    { bool = bool
+    , int = int
+    , float = float
+    , char = char
     , string = string
     }
 
 
+{-| TODO
+-}
 type Model
     = Combinator CombinatorType IR.Metadata (Array.Array Model)
     | Primitive PrimitiveType IR.Metadata Value
 
 
+{-| TODO
+-}
 type Msg
     = Msg Path Value
 
@@ -161,10 +176,10 @@ initHelp config irType =
             Primitive PUnit m UnitValue
 
         BoolType m ->
-            Primitive PBool m (BoolValue False)
+            Primitive PBool m (initFor .bool)
 
         CharType m ->
-            Primitive PChar m (StringValue "")
+            Primitive PChar m (initFor .char)
 
         StringType m ->
             Primitive PString m (initFor .string)
@@ -173,7 +188,7 @@ initHelp config irType =
             Primitive PInt m (initFor .int)
 
         FloatType m ->
-            Primitive PFloat m (StringValue "")
+            Primitive PFloat m (initFor .float)
 
         CustomType m firstNameAndVariantType restNamesAndVariantTypes ->
             let
@@ -222,37 +237,35 @@ update config msg model =
 
 updateHelp : FormConfig -> Path -> Msg -> Model -> Model
 updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
-    let
-        updateFor =
-            run .update config
-    in
     case model of
         Primitive primitiveType metadata modelValue ->
             Primitive primitiveType metadata <|
                 if modelPath == msgPath then
+                    let
+                        updateFor typ_ =
+                            run .update config typ_ msgValue modelValue
+                    in
                     case primitiveType of
                         PUnit ->
                             modelValue
 
                         PString ->
-                            updateFor .string msgValue modelValue
-                                |> Debug.log "string updated"
+                            updateFor .string
 
                         PChar ->
-                            Debug.todo "branch 'PChar' not implemented"
+                            updateFor .char
 
                         PInt ->
-                            updateFor .int msgValue modelValue
-                                |> Debug.log "int updated"
+                            updateFor .int
 
                         PFloat ->
-                            Debug.todo "branch 'PFloat' not implemented"
+                            updateFor .float
 
                         PBool ->
-                            Debug.todo "branch 'PBool' not implemented"
+                            updateFor .bool
 
                 else
-                    modelValue |> Debug.log "no match"
+                    modelValue
 
         Combinator combinatorType metadata childModels ->
             case matchPath msgPath modelPath |> Debug.log "match" of
@@ -347,13 +360,13 @@ viewHelp config modelPath model =
                             viewFor .string modelValue
 
                         PChar ->
-                            Debug.todo "branch 'PChar' not implemented"
+                            viewFor .char modelValue
 
                         PInt ->
                             viewFor .int modelValue
 
                         PFloat ->
-                            Debug.todo "branch 'PFloat' not implemented"
+                            viewFor .float modelValue
 
                         PBool ->
                             Debug.todo "branch 'PBool' not implemented"
@@ -408,13 +421,13 @@ viewHelp config modelPath model =
                         |> H.div []
 
 
-submit : FormConfig -> IR.Gadget a -> Model -> Result String a
+submit : FormConfig -> IR.Gadget a -> Model -> Result Error a
 submit config gadget model =
     submitHelp config [ 0 ] model
-        |> Result.andThen (IR.toOutput gadget)
+        |> Result.andThen (\ir -> IR.toOutput gadget ir |> Result.mapError (\error -> { id = "", error = error }))
 
 
-submitHelp : FormConfig -> Path -> Model -> Result String Value
+submitHelp : FormConfig -> Path -> Model -> Result Error Value
 submitHelp config path model =
     let
         submit_ getter =
@@ -422,7 +435,7 @@ submitHelp config path model =
                 (Control c) =
                     getter config
             in
-            c.submit
+            c.submit (pathToString path)
     in
     case model of
         Primitive primitiveType metadata value ->
@@ -434,13 +447,13 @@ submitHelp config path model =
                     submit_ .string value
 
                 PChar ->
-                    Debug.todo "branch 'PChar' not implemented"
+                    submit_ .char value
 
                 PInt ->
                     submit_ .int value
 
                 PFloat ->
-                    Debug.todo "branch 'PFloat' not implemented"
+                    submit_ .float value
 
                 PBool ->
                     Debug.todo "branch 'PBool' not implemented"
@@ -449,7 +462,7 @@ submitHelp config path model =
             case combinatorType of
                 Sum selected ->
                     Array.get selected children
-                        |> Result.fromMaybe ("Invalid Sum variant selection at " ++ pathToString path)
+                        |> Result.fromMaybe { id = pathToString path, error = "Invalid Sum variant selection" }
                         |> Result.andThen
                             (\v ->
                                 case v of
@@ -457,10 +470,10 @@ submitHelp config path model =
                                         Array.toList args
                                             |> List.indexedMap (\idx arg -> submitHelp config (idx :: path) arg)
                                             |> Result.Extra.combine
-                                            |> Result.andThen argsListToVariantValue
+                                            |> Result.andThen (argsListToVariantValue >> Result.mapError (\error -> { id = "", error = error }))
 
                                     _ ->
-                                        Err "The child of a Sum should always be a Variant"
+                                        Err { id = pathToString path, error = "The child of a Sum should always be a Variant" }
                             )
                         |> Result.map (\v -> CustomValue selected ( "", v ))
 
@@ -471,7 +484,7 @@ submitHelp config path model =
                         |> Result.map IR.ListValue
 
                 Variant ->
-                    Err "This branch should be unreachable, as Variants should always be handled by the Sum case"
+                    Err { id = pathToString path, error = "This branch should be unreachable, as Variants should always be handled by the Sum case" }
 
                 Product ->
                     Array.toList children
@@ -506,7 +519,9 @@ label l gadget =
     tools.attach "label" Gadget.string l gadget
 
 
-customLabels : String -> List String -> IR.Gadget d -> IR.Gadget d
+{-| TODO
+-}
+customLabels : String -> List String -> IR.Gadget a -> IR.Gadget a
 customLabels l ls gadget =
     tools.attach "customLabel"
         (Gadget.tuple Gadget.string (Gadget.list Gadget.string))
@@ -533,8 +548,10 @@ control config =
                     |> Result.Extra.extract H.text
                     |> H.map (\msg -> IR.fromInput config.msg msg)
         , submit =
-            \model ->
-                Result.andThen config.submit (IR.toOutput config.model model)
+            \id model ->
+                IR.toOutput config.model model
+                    |> Result.andThen config.submit
+                    |> Result.mapError (\error -> { id = id, error = error })
                     |> Result.map (IR.fromInput config.output)
         }
 
@@ -551,6 +568,7 @@ int =
             \id model ->
                 H.input
                     [ HA.type_ "number"
+                    , HA.attribute "inputmode" "numeric"
                     , HE.onInput identity
                     , HA.id id
                     ]
@@ -559,6 +577,30 @@ int =
             \model ->
                 String.toInt model
                     |> Result.fromMaybe "Not an integer"
+        }
+
+
+float : Control
+float =
+    control
+        { model = Gadget.string
+        , msg = Gadget.string
+        , output = Gadget.float
+        , init = ""
+        , update = \msg _ -> msg
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "number"
+                    , HA.attribute "inputmode" "decimal"
+                    , HE.onInput identity
+                    , HA.id id
+                    ]
+                    [ H.text model ]
+        , submit =
+            \model ->
+                String.toFloat model
+                    |> Result.fromMaybe "Not a decimal number"
         }
 
 
@@ -579,6 +621,57 @@ string =
                     ]
                     [ H.text model ]
         , submit = Ok
+        }
+
+
+bool : Control
+bool =
+    control
+        { model = Gadget.bool
+        , msg = Gadget.bool
+        , output = Gadget.bool
+        , init = False
+        , update = \msg _ -> msg
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "checkbox"
+                    , HE.onCheck identity
+                    , HA.id id
+                    ]
+                    []
+        , submit = Ok
+        }
+
+
+char : Control
+char =
+    control
+        { model = Gadget.string
+        , msg = Gadget.maybe Gadget.char
+        , output = Gadget.char
+        , init = ""
+        , update =
+            \msg _ ->
+                case msg of
+                    Nothing ->
+                        ""
+
+                    Just c ->
+                        String.fromChar c
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "text"
+                    , HE.onInput (\str -> String.uncons str |> Maybe.map Tuple.first)
+                    , HA.id id
+                    ]
+                    [ H.text model ]
+        , submit =
+            \model ->
+                String.uncons model
+                    |> Maybe.map Tuple.first
+                    |> Result.fromMaybe "Cannot be blank"
         }
 
 
