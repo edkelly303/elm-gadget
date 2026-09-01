@@ -41,15 +41,40 @@ personGadget =
     Gadget.record Person
         |> Gadget.field "name"
             .name
-            (Gadget.string |> Gadget.Adapter.Random.choose "Ed" [ "Leonardo", "Wolfgang", "Rupert", "Mario", "Martin" ])
+            (Gadget.string
+                |> Gadget.Adapter.Random.choose "Ed" [ "Leonardo", "Wolfgang", "Rupert", "Mario", "Martin" ]
+                |> Gadget.Adapter.Form.label "Name"
+            )
         |> Gadget.field "heightInCentimetres"
             .heightInCentimetres
-            (Gadget.list (Gadget.float |> Gadget.Adapter.Random.range 100 180))
+            (Gadget.list
+                (Gadget.float
+                    |> Gadget.Adapter.Random.range 100 180
+                    |> Gadget.Adapter.Form.label "What is your height?"
+                )
+                |> Gadget.Adapter.Form.label "Heights"
+            )
         |> Gadget.field "pets"
             .pets
-            (Gadget.list petGadget |> Gadget.Adapter.Random.listLength 0 3)
-        |> Gadget.field "tuple" .tuple (Gadget.tuple Gadget.bool Gadget.bool)
-        |> Gadget.field "triple" .triple (Gadget.triple Gadget.bool Gadget.bool Gadget.bool)
+            (Gadget.list petGadget
+                |> Gadget.Adapter.Random.listLength 0 3
+                |> Gadget.Adapter.Form.label "Pets"
+            )
+        |> Gadget.field "tuple"
+            .tuple
+            (Gadget.tuple
+                (Gadget.bool |> Gadget.Adapter.Form.label "one")
+                (Gadget.bool |> Gadget.Adapter.Form.label "two")
+                |> Gadget.Adapter.Form.label "Tuple"
+            )
+        |> Gadget.field "triple"
+            .triple
+            (Gadget.triple
+                (Gadget.bool |> Gadget.Adapter.Form.label "one")
+                (Gadget.bool |> Gadget.Adapter.Form.label "two")
+                (Gadget.bool |> Gadget.Adapter.Form.label "three")
+                |> Gadget.Adapter.Form.label "Triple"
+            )
         |> Gadget.endRecord
 
 
@@ -91,8 +116,10 @@ petGadget =
                     |> Gadget.Adapter.Random.range 1000 5000
                     |> Gadget.Adapter.Form.label "What is your robot's model number?"
                 )
+                |> Gadget.Adapter.Form.customLabels "Does your robot have a model number?" [ "Yes", "No" ]
             )
         |> Gadget.endCustom
+        |> Gadget.Adapter.Form.customLabels "What type of pet do you have?" [ "Dog", "Robot" ]
 
 
 main : Program () Model Msg
@@ -156,24 +183,27 @@ init _ =
 
 
 gadget =
-    -- personGadget
-    -- Gadget.maybe Gadget.int
-    -- Gadget.result
-    --     (Gadget.result
-    --         (Gadget.int |> Gadget.Adapter.Form.label "hello")
-    --         (Gadget.int |> Gadget.Adapter.Form.label "world")
-    --     )
-    --     (Gadget.result Gadget.int Gadget.int)
-    -- petGadget
-    Gadget.record (\x y -> { x = x, y = y })
-        |> Gadget.field "x" .x (Gadget.int |> Gadget.Adapter.Form.label "How much is x?")
-        |> Gadget.field "y"
-            .y
-            (Gadget.maybe (Gadget.string |> Gadget.Adapter.Form.label "What is y?")
-                |> Gadget.Adapter.Form.customLabels "Is there a value for y?"
-                    [ "Yes", "No" ]
-            )
-        |> Gadget.endRecord
+    personGadget
+
+
+
+-- Gadget.maybe Gadget.int
+-- Gadget.result
+--     (Gadget.result
+--         (Gadget.int |> Gadget.Adapter.Form.label "hello")
+--         (Gadget.int |> Gadget.Adapter.Form.label "world")
+--     )
+--     (Gadget.result Gadget.int Gadget.int)
+-- petGadget
+-- Gadget.record (\x y -> { x = x, y = y })
+--     |> Gadget.field "x" .x (Gadget.int |> Gadget.Adapter.Form.label "How much is x?")
+--     |> Gadget.field "y"
+--         .y
+--         (Gadget.maybe (Gadget.string |> Gadget.Adapter.Form.label "What is y?")
+--             |> Gadget.Adapter.Form.customLabels "Is there a value for y?"
+--                 [ "Yes", "No" ]
+--         )
+--     |> Gadget.endRecord
 
 
 view : Model -> H.Html Msg
@@ -200,7 +230,7 @@ view model =
 
         formOutput =
             form.submit model.form
-                |> Result.mapError (\{ id, error } -> error)
+                |> Result.mapError (\{ id, error } -> id ++ ": " ++ error)
 
         pretty g x =
             H.pre [] [ H.text (Gadget.Adapter.Pretty.print g model.prettyWidth x) ]
@@ -234,15 +264,7 @@ view model =
             [ H.text
                 (formOutput
                     |> Gadget.Adapter.Pretty.print
-                        (Gadget.result
-                            Gadget.string
-                            -- (Gadget.record (\id error -> { id = id, error = error })
-                            --     |> Gadget.field "id" .id Gadget.string
-                            --     |> Gadget.field "error" .error Gadget.string
-                            --     |> Gadget.endRecord
-                            -- )
-                            gadget
-                        )
+                        (Gadget.result Gadget.string gadget)
                         model.prettyWidth
                 )
             ]
