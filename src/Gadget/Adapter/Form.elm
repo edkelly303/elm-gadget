@@ -61,7 +61,7 @@ type alias Form a msg =
     { init : Model
     , update : Msg -> Model -> Model
     , view : Model -> H.Html msg
-    , submit : Model -> Result Error a
+    , submit : Model -> Result (List Error) a
     }
 
 
@@ -82,7 +82,7 @@ type alias InnerControl =
     { init : Value
     , update : Value -> Value -> Value
     , view : String -> Value -> H.Html Value
-    , submit : Path -> Value -> Result Error Value
+    , submit : Path -> Value -> Result (List Error) Value
     }
 
 
@@ -348,14 +348,19 @@ type Match
 view : FormConfig -> IR.Gadget a -> Model -> H.Html Msg
 view config gadget model =
     let
-        err =
-            submit config gadget model
+        errs =
+            case submit config gadget model of
+                Ok _ ->
+                    []
+
+                Err errs_ ->
+                    errs_
     in
-    viewHelp config err [ 0 ] model
+    viewHelp config errs [ 0 ] model
 
 
-viewHelp : FormConfig -> Result Error a -> Path -> Model -> H.Html Msg
-viewHelp config err modelPath model =
+viewHelp : FormConfig -> List Error -> Path -> Model -> H.Html Msg
+viewHelp config errs modelPath model =
     let
         id =
             pathToString modelPath
@@ -365,16 +370,16 @@ viewHelp config err modelPath model =
                 |> Maybe.withDefault defaultLabel
 
         feedback =
-            case err of
-                Err { path, error } ->
-                    if path == modelPath then
-                        config.feedback error
+            errs
+                |> List.filterMap
+                    (\{ path, error } ->
+                        if path == modelPath then
+                            Just (config.feedback error)
 
-                    else
-                        H.text ""
-
-                Ok _ ->
-                    H.text ""
+                        else
+                            Nothing
+                    )
+                |> H.div []
 
         input =
             case model of
@@ -412,7 +417,7 @@ viewHelp config err modelPath model =
                             let
                                 childView =
                                     Array.get selected childModels
-                                        |> Maybe.map (viewHelp config err (selected :: modelPath))
+                                        |> Maybe.map (viewHelp config errs (selected :: modelPath))
                                         |> Maybe.withDefault (H.text "sum error")
 
                                 ( customLabel_, variantLabels ) =
@@ -450,7 +455,7 @@ viewHelp config err modelPath model =
                                 ]
 
                         Product _ ->
-                            Array.indexedMap (\idx childModel -> viewHelp config err (idx :: modelPath) childModel) childModels
+                            Array.indexedMap (\idx childModel -> viewHelp config errs (idx :: modelPath) childModel) childModels
                                 |> Array.toList
                                 |> H.div []
 
@@ -460,13 +465,13 @@ viewHelp config err modelPath model =
                                 , H.input [ HA.type_ "button", HE.onClick (Msg modelPath UnitValue), HA.value "+" ] []
                                 , H.div []
                                     (childModels
-                                        |> Array.indexedMap (\idx childModel -> viewHelp config err (idx :: modelPath) childModel)
+                                        |> Array.indexedMap (\idx childModel -> viewHelp config errs (idx :: modelPath) childModel)
                                         |> Array.toList
                                     )
                                 ]
 
                         Variant ->
-                            Array.indexedMap (\idx childModel -> viewHelp config err (idx :: modelPath) childModel) childModels
+                            Array.indexedMap (\idx childModel -> viewHelp config errs (idx :: modelPath) childModel) childModels
                                 |> Array.toList
                                 |> H.div []
     in
@@ -476,13 +481,17 @@ viewHelp config err modelPath model =
         ]
 
 
-submit : FormConfig -> IR.Gadget a -> Model -> Result Error a
+submit : FormConfig -> IR.Gadget a -> Model -> Result (List Error) a
 submit config gadget model =
     submitHelp config [ 0 ] model
-        |> Result.andThen (\ir -> IR.toOutput gadget ir |> Result.mapError (\error -> { id = "", path = [], error = error }))
+        |> Result.andThen
+            (\ir ->
+                IR.toOutput gadget ir
+                    |> Result.mapError (\error -> [ { id = "", path = [], error = error } ])
+            )
 
 
-submitHelp : FormConfig -> Path -> Model -> Result Error Value
+submitHelp : FormConfig -> Path -> Model -> Result (List Error) Value
 submitHelp config path model =
     case model of
         Primitive primitiveType _ modelValue ->
@@ -517,34 +526,34 @@ submitHelp config path model =
             case combinatorType of
                 Sum selected ->
                     Array.get selected children
-                        |> Result.fromMaybe { id = pathToString path, path = path, error = "Invalid Sum variant selection" }
+                        |> Result.fromMaybe [ { id = pathToString path, path = path, error = "Invalid Sum variant selection" } ]
                         |> Result.andThen
                             (\v ->
                                 case v of
                                     Combinator Variant _ args ->
                                         Array.toList args
                                             |> List.indexedMap (\idx arg -> submitHelp config (idx :: selected :: path) arg)
-                                            |> Result.Extra.combine
-                                            |> Result.andThen (argsListToVariantValue >> Result.mapError (\error -> { id = "", path = selected :: path, error = error }))
+                                            |> combineAndAccumulateErrors
+                                            |> Result.andThen (argsListToVariantValue >> Result.mapError (\error -> [ { id = "", path = selected :: path, error = error } ]))
 
                                     _ ->
-                                        Err { id = pathToString path, path = path, error = "The child of a Sum should always be a Variant" }
+                                        Err [ { id = pathToString path, path = path, error = "The child of a Sum should always be a Variant" } ]
                             )
                         |> Result.map (\v -> CustomValue selected ( "", v ))
 
                 Collection _ ->
                     Array.toList children
                         |> List.indexedMap (\idx child -> submitHelp config (idx :: path) child)
-                        |> Result.Extra.combine
+                        |> combineAndAccumulateErrors
                         |> Result.map IR.ListValue
 
                 Variant ->
-                    Err { id = pathToString path, path = path, error = "This branch should be unreachable, as Variants should always be handled by the Sum case" }
+                    Err [ { id = pathToString path, path = path, error = "This branch should be unreachable, as Variants should always be handled by the Sum case" } ]
 
                 Product productType ->
                     Array.toList children
                         |> List.indexedMap (\idx child -> submitHelp config (idx :: path) child)
-                        |> Result.Extra.combine
+                        |> combineAndAccumulateErrors
                         |> Result.andThen
                             (\fields ->
                                 case productType of
@@ -557,7 +566,7 @@ submitHelp config path model =
                                                 IR.TupleValue a b |> Ok
 
                                             _ ->
-                                                Err { id = "", path = path, error = "Tuple has wrong number of elements" }
+                                                Err [ { id = "", path = path, error = "Tuple has wrong number of elements" } ]
 
                                     Triple ->
                                         case fields of
@@ -565,8 +574,43 @@ submitHelp config path model =
                                                 IR.TripleValue a b c |> Ok
 
                                             _ ->
-                                                Err { id = "", path = path, error = "Triple has wrong number of elements" }
+                                                Err [ { id = "", path = path, error = "Triple has wrong number of elements" } ]
                             )
+
+
+combineAndAccumulateErrors : List (Result (List error) a) -> Result (List error) (List a)
+combineAndAccumulateErrors list =
+    combineAndAccumulateErrorsHelp list (Ok [])
+
+
+combineAndAccumulateErrorsHelp : List (Result (List error) value) -> Result (List error) (List value) -> Result (List error) (List value)
+combineAndAccumulateErrorsHelp list acc =
+    case list of
+        (Ok thisOutput) :: rest ->
+            combineAndAccumulateErrorsHelp rest <|
+                case acc of
+                    Ok outputs ->
+                        Ok (thisOutput :: outputs)
+
+                    Err errs ->
+                        Err errs
+
+        (Err thisError) :: rest ->
+            combineAndAccumulateErrorsHelp rest <|
+                case acc of
+                    Ok outputs ->
+                        Err thisError
+
+                    Err errors ->
+                        Err (thisError ++ errors)
+
+        [] ->
+            case acc of
+                Ok outputs ->
+                    Ok (List.reverse outputs)
+
+                Err errors ->
+                    Err (List.reverse errors)
 
 
 {-| TODO
@@ -626,7 +670,7 @@ control config =
             \path model ->
                 IR.toOutput config.model model
                     |> Result.andThen config.submit
-                    |> Result.mapError (\error -> { id = pathToString path, path = path, error = error })
+                    |> Result.mapError (\error -> [ { id = pathToString path, path = path, error = error } ])
                     |> Result.map (IR.fromInput config.output)
         }
 
