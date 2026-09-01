@@ -713,7 +713,7 @@ personGadget__Gadget_Adapter_Fuzz__fuzzerWithOverrides_0 =
 
 
 nameGadget__Gadget_Adapter_Fuzz__fuzzerWithOverrides_0 =
-    Gadget.string |> Gadget.Adapter.Fuzz.label "name"
+    Gadget.string |> Gadget.Adapter.Fuzz.useOverride "name"
 
 
 personFuzzer__Gadget_Adapter_Fuzz__fuzzerWithOverrides_0 =

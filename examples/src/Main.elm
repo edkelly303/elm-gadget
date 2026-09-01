@@ -96,7 +96,7 @@ petGadget =
                 |> Gadget.field "name"
                     .name
                     (Gadget.string
-                        |> Gadget.Adapter.Fuzz.label "dogName"
+                        |> Gadget.Adapter.Fuzz.useOverride "dogName"
                         |> Gadget.Adapter.Random.choose "Rex" [ "Fido", "Kevin", "Rover", "Fifi", "George", "Winnie" ]
                         |> Gadget.Adapter.Form.label "What is your dog's name?"
                     )
@@ -106,13 +106,13 @@ petGadget =
             "Robot"
             Robot
             (Gadget.char
-                |> Gadget.Adapter.Fuzz.label "series"
+                |> Gadget.Adapter.Fuzz.useOverride "series"
                 |> Gadget.Adapter.Random.choose 'A' (List.range 66 90 |> List.map Char.fromCode)
                 |> Gadget.Adapter.Form.label "What is your robot's model series?"
             )
             (Gadget.maybe
                 (Gadget.int
-                    |> Gadget.Adapter.Fuzz.label "model"
+                    |> Gadget.Adapter.Fuzz.useOverride "model"
                     |> Gadget.Adapter.Random.range 1000 5000
                     |> Gadget.Adapter.Form.label "What is your robot's model number?"
                 )

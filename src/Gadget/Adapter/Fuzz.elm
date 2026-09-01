@@ -1,6 +1,6 @@
 module Gadget.Adapter.Fuzz exposing
     ( fuzzer
-    , fuzzerWithOverrides, Override, label, override
+    , fuzzerWithOverrides, Override, override, useOverride
     )
 
 {-|
@@ -24,7 +24,7 @@ Use a Gadget to create a `Fuzz.Fuzzer` for use with functions from the
 
 @docs fuzzer
 
-@docs fuzzerWithOverrides, Override, label, override
+@docs fuzzerWithOverrides, Override, override, useOverride
 
 -}
 
@@ -90,7 +90,7 @@ implementations of fuzzers that are defined by this module.
 
     nameGadget =
         Gadget.string
-            |> Gadget.Adapter.Fuzz.label "name"
+            |> Gadget.Adapter.Fuzz.useOverride "name"
 
     personFuzzer =
         Gadget.Adapter.Fuzz.fuzzerWithOverrides
@@ -134,11 +134,11 @@ type Override
     = Override String (Fuzz.Fuzzer Value)
 
 
-{-| Add a label to a `Gadget` so that it can be overridden.
+{-| Specify which override a `Gadget` should use.
 -}
-label : String -> Gadget a -> Gadget a
-label l =
-    tools.attach l Gadget.unit ()
+useOverride : String -> Gadget a -> Gadget a
+useOverride label_ =
+    tools.attach "useOverride" Gadget.string label_
 
 
 {-| Override the default implementation of a `Fuzz.Fuzzer`.
@@ -160,8 +160,15 @@ fuzzAdapter overrides irType =
 
                         Nothing ->
                             tools.extract irType
-                                |> tools.get key
-                                |> Maybe.map (\_ -> thisOverride)
+                                |> tools.decode "useOverride" Gadget.string
+                                |> Maybe.andThen
+                                    (\lbl ->
+                                        if key == lbl then
+                                            Just thisOverride
+
+                                        else
+                                            Nothing
+                                    )
                 )
                 Nothing
     of

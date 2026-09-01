@@ -17,7 +17,7 @@ diffTests =
         , roundTrip Gadget.int "Int"
         , roundTrip Gadget.float "Float"
         , roundTrip Gadget.char "Char"
-        , roundTrip (Gadget.string |> Gadget.Adapter.Fuzz.label "String") "String"
+        , roundTrip (Gadget.string |> Gadget.Adapter.Fuzz.useOverride "String") "String"
         , roundTrip (Gadget.list Gadget.bool) "List Bool"
         ]
 
