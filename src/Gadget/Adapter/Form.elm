@@ -37,9 +37,8 @@ TODO
 
 import Array exposing (Array)
 import Array.Extra
-import Dict exposing (Dict)
 import Gadget
-import Gadget.IR as IR exposing (Type(..), Value(..), VariantType(..), VariantValue(..))
+import Gadget.IR as IR exposing (Type(..), Value(..), VariantType(..))
 import Html as H
 import Html.Attributes as HA
 import Html.Events as HE
@@ -136,10 +135,16 @@ type Msg
 
 
 type CombinatorType
-    = Collection
+    = Collection Type
     | Variant
-    | Product
+    | Product ProductType
     | Sum Int
+
+
+type ProductType
+    = Record
+    | Tuple
+    | Triple
 
 
 type PrimitiveType
@@ -198,7 +203,7 @@ initHelp config irType =
                 variants =
                     variantTypes
                         |> List.map
-                            (\( n, v ) ->
+                            (\( _, v ) ->
                                 v
                                     |> variantTypeToArgsArray
                                     |> Array.map (initHelp config)
@@ -215,19 +220,19 @@ initHelp config irType =
                         |> List.map (\( _, fieldType ) -> initHelp config fieldType)
                         |> Array.fromList
             in
-            Combinator Product m fields
+            Combinator (Product Record) m fields
 
-        ListType m _ ->
-            Combinator Collection m Array.empty
+        ListType m innerType ->
+            Combinator (Collection innerType) m Array.empty
 
-        LazyType m innerType ->
+        LazyType _ innerType ->
             initHelp config (innerType ())
 
         TupleType m a b ->
-            Combinator Product m (Array.fromList (List.map (initHelp config) [ a, b ]))
+            Combinator (Product Tuple) m (Array.fromList (List.map (initHelp config) [ a, b ]))
 
         TripleType m a b c ->
-            Combinator Product m (Array.fromList (List.map (initHelp config) [ a, b, c ]))
+            Combinator (Product Triple) m (Array.fromList (List.map (initHelp config) [ a, b, c ]))
 
 
 update : FormConfig -> Msg -> Model -> Model
@@ -271,10 +276,18 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
             case matchPath msgPath modelPath |> Debug.log "match" of
                 FullMatch ->
                     case combinatorType of
-                        Sum selected ->
+                        Sum _ ->
                             case msgValue of
                                 IntValue i ->
                                     Combinator (Sum i) metadata childModels
+
+                                _ ->
+                                    model
+
+                        Collection innerType ->
+                            case msgValue of
+                                UnitValue ->
+                                    Combinator (Collection innerType) metadata (Array.append (Array.fromList [ initHelp config innerType ]) childModels)
 
                                 _ ->
                                     model
@@ -340,36 +353,37 @@ viewHelp config modelPath model =
         id =
             pathToString modelPath
 
-        viewFor typ =
-            run .view config typ id
-
         label_ defaultLabel metadata =
             tools.decode "label" Gadget.string metadata
                 |> Maybe.withDefault defaultLabel
     in
     case model of
         Primitive primitiveType metadata modelValue ->
+            let
+                viewFor typ =
+                    run .view config typ id modelValue
+            in
             H.map (\msg -> Msg modelPath msg) <|
                 H.div []
                     [ H.label [ HA.for id ] [ H.text (label_ id metadata) ]
                     , case primitiveType of
                         PUnit ->
-                            Debug.todo "unit"
+                            H.text ""
 
                         PString ->
-                            viewFor .string modelValue
+                            viewFor .string
 
                         PChar ->
-                            viewFor .char modelValue
+                            viewFor .char
 
                         PInt ->
-                            viewFor .int modelValue
+                            viewFor .int
 
                         PFloat ->
-                            viewFor .float modelValue
+                            viewFor .float
 
                         PBool ->
-                            Debug.todo "branch 'PBool' not implemented"
+                            viewFor .bool
                     ]
 
         Combinator combinatorType metadata childModels ->
@@ -415,7 +429,23 @@ viewHelp config modelPath model =
                         , childView
                         ]
 
-                _ ->
+                Product _ ->
+                    Array.indexedMap (\idx childModel -> viewHelp config (idx :: modelPath) childModel) childModels
+                        |> Array.toList
+                        |> H.div []
+
+                Collection _ ->
+                    H.fieldset []
+                        [ H.legend [] [ H.text (label_ "List" metadata) ]
+                        , H.input [ HA.type_ "button", HE.onClick (Msg modelPath UnitValue), HA.value "+" ] []
+                        , H.div []
+                            (childModels
+                                |> Array.indexedMap (\idx childModel -> viewHelp config (idx :: modelPath) childModel)
+                                |> Array.toList
+                            )
+                        ]
+
+                Variant ->
                     Array.indexedMap (\idx childModel -> viewHelp config (idx :: modelPath) childModel) childModels
                         |> Array.toList
                         |> H.div []
@@ -429,36 +459,36 @@ submit config gadget model =
 
 submitHelp : FormConfig -> Path -> Model -> Result Error Value
 submitHelp config path model =
-    let
-        submit_ getter =
-            let
-                (Control c) =
-                    getter config
-            in
-            c.submit (pathToString path)
-    in
     case model of
-        Primitive primitiveType metadata value ->
+        Primitive primitiveType _ modelValue ->
+            let
+                submit_ getter =
+                    let
+                        (Control c) =
+                            getter config
+                    in
+                    c.submit (pathToString path) modelValue
+            in
             case primitiveType of
                 PUnit ->
                     Ok UnitValue
 
                 PString ->
-                    submit_ .string value
+                    submit_ .string
 
                 PChar ->
-                    submit_ .char value
+                    submit_ .char
 
                 PInt ->
-                    submit_ .int value
+                    submit_ .int
 
                 PFloat ->
-                    submit_ .float value
+                    submit_ .float
 
                 PBool ->
-                    Debug.todo "branch 'PBool' not implemented"
+                    submit_ .bool
 
-        Combinator combinatorType metadata children ->
+        Combinator combinatorType _ children ->
             case combinatorType of
                 Sum selected ->
                     Array.get selected children
@@ -477,7 +507,7 @@ submitHelp config path model =
                             )
                         |> Result.map (\v -> CustomValue selected ( "", v ))
 
-                Collection ->
+                Collection _ ->
                     Array.toList children
                         |> List.indexedMap (\idx child -> submitHelp config (idx :: path) child)
                         |> Result.Extra.combine
@@ -486,12 +516,32 @@ submitHelp config path model =
                 Variant ->
                     Err { id = pathToString path, error = "This branch should be unreachable, as Variants should always be handled by the Sum case" }
 
-                Product ->
+                Product productType ->
                     Array.toList children
                         |> List.indexedMap (\idx child -> submitHelp config (idx :: path) child)
                         |> Result.Extra.combine
-                        |> Result.map (List.map (Tuple.pair ""))
-                        |> Result.map IR.RecordValue
+                        |> Result.andThen
+                            (\fields ->
+                                case productType of
+                                    Record ->
+                                        List.map (Tuple.pair "") fields |> IR.RecordValue |> Ok
+
+                                    Tuple ->
+                                        case fields of
+                                            [ a, b ] ->
+                                                IR.TupleValue a b |> Ok
+
+                                            _ ->
+                                                Err { id = "", error = "Tuple has wrong number of elements" }
+
+                                    Triple ->
+                                        case fields of
+                                            [ a, b, c ] ->
+                                                IR.TripleValue a b c |> Ok
+
+                                            _ ->
+                                                Err { id = "", error = "Triple has wrong number of elements" }
+                            )
 
 
 {-| TODO
@@ -571,8 +621,9 @@ int =
                     , HA.attribute "inputmode" "numeric"
                     , HE.onInput identity
                     , HA.id id
+                    , HA.value model
                     ]
-                    [ H.text model ]
+                    []
         , submit =
             \model ->
                 String.toInt model
@@ -595,8 +646,9 @@ float =
                     , HA.attribute "inputmode" "decimal"
                     , HE.onInput identity
                     , HA.id id
+                    , HA.value model
                     ]
-                    [ H.text model ]
+                    []
         , submit =
             \model ->
                 String.toFloat model
@@ -618,8 +670,9 @@ string =
                     [ HA.type_ "text"
                     , HE.onInput identity
                     , HA.id id
+                    , HA.value model
                     ]
-                    [ H.text model ]
+                    []
         , submit = Ok
         }
 
@@ -633,7 +686,7 @@ bool =
         , init = False
         , update = \msg _ -> msg
         , view =
-            \id model ->
+            \id _ ->
                 H.input
                     [ HA.type_ "checkbox"
                     , HE.onCheck identity
@@ -665,8 +718,9 @@ char =
                     [ HA.type_ "text"
                     , HE.onInput (\str -> String.uncons str |> Maybe.map Tuple.first)
                     , HA.id id
+                    , HA.value model
                     ]
-                    [ H.text model ]
+                    []
         , submit =
             \model ->
                 String.uncons model
