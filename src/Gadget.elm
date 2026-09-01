@@ -412,7 +412,7 @@ tuple (Gadget a) (Gadget b) =
                             (b.toOutput snd)
 
                     _ ->
-                        Err ""
+                        Err "Not a tuple"
         , irType =
             TupleType IR.emptyMetadata a.irType b.irType
         }
@@ -450,7 +450,7 @@ triple (Gadget a) (Gadget b) (Gadget c) =
                             (c.toOutput thd)
 
                     _ ->
-                        Err ""
+                        Err "Not a triple"
         , irType =
             TripleType IR.emptyMetadata a.irType b.irType c.irType
         }
