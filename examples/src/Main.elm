@@ -257,28 +257,59 @@ view model =
     in
     H.div []
         [ H.h1 [] [ H.text "elm-gadget examples" ]
-        , H.button [ HE.onClick UserClickedRegenerate ] [ H.text "Click to regenerate!" ]
-        , head "Form"
-        , form.view model.form
-        , H.pre []
-            [ H.text
-                (formOutput
-                    |> Gadget.Adapter.Pretty.print
-                        (Gadget.result Gadget.string gadget)
-                        model.prettyWidth
-                )
+        , widthAdjuster model
+        , demo "Form"
+            [ form.view model.form
+            , H.pre []
+                [ H.text
+                    (formOutput
+                        |> Gadget.Adapter.Pretty.print
+                            (Gadget.result Gadget.string gadget)
+                            model.prettyWidth
+                    )
+                ]
             ]
-        , head "Pretty printer width"
-        , H.span []
-            [ H.input
+        , demo "Random generator" 
+            [ H.button [ HE.onClick UserClickedRegenerate ] [ H.text "Click to regenerate!"]
+            , pretty gadget firstValue 
+            ]
+        , demo "Differ & patcher"
+            [ pretty (Gadget.result Gadget.string Gadget.Adapter.Diff.changes) diff
+            , head "Patch generated value with diff"
+            , pretty (Gadget.result Gadget.string gadget) patched
+            , head "Patched value equals form value?"
+            , pretty Gadget.bool (patched == formOutput)
+            ]
+        , demo "Html viewer"
+            [ Gadget.Adapter.Html.view gadget firstValue ]
+        , demo "String printer"
+            [ H.code [ HA.class "withoutSpaces" ] [ H.text printed ] ]
+        , demo "String parser"
+            [ pretty (Gadget.result Gadget.string gadget) parsed ]
+        , demo "JSON encoder"
+            [ H.pre [] [ H.text encoded ] ]
+        , demo "JSON decoder"
+            [ pretty (Gadget.result Gadget.string gadget) decoded ]
+        , demo "Fuzzer"
+            [ pretty (Gadget.list gadget) fuzzed ]
+        , demo "Quine" 
+            [ H.pre [] [ H.text (Gadget.Adapter.Quine.quine model.prettyWidth gadget) ] ]
+        ]
+
+
+widthAdjuster model =
+    H.span [HA.class "widthAdjuster"]
+        [ H.strong [] [H.text "Pretty printer width: "]
+        , 
+             H.input
                 [ HA.type_ "range"
                 , HA.min "0"
                 , HA.max "120"
                 , HA.step "10"
                 , HA.value (String.fromInt model.prettyWidth)
                 , HE.onInput UserChangedPrettyWidth
-                , HA.style "width" "500px"
                 , HA.list "markers"
+                , HA.style "width" "500px"
                 , HA.style "margin" "0px"
                 ]
                 []
@@ -301,30 +332,12 @@ view model =
                     )
                     (List.range 0 12)
                 )
-            ]
-        , head "Quine"
-        , H.pre [] [ H.text (Gadget.Adapter.Quine.quine model.prettyWidth gadget) ]
-        , head "Randomly generated value"
-        , pretty gadget firstValue
-        , head "Diff between generated and form values"
-        , pretty (Gadget.result Gadget.string Gadget.Adapter.Diff.changes) diff
-        , head "Patch generated value with diff"
-        , pretty (Gadget.result Gadget.string gadget) patched
-        , head "Patched value equals form value?"
-        , pretty Gadget.bool (patched == formOutput)
-        , head "Html viewer (generated value)"
-        , Gadget.Adapter.Html.view gadget firstValue
-        , head "String printer (generated value)"
-        , H.code [ HA.class "withoutSpaces" ] [ H.text printed ]
-        , head "String parser (generated value)"
-        , pretty (Gadget.result Gadget.string gadget) parsed
-        , head "JSON encoder (generated value)"
-        , H.pre [] [ H.text encoded ]
-        , head "JSON decoder (generated value)"
-        , pretty (Gadget.result Gadget.string gadget) decoded
-        , head "Fuzzer"
-        , pretty (Gadget.list gadget) fuzzed
+            
         ]
+
+
+demo title contents =
+    H.details [HA.class "demo"] (H.summary [] [ H.strong [] [ H.text title ] ] :: contents)
 
 
 head : String -> H.Html msg

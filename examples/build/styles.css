@@ -14,6 +14,11 @@ h1 {
     text-align: center;
 }
 
+.demo {
+    padding: 5px;
+    &>summary {font-size: 18px; }
+}
+
 code.withoutSpaces {
     word-break: break-all;
 }
@@ -180,6 +185,4 @@ button {
     & .Float {
         background-color: hsl(from var(--primitive-bg) 240deg s l);
     }
-
-
 }
