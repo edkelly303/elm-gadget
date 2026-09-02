@@ -227,7 +227,7 @@ view model =
 
         formOutput =
             form.submit model.form
-                |> Result.mapError (\errors -> List.map (\{ path, error } -> (String.join "-" path) ++ ": " ++ error) errors |> String.join "\n")
+                |> Result.mapError (\errors -> List.map (\{ path, error } -> String.join "-" path ++ ": " ++ error) errors |> String.join "\n")
 
         pretty g x =
             H.pre [] [ H.text (Gadget.Adapter.Pretty.print g model.prettyWidth x) ]
