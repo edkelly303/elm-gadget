@@ -77,24 +77,25 @@ htmlAdapter irValue irType =
                     H.aside [ HA.class "metadata" ]
                         [ H.strong [] [ H.text "Metadata" ]
                         , H.table []
-                            (debugged
-                                |> List.concatMap
-                                    (\( adapterId, kvs ) ->
-                                        H.tr []
-                                            [ H.th [] [ H.text "Module" ]
-                                            , H.th [] [ H.text "Function" ]
-                                            , H.th [] [ H.text "Value" ]
-                                            ]
-                                            :: List.map
-                                                (\( k, v ) ->
-                                                    H.tr []
-                                                        [ H.td [] [ H.text ("\"" ++ adapterId ++ "\"") ]
-                                                        , H.td [] [ H.text ("\"" ++ k ++ "\"") ]
-                                                        , H.td [] [ H.text (debugValue v) ]
-                                                        ]
-                                                )
-                                                kvs
-                                    )
+                            (H.tr []
+                                [ H.th [] [ H.text "Module" ]
+                                , H.th [] [ H.text "Function" ]
+                                , H.th [] [ H.text "Value" ]
+                                ]
+                                :: (debugged
+                                        |> List.concatMap
+                                            (\( adapterId, kvs ) ->
+                                                List.map
+                                                    (\( k, v ) ->
+                                                        H.tr []
+                                                            [ H.td [] [ H.text ("\"" ++ adapterId ++ "\"") ]
+                                                            , H.td [] [ H.text ("\"" ++ k ++ "\"") ]
+                                                            , H.td [] [ H.text (debugValue v) ]
+                                                            ]
+                                                    )
+                                                    kvs
+                                            )
+                                   )
                             )
                         ]
 
