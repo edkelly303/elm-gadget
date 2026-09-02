@@ -365,9 +365,8 @@ viewHelp config errs modelPath model =
         id =
             pathToString modelPath
 
-        label_ defaultLabel metadata =
+        maybeLabel metadata =
             tools.decode "label" Gadget.string metadata
-                |> Maybe.withDefault defaultLabel
 
         feedback =
             errs
@@ -389,7 +388,7 @@ viewHelp config errs modelPath model =
                                 |> List.singleton
                     in
                     List.map (H.map (\msg -> Msg modelPath msg)) <|
-                        H.label [ HA.for id ] [ H.text (label_ id metadata) ]
+                        H.label [ HA.for id ] [ H.text (maybeLabel metadata |> Maybe.withDefault id) ]
                             :: (case primitiveType of
                                     PUnit ->
                                         []
@@ -444,7 +443,7 @@ viewHelp config errs modelPath model =
                                                         , H.label [ HA.for childId ]
                                                             [ H.text
                                                                 (List.Extra.getAt idx variantLabels
-                                                                    |> Maybe.withDefault (label_ childId metadata)
+                                                                    |> Maybe.withDefault (maybeLabel metadata |> Maybe.withDefault "")
                                                                 )
                                                             ]
                                                         ]
@@ -454,22 +453,34 @@ viewHelp config errs modelPath model =
                                 :: childView
 
                         Product _ ->
-                            H.h4 [] [ H.text (label_ "" metadata) ]
-                                :: (Array.indexedMap (\idx childModel -> viewHelp config errs (idx :: modelPath) childModel) childModels
+                            let
+                                inner =
+                                    Array.indexedMap (\idx childModel -> viewHelp config errs (idx :: modelPath) childModel) childModels
                                         |> Array.toList
                                         |> List.concat
-                                   )
+                            in
+                            case maybeLabel metadata of
+                                Nothing ->
+                                    inner
+
+                                Just label_ ->
+                                    [ H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) ]
 
                         Collection _ ->
                             [ H.fieldset []
-                                ([ H.legend [] [ H.text (label_ "List" metadata) ]
-                                 , H.input [ HA.type_ "button", HE.onClick (Msg modelPath UnitValue), HA.value "+" ] []
-                                 ]
-                                    ++ (childModels
-                                            |> Array.indexedMap (\idx childModel -> viewHelp config errs (idx :: modelPath) childModel)
-                                            |> Array.toList
-                                            |> List.concat
-                                       )
+                                (case maybeLabel metadata of
+                                    Nothing ->
+                                        []
+
+                                    Just legend ->
+                                        List.concat
+                                            [ [ H.legend [] [ H.text legend ] ]
+                                            , [ H.input [ HA.type_ "button", HE.onClick (Msg modelPath UnitValue), HA.value "Add an item" ] [] ]
+                                            , childModels
+                                                |> Array.indexedMap (\idx childModel -> viewHelp config errs (idx :: modelPath) childModel)
+                                                |> Array.toList
+                                                |> List.concat
+                                            ]
                                 )
                             ]
 
