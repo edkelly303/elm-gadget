@@ -47,12 +47,10 @@ personGadget =
             )
         |> Gadget.field "heightInCentimetres"
             .heightInCentimetres
-            
-                (Gadget.float
-                    |> Gadget.Adapter.Random.range 100 180
-                    |> Gadget.Adapter.Form.label "What is your height (in centimetres)?"
-                )
-                
+            (Gadget.float
+                |> Gadget.Adapter.Random.range 100 180
+                |> Gadget.Adapter.Form.label "What is your height (in centimetres)?"
+            )
         |> Gadget.field "pets"
             .pets
             (Gadget.list petGadget
