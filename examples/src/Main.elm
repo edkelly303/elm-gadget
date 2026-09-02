@@ -24,7 +24,7 @@ import Random
 
 type alias Person =
     { name : String
-    , heightInCentimetres : List Float
+    , heightInCentimetres : Float
     , pets : List Pet
     , tuple : ( Bool, Bool )
     , triple : ( Bool, Bool, Bool )
@@ -43,29 +43,28 @@ personGadget =
             .name
             (Gadget.string
                 |> Gadget.Adapter.Random.choose "Ed" [ "Leonardo", "Wolfgang", "Rupert", "Mario", "Martin" ]
-                |> Gadget.Adapter.Form.label "Name"
+                |> Gadget.Adapter.Form.label "What is your name?"
             )
         |> Gadget.field "heightInCentimetres"
             .heightInCentimetres
-            (Gadget.list
+            
                 (Gadget.float
                     |> Gadget.Adapter.Random.range 100 180
-                    |> Gadget.Adapter.Form.label "What is your height?"
+                    |> Gadget.Adapter.Form.label "What is your height (in centimetres)?"
                 )
-                |> Gadget.Adapter.Form.label "Heights"
-            )
+                
         |> Gadget.field "pets"
             .pets
             (Gadget.list petGadget
                 |> Gadget.Adapter.Random.listLength 0 3
-                |> Gadget.Adapter.Form.label "Pets"
+                |> Gadget.Adapter.Form.label "Do you have any pets?"
             )
         |> Gadget.field "tuple"
             .tuple
             (Gadget.tuple
                 (Gadget.bool |> Gadget.Adapter.Form.label "one")
                 (Gadget.bool |> Gadget.Adapter.Form.label "two")
-                |> Gadget.Adapter.Form.label "Tuple"
+                |> Gadget.Adapter.Form.label "What's your favourite pair of booleans?"
             )
         |> Gadget.field "triple"
             .triple
@@ -73,7 +72,7 @@ personGadget =
                 (Gadget.bool |> Gadget.Adapter.Form.label "one")
                 (Gadget.bool |> Gadget.Adapter.Form.label "two")
                 (Gadget.bool |> Gadget.Adapter.Form.label "three")
-                |> Gadget.Adapter.Form.label "Triple"
+                |> Gadget.Adapter.Form.label "And what about your favourite triple?"
             )
         |> Gadget.endRecord
 
