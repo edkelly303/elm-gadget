@@ -186,11 +186,10 @@ unbreakable =
 parens : G.Document -> G.Document
 parens inner =
     G.group <|
-        breakable
-            [ G.concat
-                [ G.fromString "("
-                , inner
-                ]
+        G.concat
+            [ G.fromString "("
+            , inner
+            , G.softBreak
             , G.fromString ")"
             ]
 
