@@ -259,9 +259,9 @@ view model =
         [ H.h1 [] [ H.text "elm-gadget examples" ]
         , widthAdjuster model
         , demo "Form"
-            [ head "Input"
+            [ head "Form input"
             , form.view model.form
-            , head "Output"
+            , head "Form output"
             , H.pre []
                 [ H.text
                     (formOutput
