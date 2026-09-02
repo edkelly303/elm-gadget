@@ -106,17 +106,15 @@ toDocumentHelp isChildOfCustomType isNested value =
                                 G.nest 4 <|
                                     breakable
                                         [ G.fromString (name ++ " =")
-                                        , toDocumentHelp False True fld
+                                        , toDocumentHelp False False fld
                                         ]
                     in
                     G.group <|
                         nestIfNeeded <|
                             G.concat
                                 (List.concat
-                                    [ [ unbreakable [ G.fromString "{", printField h ]
-                                      , G.softBreak
-                                      ]
-                                    , List.map (\doc -> unbreakable [ G.fromString ",", printField doc ]) t
+                                    [ [ unbreakable [ G.fromString "{", printField h ] ]
+                                    , List.map (\doc -> G.concat [ G.softBreak, G.fromString ", ", printField doc ]) t
                                     , [ G.space
                                       , G.fromString "}"
                                       ]
