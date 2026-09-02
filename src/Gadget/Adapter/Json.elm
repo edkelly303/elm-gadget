@@ -87,7 +87,7 @@ decoder gadget =
                         JD.succeed s
 
                     Err e ->
-                        JD.fail e
+                        JD.fail e.error
             )
 
 

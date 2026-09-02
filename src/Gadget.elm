@@ -105,6 +105,7 @@ import Gadget.IR as IR
     exposing
         ( Error
         , Gadget(..)
+        , Path
         , Type(..)
         , Value(..)
         , VariantType(..)
@@ -126,7 +127,7 @@ type alias Gadget a =
 type RecordGadgetBuilder input output
     = RecordGadgetBuilder
         { fromInput : input -> List ( String, Value )
-        , toOutput : List ( String, Value ) -> Result Error output
+        , toOutput : Path -> List ( String, Value ) -> Result Error output
         , irType : List ( String, Type )
         }
 
@@ -136,7 +137,7 @@ type RecordGadgetBuilder input output
 type CustomGadgetBuilder input hasAtLeastOneVariant output
     = CustomGadgetBuilder
         { match : input
-        , fromIR : Value -> Result Error output
+        , fromIR : Path -> Value -> Result Error output
         , variantTypes : List ( String, VariantType )
         , index : Int
         }
@@ -149,13 +150,13 @@ unit =
     Gadget
         { fromInput = \() -> UnitValue
         , toOutput =
-            \value ->
+            \path value ->
                 case value of
                     UnitValue ->
                         Ok ()
 
                     _ ->
-                        Err "unit toOutput failed"
+                        Err { error = "unit toOutput failed", path = path }
         , irType = UnitType IR.emptyMetadata
         }
 
@@ -167,13 +168,13 @@ bool =
     Gadget
         { fromInput = BoolValue
         , toOutput =
-            \value ->
+            \path value ->
                 case value of
                     BoolValue b ->
                         Ok b
 
                     _ ->
-                        Err "bool toOutput failed"
+                        Err { error = "bool toOutput failed", path = path }
         , irType = BoolType IR.emptyMetadata
         }
 
@@ -185,13 +186,13 @@ char =
     Gadget
         { fromInput = CharValue
         , toOutput =
-            \value ->
+            \path value ->
                 case value of
                     CharValue c ->
                         Ok c
 
                     _ ->
-                        Err "char toOutput failed"
+                        Err { error = "char toOutput failed", path = path }
         , irType = CharType IR.emptyMetadata
         }
 
@@ -203,13 +204,13 @@ string =
     Gadget
         { fromInput = StringValue
         , toOutput =
-            \value ->
+            \path value ->
                 case value of
                     StringValue s ->
                         Ok s
 
                     _ ->
-                        Err "string toOutput failed"
+                        Err { error = "string toOutput failed", path = path }
         , irType = StringType IR.emptyMetadata
         }
 
@@ -221,13 +222,13 @@ int =
     Gadget
         { fromInput = IntValue
         , toOutput =
-            \value ->
+            \path value ->
                 case value of
                     IntValue i ->
                         Ok i
 
                     _ ->
-                        Err "int toOutput failed"
+                        Err { error = "int toOutput failed", path = path }
         , irType = IntType IR.emptyMetadata
         }
 
@@ -239,13 +240,13 @@ float =
     Gadget
         { fromInput = FloatValue
         , toOutput =
-            \value ->
+            \path value ->
                 case value of
                     FloatValue s ->
                         Ok s
 
                     _ ->
-                        Err "float toOutput failed"
+                        Err { error = "float toOutput failed", path = path }
         , irType = FloatType IR.emptyMetadata
         }
 
@@ -265,14 +266,14 @@ list (Gadget item) =
     Gadget
         { fromInput = \items -> ListValue (List.map item.fromInput items)
         , toOutput =
-            \value ->
+            \path value ->
                 case value of
                     ListValue items ->
-                        List.map item.toOutput items
+                        List.indexedMap (\idx i -> item.toOutput (String.fromInt idx :: path) i) items
                             |> Result.Extra.combine
 
                     _ ->
-                        Err "list toOutput failed"
+                        Err { error = "list toOutput failed", path = path }
         , irType = ListType IR.emptyMetadata item.irType
         }
 
@@ -404,15 +405,15 @@ tuple (Gadget a) (Gadget b) =
                     (a.fromInput (Tuple.first input))
                     (b.fromInput (Tuple.second input))
         , toOutput =
-            \value ->
+            \path value ->
                 case value of
                     TupleValue fst snd ->
                         Result.map2 Tuple.pair
-                            (a.toOutput fst)
-                            (b.toOutput snd)
+                            (a.toOutput ("0" :: path) fst)
+                            (b.toOutput ("1" :: path) snd)
 
                     _ ->
-                        Err "Not a tuple"
+                        Err { error = "Not a tuple", path = path }
         , irType =
             TupleType IR.emptyMetadata a.irType b.irType
         }
@@ -438,19 +439,19 @@ triple (Gadget a) (Gadget b) (Gadget c) =
                     (b.fromInput snd)
                     (c.fromInput thd)
         , toOutput =
-            \value ->
+            \path value ->
                 case value of
                     TripleValue fst snd thd ->
                         Result.map3
                             (\fstOutput sndOutput thdOutput ->
                                 ( fstOutput, sndOutput, thdOutput )
                             )
-                            (a.toOutput fst)
-                            (b.toOutput snd)
-                            (c.toOutput thd)
+                            (a.toOutput ("0" :: path) fst)
+                            (b.toOutput ("1" :: path) snd)
+                            (c.toOutput ("2" :: path) thd)
 
                     _ ->
-                        Err "Not a triple"
+                        Err { error = "Not a triple", path = path }
         , irType =
             TripleType IR.emptyMetadata a.irType b.irType c.irType
         }
@@ -463,7 +464,7 @@ custom match =
     CustomGadgetBuilder
         { match = match
         , index = 0
-        , fromIR = \_ -> Err "custom toOutput failed"
+        , fromIR = \path _ -> Err { error = "custom toOutput failed", path = path }
         , variantTypes = []
         }
 
@@ -480,17 +481,17 @@ variant0 name ctor (CustomGadgetBuilder prev) =
         { match = prev.match <| CustomValue prev.index ( name, Variant0Value )
         , index = prev.index + 1
         , fromIR =
-            \value ->
+            \path value ->
                 case value of
                     CustomValue selected ( _, Variant0Value ) ->
                         if selected == prev.index then
                             Ok ctor
 
                         else
-                            prev.fromIR value
+                            prev.fromIR path value
 
                     _ ->
-                        prev.fromIR value
+                        prev.fromIR path value
         , variantTypes =
             ( name, Variant0Type )
                 :: prev.variantTypes
@@ -510,17 +511,17 @@ variant1 name ctor (Gadget argfns) (CustomGadgetBuilder prev) =
         { match = prev.match <| \arg -> CustomValue prev.index ( name, Variant1Value (argfns.fromInput arg) )
         , index = prev.index + 1
         , fromIR =
-            \value ->
+            \path value ->
                 case value of
                     CustomValue selected ( _, Variant1Value arg ) ->
                         if selected == prev.index then
-                            Result.map ctor (argfns.toOutput arg)
+                            Result.map ctor (argfns.toOutput path arg)
 
                         else
-                            prev.fromIR value
+                            prev.fromIR path value
 
                     _ ->
-                        prev.fromIR value
+                        prev.fromIR path value
         , variantTypes =
             ( name, Variant1Type argfns.irType )
                 :: prev.variantTypes
@@ -541,17 +542,17 @@ variant2 name ctor (Gadget arg1fns) (Gadget arg2fns) (CustomGadgetBuilder prev) 
         { match = prev.match <| \arg1 arg2 -> CustomValue prev.index ( name, Variant2Value (arg1fns.fromInput arg1) (arg2fns.fromInput arg2) )
         , index = prev.index + 1
         , fromIR =
-            \value ->
+            \path value ->
                 case value of
                     CustomValue selected ( _, Variant2Value arg1 arg2 ) ->
                         if selected == prev.index then
-                            Result.map2 ctor (arg1fns.toOutput arg1) (arg2fns.toOutput arg2)
+                            Result.map2 ctor (arg1fns.toOutput path arg1) (arg2fns.toOutput path arg2)
 
                         else
-                            prev.fromIR value
+                            prev.fromIR path value
 
                     _ ->
-                        prev.fromIR value
+                        prev.fromIR path value
         , variantTypes =
             ( name, Variant2Type arg1fns.irType arg2fns.irType )
                 :: prev.variantTypes
@@ -582,20 +583,20 @@ variant3 name ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (CustomGad
                         )
         , index = prev.index + 1
         , fromIR =
-            \value ->
+            \path value ->
                 case value of
                     CustomValue selected ( _, Variant3Value arg1 arg2 arg3 ) ->
                         if selected == prev.index then
                             Result.map3 ctor
-                                (arg1fns.toOutput arg1)
-                                (arg2fns.toOutput arg2)
-                                (arg3fns.toOutput arg3)
+                                (arg1fns.toOutput path arg1)
+                                (arg2fns.toOutput path arg2)
+                                (arg3fns.toOutput path arg3)
 
                         else
-                            prev.fromIR value
+                            prev.fromIR path value
 
                     _ ->
-                        prev.fromIR value
+                        prev.fromIR path value
         , variantTypes =
             ( name
             , Variant3Type
@@ -633,21 +634,21 @@ variant4 name ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget ar
                         )
         , index = prev.index + 1
         , fromIR =
-            \value ->
+            \path value ->
                 case value of
                     CustomValue selected ( _, Variant4Value arg1 arg2 arg3 arg4 ) ->
                         if selected == prev.index then
                             Result.map4 ctor
-                                (arg1fns.toOutput arg1)
-                                (arg2fns.toOutput arg2)
-                                (arg3fns.toOutput arg3)
-                                (arg4fns.toOutput arg4)
+                                (arg1fns.toOutput path arg1)
+                                (arg2fns.toOutput path arg2)
+                                (arg3fns.toOutput path arg3)
+                                (arg4fns.toOutput path arg4)
 
                         else
-                            prev.fromIR value
+                            prev.fromIR path value
 
                     _ ->
-                        prev.fromIR value
+                        prev.fromIR path value
         , variantTypes =
             ( name
             , Variant4Type
@@ -688,22 +689,22 @@ variant5 name ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget ar
                         )
         , index = prev.index + 1
         , fromIR =
-            \value ->
+            \path value ->
                 case value of
                     CustomValue selected ( _, Variant5Value arg1 arg2 arg3 arg4 arg5 ) ->
                         if selected == prev.index then
                             Result.map5 ctor
-                                (arg1fns.toOutput arg1)
-                                (arg2fns.toOutput arg2)
-                                (arg3fns.toOutput arg3)
-                                (arg4fns.toOutput arg4)
-                                (arg5fns.toOutput arg5)
+                                (arg1fns.toOutput path arg1)
+                                (arg2fns.toOutput path arg2)
+                                (arg3fns.toOutput path arg3)
+                                (arg4fns.toOutput path arg4)
+                                (arg5fns.toOutput path arg5)
 
                         else
-                            prev.fromIR value
+                            prev.fromIR path value
 
                     _ ->
-                        prev.fromIR value
+                        prev.fromIR path value
         , variantTypes =
             ( name
             , Variant5Type
@@ -746,7 +747,7 @@ record : output -> RecordGadgetBuilder input output
 record ctor =
     RecordGadgetBuilder
         { fromInput = \_ -> []
-        , toOutput = \_ -> Ok ctor
+        , toOutput = \_ _ -> Ok ctor
         , irType = []
         }
 
@@ -772,15 +773,15 @@ field name getter (Gadget gadget) (RecordGadgetBuilder builder) =
                 in
                 ( name, thisField ) :: prevFields
         , toOutput =
-            \fields ->
+            \path fields ->
                 case fields of
                     ( _, thisField ) :: prevFields ->
                         Result.map2 (\ctor val -> ctor val)
-                            (builder.toOutput prevFields)
-                            (gadget.toOutput thisField)
+                            (builder.toOutput path prevFields)
+                            (gadget.toOutput path thisField)
 
                     [] ->
-                        Err "expecting a Record field"
+                        Err { error = "expecting a Record field", path = path }
         , irType =
             ( name, gadget.irType ) :: builder.irType
         }
@@ -795,13 +796,13 @@ endRecord (RecordGadgetBuilder builder) =
             \input ->
                 RecordValue (List.reverse (builder.fromInput input))
         , toOutput =
-            \value ->
+            \path value ->
                 case value of
                     RecordValue fields ->
-                        builder.toOutput (List.reverse fields)
+                        builder.toOutput path (List.reverse fields)
 
                     _ ->
-                        Err "expecting a Record"
+                        Err { error = "expecting a Record", path = path }
         , irType = RecordType IR.emptyMetadata (List.reverse builder.irType)
         }
 
@@ -827,7 +828,7 @@ map :
 map aToB bToA (Gadget prev) =
     Gadget
         { fromInput = bToA >> prev.fromInput
-        , toOutput = prev.toOutput >> Result.map aToB
+        , toOutput = \path value -> prev.toOutput path value |> Result.map aToB
         , irType = prev.irType
         }
 
@@ -843,7 +844,7 @@ the conversion to the output type.
                 (\list ->
                     case list of
                         [] ->
-                            Err "must contain at least one item"
+                            Err { error = "must contain at least one item"
 
                         h :: t ->
                             Ok ( h, t )
@@ -865,14 +866,14 @@ values. Instead, prefer a constructive approach, like this:
 
 -}
 filterMap :
-    (a -> Result String b)
+    (a -> Result Error b)
     -> (b -> a)
     -> Gadget a
     -> Gadget b
 filterMap aToB bToA (Gadget prev) =
     Gadget
         { fromInput = bToA >> prev.fromInput
-        , toOutput = prev.toOutput >> Result.andThen aToB
+        , toOutput = \path value -> prev.toOutput path value |> Result.andThen aToB
         , irType = prev.irType
         }
 
@@ -913,12 +914,12 @@ lazy step =
                 in
                 gadget.fromInput input
         , toOutput =
-            \value ->
+            \path value ->
                 let
                     (Gadget gadget) =
                         step ()
                 in
-                gadget.toOutput value
+                gadget.toOutput path value
         , irType =
             IR.LazyType IR.emptyMetadata
                 (\() ->

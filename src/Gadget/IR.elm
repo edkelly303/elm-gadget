@@ -1,6 +1,6 @@
 module Gadget.IR exposing
     ( Gadget(..)
-    , fromInput, irType, toOutput, Error
+    , fromInput, irType, toOutput, Error, Path
     , Value(..), VariantValue(..), Type(..), VariantType(..)
     , Metadata, MetadataTools, makeMetadataTools, emptyMetadata
     )
@@ -23,7 +23,7 @@ various `Gadget.Adapter` modules in this package:
 
 @docs Gadget
 
-@docs fromInput, irType, toOutput, Error
+@docs fromInput, irType, toOutput, Error, Path
 
 @docs Value, VariantValue, Type, VariantType
 
@@ -40,7 +40,7 @@ with an appropriate Gadget to convert values to and from the `IR` type.
 type Gadget a
     = Gadget
         { fromInput : a -> Value
-        , toOutput : Value -> Result Error a
+        , toOutput : Path -> Value -> Result Error a
         , irType : Type
         }
 
@@ -48,7 +48,11 @@ type Gadget a
 {-| An error that may be generated if `toOutput` fails.
 -}
 type alias Error =
-    String
+    { path : Path, error : String }
+
+
+type alias Path =
+    List String
 
 
 {-| When an Elm value is translated into IR, its structure and contents are
@@ -126,7 +130,7 @@ value.
 -}
 toOutput : Gadget a -> Value -> Result Error a
 toOutput (Gadget c) a =
-    c.toOutput a
+    c.toOutput [] a
 
 
 {-| A type used by `Type` variants to carry metadata.

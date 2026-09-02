@@ -124,7 +124,7 @@ fuzzerWithOverrides overrides gadget =
                         Fuzz.constant fuzzedOutput
 
                     Err e ->
-                        Fuzz.invalid e
+                        Fuzz.invalid e.error
             )
 
 
