@@ -515,7 +515,7 @@ variant1 name ctor (Gadget argfns) (CustomGadgetBuilder prev) =
                 case value of
                     CustomValue selected ( _, Variant1Value arg ) ->
                         if selected == prev.index then
-                            Result.map ctor (argfns.toOutput path arg)
+                            Result.map ctor (argfns.toOutput ("0" :: name :: path) arg)
 
                         else
                             prev.fromIR path value
@@ -546,7 +546,9 @@ variant2 name ctor (Gadget arg1fns) (Gadget arg2fns) (CustomGadgetBuilder prev) 
                 case value of
                     CustomValue selected ( _, Variant2Value arg1 arg2 ) ->
                         if selected == prev.index then
-                            Result.map2 ctor (arg1fns.toOutput path arg1) (arg2fns.toOutput path arg2)
+                            Result.map2 ctor
+                                (arg1fns.toOutput ("0" :: name :: path) arg1)
+                                (arg2fns.toOutput ("1" :: name :: path) arg2)
 
                         else
                             prev.fromIR path value
@@ -588,9 +590,9 @@ variant3 name ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (CustomGad
                     CustomValue selected ( _, Variant3Value arg1 arg2 arg3 ) ->
                         if selected == prev.index then
                             Result.map3 ctor
-                                (arg1fns.toOutput path arg1)
-                                (arg2fns.toOutput path arg2)
-                                (arg3fns.toOutput path arg3)
+                                (arg1fns.toOutput ("0" :: name :: path) arg1)
+                                (arg2fns.toOutput ("1" :: name :: path) arg2)
+                                (arg3fns.toOutput ("2" :: name :: path) arg3)
 
                         else
                             prev.fromIR path value
@@ -639,10 +641,10 @@ variant4 name ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget ar
                     CustomValue selected ( _, Variant4Value arg1 arg2 arg3 arg4 ) ->
                         if selected == prev.index then
                             Result.map4 ctor
-                                (arg1fns.toOutput path arg1)
-                                (arg2fns.toOutput path arg2)
-                                (arg3fns.toOutput path arg3)
-                                (arg4fns.toOutput path arg4)
+                                (arg1fns.toOutput ("0" :: name :: path) arg1)
+                                (arg2fns.toOutput ("1" :: name :: path) arg2)
+                                (arg3fns.toOutput ("2" :: name :: path) arg3)
+                                (arg4fns.toOutput ("3" :: name :: path) arg4)
 
                         else
                             prev.fromIR path value
@@ -694,11 +696,11 @@ variant5 name ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget ar
                     CustomValue selected ( _, Variant5Value arg1 arg2 arg3 arg4 arg5 ) ->
                         if selected == prev.index then
                             Result.map5 ctor
-                                (arg1fns.toOutput path arg1)
-                                (arg2fns.toOutput path arg2)
-                                (arg3fns.toOutput path arg3)
-                                (arg4fns.toOutput path arg4)
-                                (arg5fns.toOutput path arg5)
+                                (arg1fns.toOutput ("0" :: name :: path) arg1)
+                                (arg2fns.toOutput ("1" :: name :: path) arg2)
+                                (arg3fns.toOutput ("2" :: name :: path) arg3)
+                                (arg4fns.toOutput ("3" :: name :: path) arg4)
+                                (arg5fns.toOutput ("4" :: name :: path) arg5)
 
                         else
                             prev.fromIR path value
@@ -778,7 +780,7 @@ field name getter (Gadget gadget) (RecordGadgetBuilder builder) =
                     ( _, thisField ) :: prevFields ->
                         Result.map2 (\ctor val -> ctor val)
                             (builder.toOutput path prevFields)
-                            (gadget.toOutput path thisField)
+                            (gadget.toOutput (name :: path) thisField)
 
                     [] ->
                         Err { error = "expecting a Record field", path = path }
@@ -866,14 +868,14 @@ values. Instead, prefer a constructive approach, like this:
 
 -}
 filterMap :
-    (a -> Result Error b)
+    (a -> Result String b)
     -> (b -> a)
     -> Gadget a
     -> Gadget b
 filterMap aToB bToA (Gadget prev) =
     Gadget
         { fromInput = bToA >> prev.fromInput
-        , toOutput = \path value -> prev.toOutput path value |> Result.andThen aToB
+        , toOutput = \path value -> prev.toOutput path value |> Result.andThen (aToB >> Result.mapError (\error -> { path = path, error = error }))
         , irType = prev.irType
         }
 

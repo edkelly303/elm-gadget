@@ -45,12 +45,14 @@ type Gadget a
         }
 
 
-{-| An error that may be generated if `toOutput` fails.
+{-| An error that may result if `toOutput` fails.
 -}
 type alias Error =
     { path : Path, error : String }
 
 
+{-| A type used within `Error` to specify _where_ something went wrong.
+-}
 type alias Path =
     List String
 

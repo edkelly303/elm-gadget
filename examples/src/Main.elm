@@ -42,6 +42,7 @@ personGadget =
         |> Gadget.field "name"
             .name
             (Gadget.string
+                |> Gadget.filterMap (\s -> if String.isEmpty s then Err "Must not be blank" else Ok s) identity
                 |> Gadget.Adapter.Random.choose "Ed" [ "Leonardo", "Wolfgang", "Rupert", "Mario", "Martin" ]
                 |> Gadget.Adapter.Form.label "What is your name?"
             )
@@ -253,7 +254,12 @@ view model =
                 |> Result.mapError Parser.deadEndsToString
     in
     H.div []
-        [ H.h1 [] [ H.text "elm-gadget examples" ]
+        [ let   
+            a = Gadget.record (\x y -> {x = x,y = y}) |> Gadget.field "x" .x Gadget.string |> Gadget.field "y" .y (Gadget.list (Gadget.maybe Gadget.string)) |> Gadget.endRecord
+            b = Gadget.record (\x y -> {x = x,y = y}) |> Gadget.field "x" .x Gadget.string |> Gadget.field "y" .y (Gadget.list (Gadget.maybe (Gadget.string |> Gadget.filterMap (\s -> if String.isEmpty s then Err "Failed!" else Ok s) identity))) |> Gadget.endRecord
+          in
+          Gadget.IR.fromInput a {x="a", y= [Just " ", Just ""]} |> Gadget.IR.toOutput b |> Debug.toString |> H.text
+        , H.h1 [] [ H.text "elm-gadget examples" ]
         , widthAdjuster model
         , demo "Form"
             [ head "Form input"

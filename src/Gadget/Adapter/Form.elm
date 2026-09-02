@@ -488,7 +488,7 @@ submit config gadget model =
         |> Result.andThen
             (\ir ->
                 IR.toOutput gadget ir
-                    |> Result.mapError (\error -> [ { path = [], error = error.error } ])
+                    |> Result.mapError List.singleton
             )
 
 
@@ -670,9 +670,8 @@ control config =
         , submit =
             \path model ->
                 IR.toOutput config.model model
-                    |> Result.mapError .error
-                    |> Result.andThen (\value -> config.submit value)
-                    |> Result.mapError (\error -> [ { path = path, error = error } ])
+                    |> Result.mapError (\e -> [ { e | path = path } ])
+                    |> Result.andThen (\value -> config.submit value |> Result.mapError (\error -> [ { path = path, error = error } ]))
                     |> Result.map (IR.fromInput config.output)
         }
 
