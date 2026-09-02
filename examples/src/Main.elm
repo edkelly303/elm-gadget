@@ -260,7 +260,7 @@ view model =
         , widthAdjuster model
         , demo "Form"
             [ head "Input"
-            ,form.view model.form
+            , form.view model.form
             , head "Output"
             , H.pre []
                 [ H.text
@@ -286,9 +286,12 @@ view model =
         , demo "Html viewer"
             [ head "Randomly generated value"
             , Gadget.Adapter.Html.view gadget firstValue
-            , case formOutput of 
-                Ok v -> H.div [] [head "Form output value", Gadget.Adapter.Html.view gadget v]
-                Err _ -> H.text ""
+            , case formOutput of
+                Ok v ->
+                    H.div [] [ head "Form output value", Gadget.Adapter.Html.view gadget v ]
+
+                Err _ ->
+                    H.text ""
             ]
         , demo "String printer"
             [ H.code [ HA.class "withoutSpaces" ] [ H.text printed ] ]
