@@ -267,7 +267,8 @@ view model =
                 Gadget.record (\x y -> { x = x, y = y }) |> Gadget.field "x" .x Gadget.string |> Gadget.field "y" .y (Gadget.list (Gadget.maybe Gadget.string)) |> Gadget.endRecord
 
             b =
-                Gadget.record (\x y -> { x = x, y = y }) |> Gadget.field "x" .x Gadget.string
+                Gadget.record (\x y -> { x = x, y = y })
+                    |> Gadget.field "x" .x Gadget.string
                     |> Gadget.field "y"
                         .y
                         (Gadget.list

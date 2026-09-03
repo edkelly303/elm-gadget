@@ -37,6 +37,7 @@ TODO
 
 import Array exposing (Array)
 import Array.Extra
+import Dict exposing (Dict)
 import Gadget
 import Gadget.IR as IR exposing (Error, Path, Type(..), Value(..), VariantType(..))
 import Html as H
@@ -116,7 +117,10 @@ default =
 {-| TODO
 -}
 type Model
-    = Combinator CombinatorType IR.Metadata (Array.Array Model)
+    = Combinator CombinatorType IR.Metadata (Dict String Model)
+    | Record IR.Metadata (Dict String ( Int, Model ))
+    | Tuple IR.Metadata Model Model
+    | Triple IR.Metadata Model Model Model
     | Primitive PrimitiveType IR.Metadata Value
 
 
@@ -129,14 +133,7 @@ type Msg
 type CombinatorType
     = Collection Type
     | Variant
-    | Product ProductType
     | Sum Int
-
-
-type ProductType
-    = Record
-    | Tuple
-    | Triple
 
 
 type PrimitiveType
@@ -194,14 +191,16 @@ initHelp config irType =
 
                 variants =
                     variantTypes
-                        |> List.map
-                            (\( _, v ) ->
-                                v
-                                    |> variantTypeToArgsArray
-                                    |> Array.map (initHelp config)
+                        |> List.indexedMap
+                            (\idx ( n, v ) ->
+                                ( String.fromInt idx
+                                , v
+                                    |> variantTypeToArgsDict
+                                    |> Dict.map (\_ arg -> initHelp config arg)
                                     |> Combinator Variant IR.emptyMetadata
+                                )
                             )
-                        |> Array.fromList
+                        |> Dict.fromList
             in
             Combinator (Sum 0) m variants
 
@@ -209,27 +208,28 @@ initHelp config irType =
             let
                 fields =
                     namedFieldTypes
-                        |> List.map (\( _, fieldType ) -> initHelp config fieldType)
-                        |> Array.fromList
+                        |> List.indexedMap (\idx ( n, f ) -> ( n, ( idx, f ) ))
+                        |> Dict.fromList
+                        |> Dict.map (\_ ( idx, fieldType ) -> ( idx, initHelp config fieldType ))
             in
-            Combinator (Product Record) m fields
+            Record m fields
 
         ListType m innerType ->
-            Combinator (Collection innerType) m Array.empty
+            Combinator (Collection innerType) m Dict.empty
 
         LazyType _ innerType ->
             initHelp config (innerType ())
 
         TupleType m a b ->
-            Combinator (Product Tuple) m (Array.fromList (List.map (initHelp config) [ a, b ]))
+            Tuple m (initHelp config a) (initHelp config b)
 
         TripleType m a b c ->
-            Combinator (Product Triple) m (Array.fromList (List.map (initHelp config) [ a, b, c ]))
+            Triple m (initHelp config a) (initHelp config b) (initHelp config c)
 
 
 update : FormConfig -> Msg -> Model -> Model
 update config msg model =
-    updateHelp config [] (msg |> Debug.log "msg") model
+    updateHelp config [] msg model
 
 
 updateHelp : FormConfig -> Path -> Msg -> Model -> Model
@@ -237,7 +237,7 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
     case model of
         Primitive primitiveType metadata modelValue ->
             Primitive primitiveType metadata <|
-                if modelPath == msgPath then
+                if (modelPath |> Debug.log "modelPath") == (msgPath |> Debug.log "msgPath") then
                     let
                         updateFor typ_ =
                             run .update config typ_ msgValue modelValue
@@ -264,8 +264,70 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
                 else
                     modelValue
 
+        Record metadata fields ->
+            case matchPath msgPath modelPath of
+                FullMatch ->
+                    model
+
+                PrefixMatch { next } ->
+                    Dict.update next
+                        (\m ->
+                            case m of
+                                Just ( idx, field ) ->
+                                    Just ( idx, updateHelp config (next :: modelPath) msg field )
+
+                                Nothing ->
+                                    Nothing
+                        )
+                        fields
+                        |> Record metadata
+
+                NoMatch ->
+                    model
+
+        Tuple metadata a b ->
+            case matchPath msgPath modelPath of
+                FullMatch ->
+                    model
+
+                PrefixMatch { next } ->
+                    case next of
+                        "0" ->
+                            Tuple metadata (updateHelp config ("0" :: modelPath) msg a) b
+
+                        "1" ->
+                            Tuple metadata a (updateHelp config ("1" :: modelPath) msg b)
+
+                        _ ->
+                            model
+
+                NoMatch ->
+                    model
+
+        Triple metadata a b c ->
+            case matchPath msgPath modelPath of
+                FullMatch ->
+                    model
+
+                PrefixMatch { next } ->
+                    case next of
+                        "0" ->
+                            Triple metadata (updateHelp config ("0" :: modelPath) msg a) b c
+
+                        "1" ->
+                            Triple metadata a (updateHelp config ("1" :: modelPath) msg b) c
+
+                        "2" ->
+                            Triple metadata a b (updateHelp config ("2" :: modelPath) msg c)
+
+                        _ ->
+                            model
+
+                NoMatch ->
+                    model
+
         Combinator combinatorType metadata childModels ->
-            case matchPath msgPath modelPath |> Debug.log "match" of
+            case matchPath msgPath modelPath of
                 FullMatch ->
                     case combinatorType of
                         Sum _ ->
@@ -279,16 +341,30 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
                         Collection innerType ->
                             case msgValue of
                                 UnitValue ->
-                                    Combinator (Collection innerType) metadata (Array.append (Array.fromList [ initHelp config innerType ]) childModels)
+                                    Combinator (Collection innerType)
+                                        metadata
+                                        (Dict.insert (String.fromInt (Dict.size childModels + 1))
+                                            (initHelp config innerType)
+                                            childModels
+                                        )
 
                                 _ ->
                                     model
 
-                        _ ->
+                        Variant ->
                             model
 
                 PrefixMatch { next } ->
-                    Array.Extra.update next (updateHelp config (String.fromInt next :: modelPath) msg) childModels
+                    Dict.update next
+                        (\m ->
+                            case m of
+                                Just x ->
+                                    Just (updateHelp config (next :: modelPath) msg x)
+
+                                Nothing ->
+                                    Nothing
+                        )
+                        childModels
                         |> Combinator combinatorType metadata
 
                 NoMatch ->
@@ -320,8 +396,7 @@ matchPath revSought revGot =
                 next =
                     List.drop (List.length got) sought
                         |> List.head
-                        |> Maybe.andThen String.toInt
-                        |> Maybe.withDefault 0
+                        |> Maybe.withDefault ""
             in
             PrefixMatch { next = next }
 
@@ -331,7 +406,7 @@ matchPath revSought revGot =
 
 type Match
     = FullMatch
-    | PrefixMatch { next : Int }
+    | PrefixMatch { next : String }
     | NoMatch
 
 
@@ -399,12 +474,54 @@ viewHelp config errs modelPath model =
                                         viewFor .bool
                                )
 
+                Record metadata fields ->
+                    let
+                        inner =
+                            Dict.toList fields
+                                |> List.sortBy (\( _, ( idx, _ ) ) -> idx)
+                                |> List.map (\( name, ( _, childModel ) ) -> viewHelp config errs (name :: modelPath) childModel)
+                                |> List.concat
+                    in
+                    case maybeLabel metadata of
+                        Nothing ->
+                            inner
+
+                        Just label_ ->
+                            [ H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) ]
+
+                Tuple metadata a b ->
+                    let
+                        inner =
+                            viewHelp config errs ("0" :: modelPath) a
+                                ++ viewHelp config errs ("1" :: modelPath) b
+                    in
+                    case maybeLabel metadata of
+                        Nothing ->
+                            inner
+
+                        Just label_ ->
+                            [ H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) ]
+
+                Triple metadata a b c ->
+                    let
+                        inner =
+                            viewHelp config errs ("0" :: modelPath) a
+                                ++ viewHelp config errs ("1" :: modelPath) b
+                                ++ viewHelp config errs ("2" :: modelPath) c
+                    in
+                    case maybeLabel metadata of
+                        Nothing ->
+                            inner
+
+                        Just label_ ->
+                            [ H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) ]
+
                 Combinator combinatorType metadata childModels ->
                     case combinatorType of
                         Sum selected ->
                             let
                                 childView =
-                                    Array.get selected childModels
+                                    Dict.get (String.fromInt selected) childModels
                                         |> Maybe.map (viewHelp config errs (String.fromInt selected :: modelPath))
                                         |> Maybe.withDefault [ H.text "sum error" ]
 
@@ -415,7 +532,7 @@ viewHelp config errs modelPath model =
                             H.fieldset []
                                 (H.legend [] [ H.text customLabel_ ]
                                     :: (childModels
-                                            |> Array.toList
+                                            |> Dict.values
                                             |> List.indexedMap
                                                 (\idx _ ->
                                                     let
@@ -442,20 +559,6 @@ viewHelp config errs modelPath model =
                                 )
                                 :: childView
 
-                        Product _ ->
-                            let
-                                inner =
-                                    Array.indexedMap (\idx childModel -> viewHelp config errs (String.fromInt idx :: modelPath) childModel) childModels
-                                        |> Array.toList
-                                        |> List.concat
-                            in
-                            case maybeLabel metadata of
-                                Nothing ->
-                                    inner
-
-                                Just label_ ->
-                                    [ H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) ]
-
                         Collection _ ->
                             [ H.fieldset []
                                 (case maybeLabel metadata of
@@ -467,16 +570,16 @@ viewHelp config errs modelPath model =
                                             [ [ H.legend [] [ H.text legend ] ]
                                             , [ H.input [ HA.type_ "button", HE.onClick (Msg modelPath UnitValue), HA.value "Add an item" ] [] ]
                                             , childModels
-                                                |> Array.indexedMap (\idx childModel -> viewHelp config errs (String.fromInt idx :: modelPath) childModel)
-                                                |> Array.toList
+                                                |> Dict.map (\idx childModel -> viewHelp config errs (idx :: modelPath) childModel)
+                                                |> Dict.values
                                                 |> List.concat
                                             ]
                                 )
                             ]
 
                         Variant ->
-                            Array.indexedMap (\idx childModel -> viewHelp config errs (String.fromInt idx :: modelPath) childModel) childModels
-                                |> Array.toList
+                            Dict.map (\idx childModel -> viewHelp config errs (idx :: modelPath) childModel) childModels
+                                |> Dict.values
                                 |> List.concat
     in
     input ++ feedback
@@ -523,17 +626,42 @@ submitHelp config path model =
                 PBool ->
                     submit_ .bool
 
+        Record metadata fields ->
+            fields
+                |> Dict.map (\key ( idx, child ) -> submitHelp config (key :: path) child |> Result.map (Tuple.pair idx))
+                |> combineAndAccumulateErrorsDict
+                |> Result.map
+                    (\r ->
+                        r
+                            |> Dict.toList
+                            |> List.sortBy (\( key, ( idx, child ) ) -> idx)
+                            |> List.map (\( key, ( idx, child ) ) -> ( key, child ))
+                            |> IR.RecordValue
+                    )
+
+        Tuple metadata a b ->
+            Result.map2 IR.TupleValue
+                (submitHelp config ("0" :: path) a)
+                (submitHelp config ("1" :: path) b)
+
+        Triple metadata a b c ->
+            Result.map3 IR.TripleValue
+                (submitHelp config ("0" :: path) a)
+                (submitHelp config ("1" :: path) b)
+                (submitHelp config ("2" :: path) c)
+
         Combinator combinatorType _ children ->
             case combinatorType of
                 Sum selected ->
-                    Array.get selected children
+                    Dict.get (String.fromInt selected) children
                         |> Result.fromMaybe [ { path = path, error = "Invalid Sum variant selection" } ]
                         |> Result.andThen
                             (\v ->
                                 case v of
                                     Combinator Variant _ args ->
-                                        Array.toList args
-                                            |> List.indexedMap (\idx arg -> submitHelp config (String.fromInt idx :: String.fromInt selected :: path) arg)
+                                        args
+                                            |> Dict.map (\idx arg -> submitHelp config (idx :: String.fromInt selected :: path) arg)
+                                            |> Dict.values
                                             |> combineAndAccumulateErrors
                                             |> Result.andThen (argsListToVariantValue >> Result.mapError (\error -> [ { path = String.fromInt selected :: path, error = error } ]))
 
@@ -543,40 +671,49 @@ submitHelp config path model =
                         |> Result.map (\v -> CustomValue selected ( "", v ))
 
                 Collection _ ->
-                    Array.toList children
-                        |> List.indexedMap (\idx child -> submitHelp config (String.fromInt idx :: path) child)
+                    children
+                        |> Dict.map (\idx child -> submitHelp config (idx :: path) child)
+                        |> Dict.values
                         |> combineAndAccumulateErrors
                         |> Result.map IR.ListValue
 
                 Variant ->
                     Err [ { path = path, error = "This branch should be unreachable, as Variants should always be handled by the Sum case" } ]
 
-                Product productType ->
-                    Array.toList children
-                        |> List.indexedMap (\idx child -> submitHelp config (String.fromInt idx :: path) child)
-                        |> combineAndAccumulateErrors
-                        |> Result.andThen
-                            (\fields ->
-                                case productType of
-                                    Record ->
-                                        List.map (Tuple.pair "") fields |> IR.RecordValue |> Ok
 
-                                    Tuple ->
-                                        case fields of
-                                            [ a, b ] ->
-                                                IR.TupleValue a b |> Ok
+combineAndAccumulateErrorsDict :
+    Dict String (Result (List error) a)
+    -> Result (List error) (Dict String a)
+combineAndAccumulateErrorsDict dict =
+    combineAndAccumulateErrorsDictHelp dict (Ok Dict.empty)
 
-                                            _ ->
-                                                Err [ { path = path, error = "Tuple has wrong number of elements" } ]
 
-                                    Triple ->
-                                        case fields of
-                                            [ a, b, c ] ->
-                                                IR.TripleValue a b c |> Ok
+combineAndAccumulateErrorsDictHelp :
+    Dict String (Result (List error) value)
+    -> Result (List error) (Dict String value)
+    -> Result (List error) (Dict String value)
+combineAndAccumulateErrorsDictHelp dict acc =
+    Dict.foldl
+        (\k v out ->
+            case v of
+                Ok thisOutput ->
+                    case out of
+                        Ok outputs ->
+                            Ok (Dict.insert k thisOutput outputs)
 
-                                            _ ->
-                                                Err [ { path = path, error = "Triple has wrong number of elements" } ]
-                            )
+                        Err errs ->
+                            Err errs
+
+                Err thisError ->
+                    case acc of
+                        Ok outputs ->
+                            Err thisError
+
+                        Err errs ->
+                            Err (thisError ++ errs)
+        )
+        acc
+        dict
 
 
 combineAndAccumulateErrors : List (Result (List error) a) -> Result (List error) (List a)
@@ -824,27 +961,28 @@ argsListToVariantValue l =
             Err "Variant has too many args"
 
 
-variantTypeToArgsArray : VariantType -> Array Type
-variantTypeToArgsArray v =
-    Array.fromList <|
-        case v of
-            Variant0Type ->
-                []
+variantTypeToArgsDict : VariantType -> Dict.Dict String Type
+variantTypeToArgsDict v =
+    Dict.fromList <|
+        List.indexedMap (\idx item -> ( String.fromInt idx, item )) <|
+            case v of
+                Variant0Type ->
+                    []
 
-            Variant1Type arg1 ->
-                [ arg1 ]
+                Variant1Type arg1 ->
+                    [ arg1 ]
 
-            Variant2Type arg1 arg2 ->
-                [ arg1, arg2 ]
+                Variant2Type arg1 arg2 ->
+                    [ arg1, arg2 ]
 
-            Variant3Type arg1 arg2 arg3 ->
-                [ arg1, arg2, arg3 ]
+                Variant3Type arg1 arg2 arg3 ->
+                    [ arg1, arg2, arg3 ]
 
-            Variant4Type arg1 arg2 arg3 arg4 ->
-                [ arg1, arg2, arg3, arg4 ]
+                Variant4Type arg1 arg2 arg3 arg4 ->
+                    [ arg1, arg2, arg3, arg4 ]
 
-            Variant5Type arg1 arg2 arg3 arg4 arg5 ->
-                [ arg1, arg2, arg3, arg4, arg5 ]
+                Variant5Type arg1 arg2 arg3 arg4 arg5 ->
+                    [ arg1, arg2, arg3, arg4, arg5 ]
 
 
 pathToString : Path -> String
