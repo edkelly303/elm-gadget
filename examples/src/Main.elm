@@ -42,7 +42,7 @@ personGadget =
         |> Gadget.field "name"
             .name
             (Gadget.string
-                |> Gadget.filterMap
+                |> Gadget.Adapter.Form.validate
                     (\s ->
                         if String.isEmpty s then
                             Err "Must not be blank"
@@ -50,7 +50,6 @@ personGadget =
                         else
                             Ok s
                     )
-                    identity
                 |> Gadget.Adapter.Random.choose "Ed" [ "Leonardo", "Wolfgang", "Rupert", "Mario", "Martin" ]
                 |> Gadget.Adapter.Form.label "What is your name?"
             )
@@ -105,6 +104,14 @@ petGadget =
                         |> Gadget.Adapter.Fuzz.useOverride "dogName"
                         |> Gadget.Adapter.Random.choose "Rex" [ "Fido", "Kevin", "Rover", "Fifi", "George", "Winnie" ]
                         |> Gadget.Adapter.Form.label "What is your dog's name?"
+                        |> Gadget.Adapter.Form.validate
+                            (\s ->
+                                if String.isEmpty s then
+                                    Err "Must not be blank"
+
+                                else
+                                    Ok s
+                            )
                     )
                 |> Gadget.endRecord
             )
