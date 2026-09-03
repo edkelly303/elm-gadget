@@ -893,10 +893,11 @@ bool =
         , init = False
         , update = \msg _ -> msg
         , view =
-            \id _ ->
+            \id model ->
                 H.input
                     [ HA.type_ "checkbox"
                     , HE.onCheck identity
+                    , HA.checked model
                     , HA.id id
                     ]
                     []
