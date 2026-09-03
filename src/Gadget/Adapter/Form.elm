@@ -582,7 +582,7 @@ viewHelp config errs modelPath model =
                                 |> Dict.values
                                 |> List.concat
     in
-    input ++ feedback
+    [ H.div [] (input ++ feedback) ]
 
 
 submit : FormConfig -> IR.Gadget a -> Model -> Result (List Error) a
