@@ -343,7 +343,7 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
                                 UnitValue ->
                                     Combinator (Collection innerType)
                                         metadata
-                                        (Dict.insert (String.fromInt (Dict.size childModels + 1))
+                                        (Dict.insert (String.fromInt (Dict.size childModels))
                                             (initHelp config innerType)
                                             childModels
                                         )
@@ -396,7 +396,7 @@ matchPath revSought revGot =
                 next =
                     List.drop (List.length got) sought
                         |> List.head
-                        |> Maybe.withDefault ""
+                        |> Maybe.withDefault "xxxxx"
             in
             PrefixMatch { next = next }
 
@@ -807,7 +807,7 @@ control config =
         , submit =
             \path model ->
                 IR.toOutput config.model model
-                    |> Result.mapError (\e -> [ { e | path = path } ])
+                    |> Result.mapError (\e -> [ e ])
                     |> Result.andThen (\value -> config.submit value |> Result.mapError (\error -> [ { path = path, error = error } ]))
                     |> Result.map (IR.fromInput config.output)
         }
