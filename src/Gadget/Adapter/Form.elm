@@ -830,7 +830,11 @@ control config =
                 let
                     parsed =
                         IR.toOutput config.model model
-                            |> Result.andThen config.submit
+                            |> Result.andThen
+                                (\output ->
+                                    config.submit output
+                                        |> Result.mapError (\error -> [ { error = error, path = path } ])
+                                )
                 in
                 case parsed of
                     Err parsingErrors ->
@@ -843,14 +847,14 @@ control config =
                         in
                         case validated of
                             Err validationErrors ->
-                                Err validationErrors
+                                Err (validationErrors ++ parsingErrors)
 
                             Ok output ->
-                                Ok output
+                                Err parsingErrors
 
                     Ok output ->
                         IR.fromInput config.output output
-                            |> Result.andThen (IR.toOutput config.output)
+                            |> Ok
         }
 
 
