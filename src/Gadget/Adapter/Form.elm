@@ -607,14 +607,18 @@ viewHelp config errs modelPath model =
 
 submit : FormConfig -> IR.Gadget a -> Model -> Result (List Error) a
 submit config gadget model =
-    submitHelp config [] model
-        |> Result.andThen
-            (\value ->
-                IR.toOutput gadget value
-            )
+    case submitHelp config [] model of
+        Ok value ->
+            IR.toOutput gadget value
+
+        Err ( Just dummyValue, errors ) ->
+            Err errors |> Debug.log "TODO!!!"
+
+        Err ( Nothing, errors ) ->
+            Err errors |> Debug.log "TODO!!!"
 
 
-submitHelp : FormConfig -> Path -> Model -> Result (List Error) Value
+submitHelp : FormConfig -> Path -> Model -> Result ( Maybe Value, List Error ) Value
 submitHelp config path model =
     case model of
         Primitive primitiveType _ modelValue ->
@@ -624,7 +628,17 @@ submitHelp config path model =
                         (Control c) =
                             getter config
                     in
-                    c.submit path modelValue
+                    case c.submit path modelValue of
+                        Ok outputValue ->
+                            Ok outputValue
+
+                        Err errs ->
+                            case c.submit path c.placeholder of
+                                Ok dummyValue ->
+                                    Err ( Just dummyValue, errs )
+
+                                Err dummyErrs ->
+                                    Err ( Nothing, [ { error = "Placeholder value is not a valid output", path = path } ] )
             in
             case primitiveType of
                 PUnit ->
@@ -646,61 +660,81 @@ submitHelp config path model =
                     submit_ .bool
 
         Record _ fields ->
-            fields
-                |> Dict.map (\key ( idx, child ) -> submitHelp config (key :: path) child |> Result.map (Tuple.pair idx))
-                |> combineAndAccumulateErrorsDict
-                |> Result.map
-                    (\r ->
-                        r
-                            |> Dict.toList
-                            |> List.sortBy (\( _, ( idx, _ ) ) -> idx)
-                            |> List.map (\( key, ( _, child ) ) -> ( key, child ))
-                            |> IR.RecordValue
-                    )
+            case
+                fields
+                    |> Dict.map
+                        (\key ( idx, child ) ->
+                            submitHelp config (key :: path) child
+                                |> Result.map (Tuple.pair idx)
+                                |> Result.mapError (\( maybe, errs ) -> ( Maybe.map (Tuple.pair idx) maybe, errs ))
+                        )
+                    |> combineAndAccumulateErrorsDict
+            of
+                Ok rec ->
+                    rec
+                        |> Dict.toList
+                        |> List.sortBy (\( _, ( idx, _ ) ) -> idx)
+                        |> List.map (\( key, ( _, child ) ) -> ( key, child ))
+                        |> IR.RecordValue
+                        |> Ok
 
-        Tuple _ a b ->
-            Result.map2 IR.TupleValue
-                (submitHelp config ("0" :: path) a)
-                (submitHelp config ("1" :: path) b)
+                Err ( Just dummyRec, errs ) ->
+                    Err
+                        ( Just
+                            (dummyRec
+                                |> Dict.toList
+                                |> List.sortBy (\( _, ( idx, _ ) ) -> idx)
+                                |> List.map (\( key, ( _, child ) ) -> ( key, child ))
+                                |> IR.RecordValue
+                            )
+                        , errs
+                        )
 
-        Triple _ a b c ->
-            Result.map3 IR.TripleValue
-                (submitHelp config ("0" :: path) a)
-                (submitHelp config ("1" :: path) b)
-                (submitHelp config ("2" :: path) c)
+                Err ( Nothing, errs ) ->
+                    Err ( Nothing, errs )
 
-        Collection _ _ children ->
-            children
-                |> Dict.map (\idx child -> submitHelp config (idx :: path) child)
-                |> Dict.values
-                |> combineAndAccumulateErrors
-                |> Result.map IR.ListValue
-
-        Sum selected _ children ->
-            Dict.get selected children
-                |> Result.fromMaybe [ { path = path, error = "Invalid Sum variant selection" } ]
-                |> Result.andThen
-                    (\( idx, variant ) ->
-                        variant
-                            |> Dict.map (\argIdx arg -> submitHelp config (argIdx :: selected :: path) arg)
-                            |> Dict.values
-                            |> combineAndAccumulateErrors
-                            |> Result.andThen (argsListToVariantValue >> Result.mapError (\error -> [ { path = selected :: path, error = error } ]))
-                            |> Result.map (\v -> CustomValue idx ( selected, v ))
-                    )
+        -- Tuple _ a b ->
+        --     Result.map2 IR.TupleValue
+        --         (submitHelp config ("0" :: path) a)
+        --         (submitHelp config ("1" :: path) b)
+        -- Triple _ a b c ->
+        --     Result.map3 IR.TripleValue
+        --         (submitHelp config ("0" :: path) a)
+        --         (submitHelp config ("1" :: path) b)
+        --         (submitHelp config ("2" :: path) c)
+        -- Collection _ _ children ->
+        --     children
+        --         |> Dict.map (\idx child -> submitHelp config (idx :: path) child)
+        --         |> Dict.values
+        --         |> combineAndAccumulateErrors
+        --         |> Result.map IR.ListValue
+        -- Sum selected _ children ->
+        --     Dict.get selected children
+        --         |> Result.fromMaybe [ { path = path, error = "Invalid Sum variant selection" } ]
+        --         |> Result.andThen
+        --             (\( idx, variant ) ->
+        --                 variant
+        --                     |> Dict.map (\argIdx arg -> submitHelp config (argIdx :: selected :: path) arg)
+        --                     |> Dict.values
+        --                     |> combineAndAccumulateErrors
+        --                     |> Result.andThen (argsListToVariantValue >> Result.mapError (\error -> [ { path = selected :: path, error = error } ]))
+        --                     |> Result.map (\v -> CustomValue idx ( selected, v ))
+        --             )
+        _ ->
+            Debug.todo "not implemented yet"
 
 
 combineAndAccumulateErrorsDict :
-    Dict String (Result (List error) a)
-    -> Result (List error) (Dict String a)
+    Dict String (Result ( Maybe value, List error ) value)
+    -> Result ( Maybe (Dict String value), List error ) (Dict String value)
 combineAndAccumulateErrorsDict dict =
     combineAndAccumulateErrorsDictHelp dict (Ok Dict.empty)
 
 
 combineAndAccumulateErrorsDictHelp :
-    Dict String (Result (List error) value)
-    -> Result (List error) (Dict String value)
-    -> Result (List error) (Dict String value)
+    Dict String (Result ( Maybe value, List error ) value)
+    -> Result ( Maybe (Dict String value), List error ) (Dict String value)
+    -> Result ( Maybe (Dict String value), List error ) (Dict String value)
 combineAndAccumulateErrorsDictHelp dict acc =
     Dict.foldl
         (\k v out ->
@@ -713,24 +747,43 @@ combineAndAccumulateErrorsDictHelp dict acc =
                         Err errs ->
                             Err errs
 
-                Err thisError ->
+                Err ( Just thisDummyOutput, theseErrors ) ->
                     case acc of
-                        Ok _ ->
-                            Err thisError
+                        Ok outputs ->
+                            Err ( Just (Dict.insert k thisDummyOutput outputs), theseErrors )
 
-                        Err errs ->
-                            Err (thisError ++ errs)
+                        Err ( Just previousDummyOutputs, previousErrors ) ->
+                            Err ( Just (Dict.insert k thisDummyOutput previousDummyOutputs), previousErrors ++ theseErrors )
+
+                        Err ( Nothing, previousErrors ) ->
+                            Err ( Nothing, previousErrors ++ theseErrors )
+
+                Err ( Nothing, theseErrors ) ->
+                    case acc of
+                        Ok outputs ->
+                            Err ( Nothing, theseErrors )
+
+                        Err ( Just previousDummyOutputs, previousErrors ) ->
+                            Err ( Nothing, previousErrors ++ theseErrors )
+
+                        Err ( Nothing, previousErrors ) ->
+                            Err ( Nothing, previousErrors ++ theseErrors )
         )
         acc
         dict
 
 
-combineAndAccumulateErrors : List (Result (List error) a) -> Result (List error) (List a)
+combineAndAccumulateErrors :
+    List (Result ( Maybe a, List error ) a)
+    -> Result ( Maybe (List a), List error ) (List a)
 combineAndAccumulateErrors list =
     combineAndAccumulateErrorsHelp list (Ok [])
 
 
-combineAndAccumulateErrorsHelp : List (Result (List error) value) -> Result (List error) (List value) -> Result (List error) (List value)
+combineAndAccumulateErrorsHelp :
+    List (Result ( Maybe value, List error ) value)
+    -> Result ( Maybe (List value), List error ) (List value)
+    -> Result ( Maybe (List value), List error ) (List value)
 combineAndAccumulateErrorsHelp list acc =
     case list of
         (Ok thisOutput) :: rest ->
@@ -742,22 +795,37 @@ combineAndAccumulateErrorsHelp list acc =
                     Err errs ->
                         Err errs
 
-        (Err thisError) :: rest ->
+        (Err ( Just thisDummyValue, thisError )) :: rest ->
             combineAndAccumulateErrorsHelp rest <|
                 case acc of
-                    Ok _ ->
-                        Err thisError
+                    Ok previousValues ->
+                        Err ( Just (thisDummyValue :: previousValues), thisError )
 
-                    Err errors ->
-                        Err (thisError ++ errors)
+                    Err ( Just previousDummyValues, errors ) ->
+                        Err ( Just (thisDummyValue :: previousDummyValues), thisError ++ errors )
+
+                    Err ( Nothing, errors ) ->
+                        Err ( Nothing, thisError ++ errors )
+
+        (Err ( Nothing, thisError )) :: rest ->
+            combineAndAccumulateErrorsHelp rest <|
+                case acc of
+                    Ok previousValues ->
+                        Err ( Nothing, thisError )
+
+                    Err ( Just previousDummyValues, errors ) ->
+                        Err ( Nothing, thisError ++ errors )
+
+                    Err ( Nothing, errors ) ->
+                        Err ( Nothing, thisError ++ errors )
 
         [] ->
             case acc of
                 Ok outputs ->
                     Ok (List.reverse outputs)
 
-                Err errors ->
-                    Err (List.reverse errors)
+                Err ( maybeDummyValues, errors ) ->
+                    Err ( Maybe.map List.reverse maybeDummyValues, List.reverse errors )
 
 
 {-| TODO
