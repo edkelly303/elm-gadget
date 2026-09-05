@@ -68,6 +68,7 @@ type Control
 
 type alias InnerControl =
     { init : Value
+    , placeholder : Value
     , update : Value -> Value -> Value
     , view : String -> Value -> H.Html Value
     , submit : Path -> Value -> Result (List Error) Value
@@ -81,6 +82,7 @@ type alias ControlConfig msg model output =
     , model : IR.Gadget model
     , output : IR.Gadget output
     , init : model
+    , placeholder : model
     , update : msg -> model -> model
     , view : String -> model -> H.Html msg
     , submit : model -> Result String output
@@ -804,8 +806,13 @@ customLabels l ls gadget =
 -}
 control : ControlConfig msg model output -> Control
 control config =
+    let
+        placeholder =
+            IR.fromInput config.model config.placeholder
+    in
     Control
         { init = IR.fromInput config.model config.init
+        , placeholder = placeholder
         , update =
             \msg model ->
                 Result.map2 config.update
@@ -820,9 +827,30 @@ control config =
                     |> H.map (\msg -> IR.fromInput config.msg msg)
         , submit =
             \path model ->
-                IR.toOutput config.model model
-                    |> Result.andThen (\value -> config.submit value |> Result.mapError (\error -> [ { path = path, error = error } ]))
-                    |> Result.map (IR.fromInput config.output)
+                let
+                    parsed =
+                        IR.toOutput config.model model
+                            |> Result.andThen config.submit
+                in
+                case parsed of
+                    Err parsingErrors ->
+                        let
+                            validated =
+                                config.submit config.placeholder
+                                    |> Result.map (IR.fromInput config.output)
+                                    |> Result.mapError (\e -> [ { error = e, path = path } ])
+                                    |> Result.andThen (IR.toOutput config.output)
+                        in
+                        case validated of
+                            Err validationErrors ->
+                                Err validationErrors
+
+                            Ok output ->
+                                Ok output
+
+                    Ok output ->
+                        IR.fromInput config.output output
+                            |> Result.andThen (IR.toOutput config.output)
         }
 
 
@@ -833,6 +861,7 @@ int =
         , msg = Gadget.string
         , output = Gadget.int
         , init = ""
+        , placeholder = "0"
         , update = \msg _ -> msg
         , view =
             \id model ->
@@ -858,6 +887,7 @@ float =
         , msg = Gadget.string
         , output = Gadget.float
         , init = ""
+        , placeholder = "0.0"
         , update = \msg _ -> msg
         , view =
             \id model ->
@@ -883,6 +913,7 @@ string =
         , msg = Gadget.string
         , output = Gadget.string
         , init = ""
+        , placeholder = ""
         , update = \msg _ -> msg
         , view =
             \id model ->
@@ -904,6 +935,7 @@ bool =
         , msg = Gadget.bool
         , output = Gadget.bool
         , init = False
+        , placeholder = False
         , update = \msg _ -> msg
         , view =
             \id model ->
@@ -925,6 +957,7 @@ char =
         , msg = Gadget.maybe Gadget.char
         , output = Gadget.char
         , init = ""
+        , placeholder = "a"
         , update =
             \msg _ ->
                 case msg of
