@@ -1,8 +1,7 @@
 module Gadget.Adapter.Form exposing
     ( Form, Model, Msg, fromGadget, fromGadgetWithConfig, FormConfig, default
     , Control, ControlConfig, control
-    , label, customLabels
-    , validate
+    , label, customLabels, validate
     )
 
 {-|
@@ -32,12 +31,10 @@ TODO
 
 @docs Control, ControlConfig, control
 
-@docs label, customLabels
+@docs label, customLabels, validate
 
 -}
 
-import Array exposing (Array)
-import Array.Extra
 import Dict exposing (Dict)
 import Gadget
 import Gadget.IR as IR exposing (Error, Path, Type(..), Value(..), VariantType(..))
@@ -503,8 +500,7 @@ viewHelp config errs modelPath model =
                         inner =
                             Dict.toList fields
                                 |> List.sortBy (\( _, ( idx, _ ) ) -> idx)
-                                |> List.map (\( name, ( _, childModel ) ) -> viewHelp config errs (name :: modelPath) childModel)
-                                |> List.concat
+                                |> List.concatMap (\( name, ( _, childModel ) ) -> viewHelp config errs (name :: modelPath) childModel)
                     in
                     case maybeLabel metadata of
                         Nothing ->
@@ -540,7 +536,7 @@ viewHelp config errs modelPath model =
                         Just label_ ->
                             [ H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) ]
 
-                Collection metadata innerType childModels ->
+                Collection metadata _ childModels ->
                     [ H.fieldset []
                         (case maybeLabel metadata of
                             Nothing ->
@@ -647,7 +643,7 @@ submitHelp config path model =
                 PBool ->
                     submit_ .bool
 
-        Record metadata fields ->
+        Record _ fields ->
             fields
                 |> Dict.map (\key ( idx, child ) -> submitHelp config (key :: path) child |> Result.map (Tuple.pair idx))
                 |> combineAndAccumulateErrorsDict
@@ -655,17 +651,17 @@ submitHelp config path model =
                     (\r ->
                         r
                             |> Dict.toList
-                            |> List.sortBy (\( key, ( idx, child ) ) -> idx)
-                            |> List.map (\( key, ( idx, child ) ) -> ( key, child ))
+                            |> List.sortBy (\( _, ( idx, _ ) ) -> idx)
+                            |> List.map (\( key, ( _, child ) ) -> ( key, child ))
                             |> IR.RecordValue
                     )
 
-        Tuple metadata a b ->
+        Tuple _ a b ->
             Result.map2 IR.TupleValue
                 (submitHelp config ("0" :: path) a)
                 (submitHelp config ("1" :: path) b)
 
-        Triple metadata a b c ->
+        Triple _ a b c ->
             Result.map3 IR.TripleValue
                 (submitHelp config ("0" :: path) a)
                 (submitHelp config ("1" :: path) b)
@@ -717,7 +713,7 @@ combineAndAccumulateErrorsDictHelp dict acc =
 
                 Err thisError ->
                     case acc of
-                        Ok outputs ->
+                        Ok _ ->
                             Err thisError
 
                         Err errs ->
@@ -747,7 +743,7 @@ combineAndAccumulateErrorsHelp list acc =
         (Err thisError) :: rest ->
             combineAndAccumulateErrorsHelp rest <|
                 case acc of
-                    Ok outputs ->
+                    Ok _ ->
                         Err thisError
 
                     Err errors ->
