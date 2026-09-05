@@ -807,54 +807,33 @@ customLabels l ls gadget =
 control : ControlConfig msg model output -> Control
 control config =
     let
-        placeholder =
+        placeholderValue =
             IR.fromInput config.model config.placeholder
     in
     Control
         { init = IR.fromInput config.model config.init
-        , placeholder = placeholder
+        , placeholder = placeholderValue
         , update =
-            \msg model ->
+            \msg modelValue ->
                 Result.map2 config.update
                     (IR.toOutput config.msg msg)
-                    (IR.toOutput config.model model)
+                    (IR.toOutput config.model modelValue)
                     |> Result.map (IR.fromInput config.model)
-                    |> Result.withDefault model
+                    |> Result.withDefault modelValue
         , view =
-            \id model ->
-                Result.map (config.view id) (IR.toOutput config.model model)
+            \id modelValue ->
+                Result.map (config.view id) (IR.toOutput config.model modelValue)
                     |> Result.Extra.extract (List.map (.error >> H.text) >> H.div [])
                     |> H.map (\msg -> IR.fromInput config.msg msg)
         , submit =
-            \path model ->
-                let
-                    parsed =
-                        IR.toOutput config.model model
-                            |> Result.andThen
-                                (\output ->
-                                    config.submit output
-                                        |> Result.mapError (\error -> [ { error = error, path = path } ])
-                                )
-                in
-                case parsed of
-                    Err parsingErrors ->
-                        let
-                            validated =
-                                config.submit config.placeholder
-                                    |> Result.map (IR.fromInput config.output)
-                                    |> Result.mapError (\e -> [ { error = e, path = path } ])
-                                    |> Result.andThen (IR.toOutput config.output)
-                        in
-                        case validated of
-                            Err validationErrors ->
-                                Err (validationErrors ++ parsingErrors)
-
-                            Ok _ ->
-                                Err parsingErrors
-
-                    Ok output ->
-                        IR.fromInput config.output output
-                            |> Ok
+            \path modelValue ->
+                IR.toOutput config.model modelValue
+                    |> Result.andThen
+                        (\model ->
+                            config.submit model
+                                |> Result.mapError (\error -> [ { error = error, path = path } ])
+                                |> Result.map (IR.fromInput config.output)
+                        )
         }
 
 
