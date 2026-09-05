@@ -123,8 +123,11 @@ fuzzerWithOverrides overrides gadget =
                     Ok fuzzedOutput ->
                         Fuzz.constant fuzzedOutput
 
-                    Err e ->
-                        Fuzz.invalid e.error
+                    Err errors ->
+                        errors
+                            |> List.map .error
+                            |> String.join "\n"
+                            |> Fuzz.invalid
             )
 
 

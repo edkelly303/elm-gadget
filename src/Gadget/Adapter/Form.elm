@@ -613,7 +613,6 @@ submit config gadget model =
         |> Result.andThen
             (\value ->
                 IR.toOutput gadget value
-                    |> Result.mapError List.singleton
             )
 
 
@@ -821,16 +820,11 @@ control config =
         , view =
             \id model ->
                 Result.map (config.view id) (IR.toOutput config.model model)
-                    |> Result.Extra.extract (.error >> H.text)
+                    |> Result.Extra.extract (List.map (.error >> H.text) >> H.div [])
                     |> H.map (\msg -> IR.fromInput config.msg msg)
         , submit =
             \path model ->
-                let
-                    _ =
-                        Debug.log "path" path
-                in
                 IR.toOutput config.model model
-                    |> Result.mapError (\e -> [ e ])
                     |> Result.andThen (\value -> config.submit value |> Result.mapError (\error -> [ { path = path, error = error } ]))
                     |> Result.map (IR.fromInput config.output)
         }

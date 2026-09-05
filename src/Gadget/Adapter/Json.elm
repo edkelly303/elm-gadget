@@ -86,8 +86,11 @@ decoder gadget =
                     Ok s ->
                         JD.succeed s
 
-                    Err e ->
-                        JD.fail e.error
+                    Err errors ->
+                        errors
+                            |> List.map .error
+                            |> String.join "\n"
+                            |> JD.fail
             )
 
 

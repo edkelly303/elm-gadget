@@ -40,7 +40,7 @@ with an appropriate Gadget to convert values to and from the `IR` type.
 type Gadget a
     = Gadget
         { fromInput : a -> Value
-        , toOutput : Path -> Value -> Result Error a
+        , toOutput : Path -> Value -> Result (List Error) a
         , irType : Type
         }
 
@@ -130,7 +130,7 @@ irType (Gadget c) =
 {-| Use an appropriate Gadget to attempt to convert an `Value` into an Elm
 value.
 -}
-toOutput : Gadget a -> Value -> Result Error a
+toOutput : Gadget a -> Value -> Result (List Error) a
 toOutput (Gadget c) a =
     c.toOutput [] a
 

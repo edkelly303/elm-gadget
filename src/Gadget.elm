@@ -127,7 +127,7 @@ type alias Gadget a =
 type RecordGadgetBuilder input output
     = RecordGadgetBuilder
         { fromInput : input -> List ( String, Value )
-        , toOutput : Path -> List ( String, Value ) -> Result Error output
+        , toOutput : Path -> List ( String, Value ) -> Result (List Error) output
         , irType : List ( String, Type )
         }
 
@@ -137,7 +137,7 @@ type RecordGadgetBuilder input output
 type CustomGadgetBuilder input hasAtLeastOneVariant output
     = CustomGadgetBuilder
         { match : input
-        , fromIR : Path -> Value -> Result Error output
+        , fromIR : Path -> Value -> Result (List Error) output
         , variantTypes : List ( String, VariantType )
         , index : Int
         }
@@ -156,7 +156,7 @@ unit =
                         Ok ()
 
                     _ ->
-                        Err { error = "unit toOutput failed", path = path }
+                        Err [ { error = "unit toOutput failed", path = path } ]
         , irType = UnitType IR.emptyMetadata
         }
 
@@ -174,7 +174,7 @@ bool =
                         Ok b
 
                     _ ->
-                        Err { error = "bool toOutput failed", path = path }
+                        Err [ { error = "bool toOutput failed", path = path } ]
         , irType = BoolType IR.emptyMetadata
         }
 
@@ -192,7 +192,7 @@ char =
                         Ok c
 
                     _ ->
-                        Err { error = "char toOutput failed", path = path }
+                        Err [ { error = "char toOutput failed", path = path } ]
         , irType = CharType IR.emptyMetadata
         }
 
@@ -210,7 +210,7 @@ string =
                         Ok s
 
                     _ ->
-                        Err { error = "string toOutput failed", path = path }
+                        Err [ { error = "string toOutput failed", path = path } ]
         , irType = StringType IR.emptyMetadata
         }
 
@@ -228,7 +228,7 @@ int =
                         Ok i
 
                     _ ->
-                        Err { error = "int toOutput failed", path = path }
+                        Err [ { error = "int toOutput failed", path = path } ]
         , irType = IntType IR.emptyMetadata
         }
 
@@ -246,7 +246,7 @@ float =
                         Ok s
 
                     _ ->
-                        Err { error = "float toOutput failed", path = path }
+                        Err [ { error = "float toOutput failed", path = path } ]
         , irType = FloatType IR.emptyMetadata
         }
 
@@ -273,7 +273,7 @@ list (Gadget item) =
                             |> Result.Extra.combine
 
                     _ ->
-                        Err { error = "list toOutput failed", path = path }
+                        Err [ { error = "list toOutput failed", path = path } ]
         , irType = ListType IR.emptyMetadata item.irType
         }
 
@@ -413,7 +413,7 @@ tuple (Gadget a) (Gadget b) =
                             (b.toOutput ("1" :: path) snd)
 
                     _ ->
-                        Err { error = "Not a tuple", path = path }
+                        Err [ { error = "Not a tuple", path = path } ]
         , irType =
             TupleType IR.emptyMetadata a.irType b.irType
         }
@@ -451,7 +451,7 @@ triple (Gadget a) (Gadget b) (Gadget c) =
                             (c.toOutput ("2" :: path) thd)
 
                     _ ->
-                        Err { error = "Not a triple", path = path }
+                        Err [ { error = "Not a triple", path = path } ]
         , irType =
             TripleType IR.emptyMetadata a.irType b.irType c.irType
         }
@@ -464,7 +464,7 @@ custom match =
     CustomGadgetBuilder
         { match = match
         , index = 0
-        , fromIR = \path _ -> Err { error = "custom toOutput failed", path = path }
+        , fromIR = \path _ -> Err [ { error = "custom toOutput failed", path = path } ]
         , variantTypes = []
         }
 
@@ -778,15 +778,31 @@ field name getter (Gadget gadget) (RecordGadgetBuilder builder) =
             \path fields ->
                 case fields of
                     ( _, thisField ) :: prevFields ->
-                        Result.map2 (\ctor val -> ctor val)
+                        multiErrorResultMap2 (\ctor val -> ctor val)
                             (builder.toOutput path prevFields)
                             (gadget.toOutput (name :: path) thisField)
 
                     [] ->
-                        Err { error = "expecting a Record field", path = path }
+                        Err [ { error = "expecting a Record field", path = path } ]
         , irType =
             ( name, gadget.irType ) :: builder.irType
         }
+
+
+multiErrorResultMap2 : (value -> a -> b) -> Result appendable value -> Result appendable a -> Result appendable b
+multiErrorResultMap2 f r1 r2 =
+    case ( r1, r2 ) of
+        ( Ok a, Ok b ) ->
+            Ok (f a b)
+
+        ( Err a, Ok _ ) ->
+            Err a
+
+        ( Ok _, Err b ) ->
+            Err b
+
+        ( Err a, Err b ) ->
+            Err (a ++ b)
 
 
 {-| Complete the definition of a record.
@@ -804,7 +820,7 @@ endRecord (RecordGadgetBuilder builder) =
                         builder.toOutput path (List.reverse fields)
 
                     _ ->
-                        Err { error = "expecting a Record", path = path }
+                        Err [ { error = "expecting a Record", path = path } ]
         , irType = RecordType IR.emptyMetadata (List.reverse builder.irType)
         }
 
@@ -875,7 +891,7 @@ filterMap :
 filterMap aToB bToA (Gadget prev) =
     Gadget
         { fromInput = bToA >> prev.fromInput
-        , toOutput = \path value -> prev.toOutput path value |> Result.andThen (aToB >> Result.mapError (\error -> { path = path, error = error }))
+        , toOutput = \path value -> prev.toOutput path value |> Result.andThen (aToB >> Result.mapError (\error -> [ { path = path, error = error } ]))
         , irType = prev.irType
         }
 
