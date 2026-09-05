@@ -849,7 +849,7 @@ control config =
                             Err validationErrors ->
                                 Err (validationErrors ++ parsingErrors)
 
-                            Ok output ->
+                            Ok _ ->
                                 Err parsingErrors
 
                     Ok output ->

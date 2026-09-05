@@ -596,7 +596,7 @@ nonEmptyListGadget__Gadget__filterMap_0 a =
             (\list ->
                 case list of
                     [] ->
-                        Result.Err { error = "must contain at least one item" }
+                        Result.Err "must contain at least one item"
 
                     h :: t ->
                         Result.Ok ( h, t )

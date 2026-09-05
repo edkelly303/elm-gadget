@@ -862,7 +862,7 @@ the conversion to the output type.
                 (\list ->
                     case list of
                         [] ->
-                            Err { error = "must contain at least one item" }
+                            Err "must contain at least one item"
 
                         h :: t ->
                             Ok ( h, t )
