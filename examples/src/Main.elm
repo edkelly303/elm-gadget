@@ -196,7 +196,7 @@ init _ =
 
 
 gadget =
-    personGadget
+    -- personGadget
 
 
 
@@ -208,15 +208,14 @@ gadget =
 --     )
 --     (Gadget.result Gadget.int Gadget.int)
 -- petGadget
--- Gadget.record (\x y -> { x = x, y = y })
---     |> Gadget.field "x" .x (Gadget.int |> Gadget.Adapter.Form.label "How much is x?")
---     |> Gadget.field "y"
---         .y
---         (Gadget.maybe (Gadget.string |> Gadget.Adapter.Form.label "What is y?")
---             |> Gadget.Adapter.Form.customLabels "Is there a value for y?"
---                 [ "Yes", "No" ]
---         )
---     |> Gadget.endRecord
+    Gadget.record (\x y -> { x = x, y = y })
+        |> Gadget.field "x" .x (Gadget.int |> Gadget.Adapter.Form.label "How much is x?")
+        |> Gadget.field "y"
+            .y
+            ((Gadget.string |> Gadget.Adapter.Form.label "What is y?" |> Gadget.Adapter.Form.validate (\s -> if String.isEmpty s then Err "Must not be empty" else Ok s))
+             
+            )
+        |> Gadget.endRecord
 
 
 view : Model -> H.Html Msg
