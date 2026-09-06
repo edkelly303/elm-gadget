@@ -209,7 +209,8 @@ gadget =
         |> Gadget.field "x" .x (Gadget.int |> Gadget.Adapter.Form.label "How much is x?")
         |> Gadget.field "y"
             .y
-            (Gadget.string |> Gadget.Adapter.Form.label "What is y?"
+            (Gadget.string
+                |> Gadget.Adapter.Form.label "What is y?"
                 |> Gadget.Adapter.Form.validate
                     (\s ->
                         if String.isEmpty s then
