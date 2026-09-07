@@ -152,42 +152,46 @@ makeDummyModel config irType errors realModel =
     let
         dummyModel =
             initHelp .placeholder config irType
+
+        errorPaths =
+            errors
+                |> List.map .path
+                |> Set.fromList
     in
-    dummyHelp (List.map .path errors |> Set.fromList) [] realModel dummyModel
+    dummyHelp config errorPaths [] realModel dummyModel
 
 
-dummyHelp : Set.Set Path -> Path -> Model -> Model -> Model
-dummyHelp errors path realModel dummyModel =
+dummyHelp config errorPaths path realModel dummyModel =
     case ( realModel, dummyModel ) of
         ( Primitive _ _ _, _ ) ->
-            if Set.member path errors then
+            if Set.member path errorPaths then
                 dummyModel
 
             else
                 realModel
 
-        ( Record metadata fields, Record _ dummyFields ) ->
+        ( Record metadata realFields, Record _ dummyFields ) ->
             Dict.merge
                 (\k l out -> Dict.empty)
                 (\k ( idx, realField ) ( _, dummyField ) out ->
-                    Dict.insert k ( idx, dummyHelp errors (k :: path) realField dummyField ) out
+                    Dict.insert k ( idx, dummyHelp config errorPaths (k :: path) realField dummyField ) out
                 )
                 (\k r out -> Dict.empty)
-                fields
+                realFields
                 dummyFields
                 Dict.empty
                 |> Record metadata
 
-        ( Tuple metadata a b, Tuple _ dummyA dummyB ) ->
+        ( Tuple metadata realA realB, Tuple _ dummyA dummyB ) ->
             Tuple metadata
-                (dummyHelp errors ("0" :: path) a dummyA)
-                (dummyHelp errors ("1" :: path) b dummyB)
+                (dummyHelp config errorPaths ("0" :: path) realA dummyA)
+                (dummyHelp config errorPaths ("1" :: path) realB dummyB)
 
-        ( Triple metadata a b c, Triple _ dummyA dummyB dummyC ) ->
+        ( Triple metadata realA realB realC, Triple _ dummyA dummyB dummyC ) ->
             Triple metadata
-                (dummyHelp errors ("0" :: path) a dummyA)
-                (dummyHelp errors ("1" :: path) b dummyB)
-                (dummyHelp errors ("2" :: path) c dummyC)
+                (dummyHelp config errorPaths ("0" :: path) realA dummyA)
+                (dummyHelp config errorPaths ("1" :: path) realB dummyB)
+                (dummyHelp config errorPaths ("2" :: path) realC dummyC)
 
         ( Collection metadata innerType realItemModels, Collection _ _ _ ) ->
             realItemModels
@@ -196,8 +200,8 @@ dummyHelp errors path realModel dummyModel =
 
         ( Sum selected metadata realVariants, Sum _ _ dummyVariants ) ->
             Dict.merge
-                (\k l out -> Dict.empty)
-                (\variantKey ( idx, realVariant ) ( _, dummyVariant ) outVariants ->
+                (\_ _ _ -> Dict.empty)
+                (\variantKey ( idx, realArgs ) ( _, dummyArgs ) outVariants ->
                     Dict.insert variantKey
                         ( idx
                         , Dict.merge
@@ -205,17 +209,17 @@ dummyHelp errors path realModel dummyModel =
                             (\argKey realArg dummyArg outArgs ->
                                 Dict.insert
                                     argKey
-                                    (dummyHelp errors (argKey :: variantKey :: path) realArg dummyArg)
+                                    (dummyHelp config errorPaths (argKey :: variantKey :: path) realArg dummyArg)
                                     outArgs
                             )
                             (\_ _ _ -> Dict.empty)
-                            realVariant
-                            dummyVariant
+                            realArgs
+                            dummyArgs
                             Dict.empty
                         )
                         outVariants
                 )
-                (\k r out -> Dict.empty)
+                (\_ _ _ -> Dict.empty)
                 realVariants
                 dummyVariants
                 Dict.empty
@@ -648,38 +652,43 @@ submit config gadget model =
             IR.toOutput gadget outputValue
 
         Err parsingErrors ->
-            case
-                makeDummyModel config (IR.irType gadget) parsingErrors model
-                    |> parsePrimitiveControls config []
-                    |> Result.andThen (IR.toOutput gadget)
-            of
-                Ok _ ->
-                    Err parsingErrors
+            let
+                dummyModel =
+                    makeDummyModel config (IR.irType gadget) parsingErrors model
+            in
+            case parsePrimitiveControls config [] dummyModel of
+                Err fatal ->
+                    Err ({ error = "FATAL ERROR", path = [] } :: fatal)
 
-                Err validationErrors ->
-                    let
-                        parsingErrorPaths =
-                            parsingErrors
-                                |> List.map .path
-                                |> List.Extra.unique
+                Ok dummyOutputValue ->
+                    case IR.toOutput gadget dummyOutputValue of
+                        Ok _ ->
+                            Err parsingErrors
 
-                        filteredValidationErrors =
-                            -- don't keep validation errors for paths that are
-                            -- ancestors of parsing errors (because these
-                            -- validation errors will potentially be based on
-                            -- dummy values, so they should be discarded)
-                            List.filter
-                                (\validationError ->
-                                    parsingErrorPaths
-                                        |> List.any
-                                            (\parsingErrorPath ->
-                                                validationError.path |> pathIsAncestorOf parsingErrorPath
-                                            )
-                                        |> not
-                                )
-                                validationErrors
-                    in
-                    Err (parsingErrors ++ filteredValidationErrors)
+                        Err validationErrors ->
+                            let
+                                parsingErrorPaths =
+                                    parsingErrors
+                                        |> List.map .path
+                                        |> List.Extra.unique
+
+                                filteredValidationErrors =
+                                    -- don't keep validation errors for paths that are
+                                    -- ancestors of parsing errors (because these
+                                    -- validation errors will potentially be based on
+                                    -- dummy values, so they should be discarded)
+                                    List.filter
+                                        (\validationError ->
+                                            parsingErrorPaths
+                                                |> List.any
+                                                    (\parsingErrorPath ->
+                                                        validationError.path |> pathIsAncestorOf parsingErrorPath
+                                                    )
+                                                |> not
+                                        )
+                                        validationErrors
+                            in
+                            Err (parsingErrors ++ filteredValidationErrors)
 
 
 parsePrimitiveControls : FormConfig -> Path -> Model -> Result (List Error) Value
