@@ -9,16 +9,27 @@ import Test exposing (..)
 import TestHelpers exposing (..)
 
 
-irTests : Test
-irTests =
-    Test.describe "IR"
-        [ roundTrip recordGadget "Record"
+gadgetTests : Test
+gadgetTests =
+    Test.describe "Gadget"
+        [ roundTrip complexRecordGadget "Record"
         , roundTrip treeGadget "Tree (recursive custom type)"
         , roundTrip Gadget.int "Int"
         , roundTrip Gadget.float "Float"
         , roundTrip Gadget.char "Char"
         , roundTrip (Gadget.string |> Gadget.Adapter.Fuzz.useOverride "override") "String"
         , roundTrip (Gadget.list Gadget.bool) "List Bool"
+        , test "filterMap works on records" <|
+            \() ->
+                let
+                    fmr =
+                        recordGadget
+                            |> Gadget.filterMap (\_ -> Err "filterMapping failed") identity
+                in
+                { bool = True, int = 1 }
+                    |> Gadget.IR.fromInput fmr
+                    |> Gadget.IR.toOutput fmr
+                    |> Expect.err
         ]
 
 

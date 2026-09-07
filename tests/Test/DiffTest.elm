@@ -11,7 +11,7 @@ import TestHelpers exposing (..)
 diffTests : Test
 diffTests =
     Test.describe "Gadget.Diff"
-        [ roundTrip recordGadget "Record"
+        [ roundTrip complexRecordGadget "Record"
         , roundTrip treeGadget "Tree"
         , roundTrip (Gadget.int |> Gadget.Adapter.Fuzz.useOverride "int") "Int"
         , roundTrip Gadget.float "Float"
