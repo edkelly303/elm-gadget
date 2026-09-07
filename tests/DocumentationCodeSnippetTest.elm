@@ -418,7 +418,12 @@ tests =
                         (\() ->
                             randomList__Gadget_Adapter_Random__listLength_0
                                 |> Expect.equal
-                                    [ Basics.True, Basics.False, Basics.False ]
+                                    (Maybe.Just
+                                        [ Basics.True
+                                        , Basics.False
+                                        , Basics.False
+                                        ]
+                                    )
                         )
                     ]
                 ]
@@ -430,7 +435,7 @@ tests =
                         "0"
                         (\() ->
                             randomInt__Gadget_Adapter_Random__range_0
-                                |> Expect.equal 6
+                                |> Expect.equal (Maybe.Just 6)
                         )
                     ]
                 ]

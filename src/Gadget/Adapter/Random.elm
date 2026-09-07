@@ -66,7 +66,7 @@ values for the `Int` that it generates.
             (Random.initialSeed 0)
             |> Tuple.first
 
-    randomInt --> 6
+    randomInt --> Just 6
 
 -}
 range : number -> number -> IR.Gadget number -> IR.Gadget number
@@ -94,7 +94,7 @@ values for the length of the `List` that it generates.
             (Random.initialSeed 0)
             |> Tuple.first
 
-    randomList --> [ True, False, False ]
+    randomList --> Just [ True, False, False ]
 
 -}
 listLength : Int -> Int -> IR.Gadget (List a) -> IR.Gadget (List a)
