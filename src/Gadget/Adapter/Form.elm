@@ -623,6 +623,7 @@ viewHelp config errs modelPath model =
                                                     H.span []
                                                         [ H.input
                                                             [ HA.id childId
+                                                            , HA.name id
                                                             , HA.type_ "radio"
                                                             , HE.onCheck (\_ -> Msg modelPath (StringValue name))
                                                             , HA.checked (selected == name)
