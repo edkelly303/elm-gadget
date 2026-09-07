@@ -789,7 +789,7 @@ combineAndAccumulateErrorsDictHelp dict acc =
                             Err errs
 
                 Err thisError ->
-                    case acc of
+                    case out of
                         Ok _ ->
                             Err thisError
 
