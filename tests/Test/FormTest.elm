@@ -3,9 +3,7 @@ module Test.FormTest exposing (suite)
 import Expect
 import Gadget as G
 import Gadget.Adapter.Form as F
-import Gadget.Adapter.Fuzz
 import Test exposing (..)
-import TestHelpers exposing (..)
 
 
 type alias Foo =

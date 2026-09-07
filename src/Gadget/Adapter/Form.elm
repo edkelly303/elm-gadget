@@ -36,7 +36,6 @@ TODO
 -}
 
 import Dict exposing (Dict)
-import Dict.Extra
 import Gadget
 import Gadget.IR as IR exposing (Error, Path, Type(..), Value(..), VariantType(..))
 import Html as H
@@ -172,11 +171,11 @@ dummyHelp config errorPaths path realModel dummyModel =
 
         ( Record metadata realFields, Record _ dummyFields ) ->
             Dict.merge
-                (\k l out -> Dict.empty)
+                (\_ _ _ -> Dict.empty)
                 (\k ( idx, realField ) ( _, dummyField ) out ->
                     Dict.insert k ( idx, dummyHelp config errorPaths (k :: path) realField dummyField ) out
                 )
-                (\k r out -> Dict.empty)
+                (\_ _ _ -> Dict.empty)
                 realFields
                 dummyFields
                 Dict.empty
@@ -1147,11 +1146,11 @@ pathIsAncestorOfHelp descendant ancestor =
             else
                 False
 
-        ( [], a :: restA ) ->
+        ( [], _ :: _ ) ->
             -- descendant is shorter than ancestor, so it can't really be a descendant
             False
 
-        ( d :: restD, [] ) ->
+        ( _ :: _, [] ) ->
             True
 
 

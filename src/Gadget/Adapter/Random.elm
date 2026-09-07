@@ -143,15 +143,14 @@ generator gadget =
     IR.irType gadget
         |> randomAdapter
         |> Random.map (IR.toOutput gadget)
-        |> Random.andThen
+        |> Random.map
             (\res ->
-                Random.constant <|
-                    case res of
-                        Ok b ->
-                            Just b
+                case res of
+                    Ok b ->
+                        Just b
 
-                        Err _ ->
-                            Nothing
+                    Err _ ->
+                        Nothing
             )
 
 
