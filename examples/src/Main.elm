@@ -221,6 +221,7 @@ gadget =
                     )
             )
         |> Gadget.endRecord
+        |> Gadget.Adapter.Form.validate (\_ -> Err "filterMap failed")
 
 
 view : Model -> H.Html Msg
@@ -244,38 +245,46 @@ view model =
         firstValue =
             Random.step randomGenerator (Random.initialSeed model.seed)
                 |> Tuple.first
+                |> Result.fromMaybe "Generator failed"
 
         formOutput =
             form.submit model.form
-                |> Result.mapError (\errors -> List.map (\{ path, error } -> String.join "-" path ++ ": " ++ error) errors |> String.join "\n")
+                |> Result.mapError (\errors -> List.map (\{ path, error } -> "[" ++ String.join "-" path ++ "]: " ++ error) errors |> String.join "\n")
 
         pretty g x =
             H.pre [] [ H.text (Gadget.Adapter.Pretty.print g model.prettyWidth x) ]
 
         diff =
-            Result.map (Gadget.Adapter.Diff.diff gadget firstValue) formOutput
+            Result.map2 (Gadget.Adapter.Diff.diff gadget) firstValue formOutput
 
         patched =
-            Result.andThen (\diff_ -> Gadget.Adapter.Diff.patch gadget diff_ firstValue) diff
+            Result.map2 (Gadget.Adapter.Diff.patch gadget) diff firstValue
+                |> Result.andThen identity
 
         encoded =
-            JE.encode 2 (Gadget.Adapter.Json.encode gadget firstValue)
+            Result.map (Gadget.Adapter.Json.encode gadget >> JE.encode 2) firstValue
 
         decoded =
-            JD.decodeString (Gadget.Adapter.Json.decoder gadget) encoded
-                |> Result.mapError (\_ -> "Decoding failed!")
+            encoded 
+                |> Result.andThen (JD.decodeString (Gadget.Adapter.Json.decoder gadget) >> Result.mapError (\_ -> "Decoding failed!"))
+                
 
         printed =
-            Gadget.Adapter.String.print gadget firstValue
+            firstValue
+                |> Result.map (Gadget.Adapter.String.print gadget )
 
         parsed =
-            Parser.run (Gadget.Adapter.String.parser gadget) printed
-                |> Result.mapError Parser.deadEndsToString
+            printed
+                |> Result.andThen (Parser.run (Gadget.Adapter.String.parser gadget) >> Result.mapError Parser.deadEndsToString)
+                
     in
     H.div []
         [ let
             a =
-                Gadget.record (\x y -> { x = x, y = y }) |> Gadget.field "x" .x Gadget.string |> Gadget.field "y" .y (Gadget.list (Gadget.maybe Gadget.string)) |> Gadget.endRecord
+                Gadget.record (\x y -> { x = x, y = y }) 
+                    |> Gadget.field "x" .x Gadget.string 
+                    |> Gadget.field "y" .y (Gadget.list (Gadget.maybe Gadget.string)) 
+                    |> Gadget.endRecord
 
             b =
                 Gadget.record (\x y -> { x = x, y = y })
@@ -317,19 +326,21 @@ view model =
             ]
         , demo "Random generator"
             [ H.button [ HE.onClick UserClickedRegenerate ] [ H.text "Click to regenerate!" ]
-            , pretty gadget firstValue
+            , Result.map (pretty gadget) firstValue |> Result.withDefault (H.text "")
             ]
         , demo "Differ & patcher"
             [ head "Diff between the randomly generated value and the form output value"
             , pretty (Gadget.result Gadget.string Gadget.Adapter.Diff.changes) diff
             , head "Result of patching the randomly generated value with diff"
-            , pretty (Gadget.result Gadget.string gadget) patched
+            , patched
+                |> Result.map (pretty gadget)
+                |> Result.withDefault (H.text "")
             , head "Does the patched value equal the form output value?"
             , pretty Gadget.bool (patched == formOutput)
             ]
         , demo "Html viewer"
             [ head "Randomly generated value"
-            , Gadget.Adapter.Html.view gadget firstValue
+            , Result.map (Gadget.Adapter.Html.view gadget) firstValue |> Result.withDefault (H.text "")
             , case formOutput of
                 Ok v ->
                     H.div [] [ head "Form output value", Gadget.Adapter.Html.view gadget v ]
@@ -338,13 +349,13 @@ view model =
                     H.text ""
             ]
         , demo "String printer"
-            [ H.code [ HA.class "withoutSpaces" ] [ H.text printed ] ]
+            [ H.code [ HA.class "withoutSpaces" ] [ H.text (Result.withDefault "" printed) ] ]
         , demo "String parser"
             [ pretty (Gadget.result Gadget.string gadget) parsed ]
         , demo "JSON encoder"
-            [ H.pre [] [ H.text encoded ] ]
+            [ H.pre [] [ H.text (Result.withDefault "" encoded) ] ]
         , demo "JSON decoder"
-            [ pretty (Gadget.result Gadget.string gadget) decoded ]
+            [ pretty (Gadget.result Gadget.string gadget)decoded ]
         , demo "Fuzzer"
             [ pretty (Gadget.list gadget) fuzzed ]
         , demo "Quine"
