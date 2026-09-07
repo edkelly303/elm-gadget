@@ -56,8 +56,8 @@ suite =
                                 G.string
                             |> G.endRecord
                             |> F.validate (\_ -> Err "This error shouldn't show up")
-                            -- this error is on the root gadget, which is a direct ancestor of `bar`
 
+                    -- this error is on the root gadget, which is a direct ancestor of `bar`
                     form =
                         F.fromGadget identity g
 
