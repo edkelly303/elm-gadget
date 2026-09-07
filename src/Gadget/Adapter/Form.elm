@@ -189,16 +189,9 @@ dummyHelp errors path realModel dummyModel =
                 (dummyHelp errors ("1" :: path) b dummyB)
                 (dummyHelp errors ("2" :: path) c dummyC)
 
-        ( Collection metadata innerType realItemModels, Collection _ _ dummyItemModels ) ->
-            Dict.merge
-                (\k l out -> Dict.empty)
-                (\k realItemModel dummyItemModel out ->
-                    Dict.insert k (dummyHelp errors (k :: path) realItemModel dummyItemModel) out
-                )
-                (\k r out -> Dict.empty)
-                realItemModels
-                dummyItemModels
-                Dict.empty
+        ( Collection metadata innerType realItemModels, Collection _ _ _ ) ->
+            realItemModels
+                |> Dict.map (\k v -> initHelp .placeholder config innerType |> dummyHelp config errorPaths (k :: path) v)
                 |> Collection metadata innerType
 
         ( Sum selected metadata realVariants, Sum _ _ dummyVariants ) ->
