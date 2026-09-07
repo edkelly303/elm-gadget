@@ -265,25 +265,23 @@ view model =
             Result.map (Gadget.Adapter.Json.encode gadget >> JE.encode 2) firstValue
 
         decoded =
-            encoded 
+            encoded
                 |> Result.andThen (JD.decodeString (Gadget.Adapter.Json.decoder gadget) >> Result.mapError (\_ -> "Decoding failed!"))
-                
 
         printed =
             firstValue
-                |> Result.map (Gadget.Adapter.String.print gadget )
+                |> Result.map (Gadget.Adapter.String.print gadget)
 
         parsed =
             printed
                 |> Result.andThen (Parser.run (Gadget.Adapter.String.parser gadget) >> Result.mapError Parser.deadEndsToString)
-                
     in
     H.div []
         [ let
             a =
-                Gadget.record (\x y -> { x = x, y = y }) 
-                    |> Gadget.field "x" .x Gadget.string 
-                    |> Gadget.field "y" .y (Gadget.list (Gadget.maybe Gadget.string)) 
+                Gadget.record (\x y -> { x = x, y = y })
+                    |> Gadget.field "x" .x Gadget.string
+                    |> Gadget.field "y" .y (Gadget.list (Gadget.maybe Gadget.string))
                     |> Gadget.endRecord
 
             b =
@@ -355,7 +353,7 @@ view model =
         , demo "JSON encoder"
             [ H.pre [] [ H.text (Result.withDefault "" encoded) ] ]
         , demo "JSON decoder"
-            [ pretty (Gadget.result Gadget.string gadget)decoded ]
+            [ pretty (Gadget.result Gadget.string gadget) decoded ]
         , demo "Fuzzer"
             [ pretty (Gadget.list gadget) fuzzed ]
         , demo "Quine"
