@@ -147,8 +147,8 @@ init config gadget =
     initHelp .init config (IR.irType gadget)
 
 
-dummy : FormConfig -> Type -> List Error -> Model -> Model
-dummy config irType errors realModel =
+makeDummyModel : FormConfig -> Type -> List Error -> Model -> Model
+makeDummyModel config irType errors realModel =
     let
         dummyModel =
             initHelp .placeholder config irType
@@ -612,14 +612,14 @@ viewHelp config errs modelPath model =
 
 submit : FormConfig -> IR.Gadget a -> Model -> Result (List Error) a
 submit config gadget model =
-    case submitHelp config [] model of
-        Ok value ->
-            IR.toOutput gadget value
+    case parsePrimitiveControls config [] model of
+        Ok outputValue ->
+            IR.toOutput gadget outputValue
 
         Err parsingErrors ->
             case
-                dummy config (IR.irType gadget) parsingErrors model
-                    |> submitHelp config []
+                makeDummyModel config (IR.irType gadget) parsingErrors model
+                    |> parsePrimitiveControls config []
                     |> Result.andThen (IR.toOutput gadget)
             of
                 Ok _ ->
@@ -651,8 +651,8 @@ submit config gadget model =
                     Err (parsingErrors ++ filteredValidationErrors)
 
 
-submitHelp : FormConfig -> Path -> Model -> Result (List Error) Value
-submitHelp config path model =
+parsePrimitiveControls : FormConfig -> Path -> Model -> Result (List Error) Value
+parsePrimitiveControls config path model =
     case model of
         Primitive primitiveType _ modelValue ->
             let
@@ -684,7 +684,7 @@ submitHelp config path model =
 
         Record _ fields ->
             fields
-                |> Dict.map (\key ( idx, child ) -> submitHelp config (key :: path) child |> Result.map (Tuple.pair idx))
+                |> Dict.map (\key ( idx, child ) -> parsePrimitiveControls config (key :: path) child |> Result.map (Tuple.pair idx))
                 |> combineAndAccumulateErrorsDict
                 |> Result.map
                     (\r ->
@@ -697,18 +697,18 @@ submitHelp config path model =
 
         Tuple _ a b ->
             Result.map2 IR.TupleValue
-                (submitHelp config ("0" :: path) a)
-                (submitHelp config ("1" :: path) b)
+                (parsePrimitiveControls config ("0" :: path) a)
+                (parsePrimitiveControls config ("1" :: path) b)
 
         Triple _ a b c ->
             Result.map3 IR.TripleValue
-                (submitHelp config ("0" :: path) a)
-                (submitHelp config ("1" :: path) b)
-                (submitHelp config ("2" :: path) c)
+                (parsePrimitiveControls config ("0" :: path) a)
+                (parsePrimitiveControls config ("1" :: path) b)
+                (parsePrimitiveControls config ("2" :: path) c)
 
         Collection _ _ children ->
             children
-                |> Dict.map (\idx child -> submitHelp config (idx :: path) child)
+                |> Dict.map (\idx child -> parsePrimitiveControls config (idx :: path) child)
                 |> Dict.values
                 |> combineAndAccumulateErrors
                 |> Result.map IR.ListValue
@@ -719,7 +719,7 @@ submitHelp config path model =
                 |> Result.andThen
                     (\( idx, variant ) ->
                         variant
-                            |> Dict.map (\argIdx arg -> submitHelp config (argIdx :: selected :: path) arg)
+                            |> Dict.map (\argIdx arg -> parsePrimitiveControls config (argIdx :: selected :: path) arg)
                             |> Dict.values
                             |> combineAndAccumulateErrors
                             |> Result.andThen (argsListToVariantValue >> Result.mapError (\error -> [ { path = selected :: path, error = error } ]))
