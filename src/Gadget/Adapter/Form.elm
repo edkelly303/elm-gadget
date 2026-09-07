@@ -179,16 +179,54 @@ dummyHelp errors path realModel dummyModel =
                 |> Record metadata
 
         ( Tuple metadata a b, Tuple _ dummyA dummyB ) ->
-            Debug.todo "Tuple"
+            Tuple metadata
+                (dummyHelp errors ("0" :: path) a dummyA)
+                (dummyHelp errors ("1" :: path) b dummyB)
 
-        ( Triple metadata a b c, Tuple dummyA dummyB dummyC ) ->
-            Debug.todo "Triple"
+        ( Triple metadata a b c, Triple _ dummyA dummyB dummyC ) ->
+            Triple metadata
+                (dummyHelp errors ("0" :: path) a dummyA)
+                (dummyHelp errors ("1" :: path) b dummyB)
+                (dummyHelp errors ("2" :: path) c dummyC)
 
-        ( Collection metadata innerType childModels, Collection _ _ dummyChildModels ) ->
-            Debug.todo "Collection"
+        ( Collection metadata innerType realItemModels, Collection _ _ dummyItemModels ) ->
+            Dict.merge
+                (\k l out -> Dict.empty)
+                (\k realItemModel dummyItemModel out ->
+                    Dict.insert k (dummyHelp errors (k :: path) realItemModel dummyItemModel) out
+                )
+                (\k r out -> Dict.empty)
+                realItemModels
+                dummyItemModels
+                Dict.empty
+                |> Collection metadata innerType
 
-        ( Sum selected metadata variants, Sum _ _ dummyVariants ) ->
-            Debug.todo "Sum"
+        ( Sum selected metadata realVariants, Sum _ _ dummyVariants ) ->
+            Dict.merge
+                (\k l out -> Dict.empty)
+                (\variantKey ( idx, realVariant ) ( _, dummyVariant ) outVariants ->
+                    Dict.insert variantKey
+                        ( idx
+                        , Dict.merge
+                            (\_ _ _ -> Dict.empty)
+                            (\argKey realArg dummyArg outArgs ->
+                                Dict.insert
+                                    argKey
+                                    (dummyHelp errors (argKey :: variantKey :: path) realArg dummyArg)
+                                    outArgs
+                            )
+                            (\_ _ _ -> Dict.empty)
+                            realVariant
+                            dummyVariant
+                            Dict.empty
+                        )
+                        outVariants
+                )
+                (\k r out -> Dict.empty)
+                realVariants
+                dummyVariants
+                Dict.empty
+                |> Sum selected metadata
 
         _ ->
             realModel
@@ -1062,32 +1100,33 @@ pathToString path =
         |> String.join "-"
 
 
-{-|
 
-    import Gadget.Adapter.Form exposing (..)
+{-
 
-    [] |> pathIsAncestorOf []
-    --> True
+   [] |> pathIsAncestorOf []
+   --> True
 
-    [] |> pathIsAncestorOf [ "" ]
-    --> True
+   [] |> pathIsAncestorOf [ "" ]
+   --> True
 
-    [ "" ] |> pathIsAncestorOf []
-    --> False
+   [ "" ] |> pathIsAncestorOf []
+   --> False
 
-    [ "b", "a" ] |> pathIsAncestorOf [ "c", "b", "a" ]
-    --> True
+   [ "b", "a" ] |> pathIsAncestorOf [ "c", "b", "a" ]
+   --> True
 
-    [ "d", "a" ] |> pathIsAncestorOf [ "c", "b", "a" ]
-    --> False
+   [ "d", "a" ] |> pathIsAncestorOf [ "c", "b", "a" ]
+   --> False
 
-    [ "c", "b", "a" ] |> pathIsAncestorOf [ "c", "b", "a" ]
-    --> True
+   [ "c", "b", "a" ] |> pathIsAncestorOf [ "c", "b", "a" ]
+   --> True
 
-    [ "c", "b", "a" ] |> pathIsAncestorOf [ "b", "a" ]
-    --> False
+   [ "c", "b", "a" ] |> pathIsAncestorOf [ "b", "a" ]
+   --> False
 
 -}
+
+
 pathIsAncestorOf : Path -> Path -> Bool
 pathIsAncestorOf descendant ancestor =
     pathIsAncestorOfHelp (List.reverse descendant) (List.reverse ancestor)
