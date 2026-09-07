@@ -197,31 +197,33 @@ init _ =
 
 gadget =
     personGadget
-    -- Gadget.maybe Gadget.int
-    -- Gadget.result
-    --     (Gadget.result
-    --         (Gadget.int |> Gadget.Adapter.Form.label "hello")
-    --         (Gadget.int |> Gadget.Adapter.Form.label "world")
-    --     )
-    --     (Gadget.result Gadget.int Gadget.int)
-    -- petGadget
-    -- Gadget.record (\x y -> { x = x, y = y })
-    --     |> Gadget.field "x" .x (Gadget.int |> Gadget.Adapter.Form.label "How much is x?")
-    --     |> Gadget.field "y"
-    --         .y
-    --         (Gadget.string
-    --             |> Gadget.Adapter.Form.label "What is y?"
-    --             |> Gadget.Adapter.Form.validate
-    --                 (\s ->
-    --                     if String.isEmpty s then
-    --                         Err "Must not be empty"
 
-    --                     else
-    --                         Ok s
-    --                 )
-    --         )
-    --     |> Gadget.endRecord
-    --     |> Gadget.Adapter.Form.validate (\_ -> Err "filterMap failed")
+
+
+-- Gadget.maybe Gadget.int
+-- Gadget.result
+--     (Gadget.result
+--         (Gadget.int |> Gadget.Adapter.Form.label "hello")
+--         (Gadget.int |> Gadget.Adapter.Form.label "world")
+--     )
+--     (Gadget.result Gadget.int Gadget.int)
+-- petGadget
+-- Gadget.record (\x y -> { x = x, y = y })
+--     |> Gadget.field "x" .x (Gadget.int |> Gadget.Adapter.Form.label "How much is x?")
+--     |> Gadget.field "y"
+--         .y
+--         (Gadget.string
+--             |> Gadget.Adapter.Form.label "What is y?"
+--             |> Gadget.Adapter.Form.validate
+--                 (\s ->
+--                     if String.isEmpty s then
+--                         Err "Must not be empty"
+--                     else
+--                         Ok s
+--                 )
+--         )
+--     |> Gadget.endRecord
+--     |> Gadget.Adapter.Form.validate (\_ -> Err "filterMap failed")
 
 
 view : Model -> H.Html Msg
