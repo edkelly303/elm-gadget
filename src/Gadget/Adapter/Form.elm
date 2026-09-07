@@ -438,50 +438,6 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
                     model
 
 
-matchPath : Path -> Path -> Match
-matchPath revSought revGot =
-    let
-        sought =
-            List.reverse revSought
-
-        got =
-            List.reverse revGot
-    in
-    if got == sought then
-        FullMatch
-
-    else
-        let
-            gotPrefix =
-                List.take (List.length sought) got
-
-            soughtPrefix =
-                List.take (List.length got) sought
-        in
-        if gotPrefix == soughtPrefix then
-            let
-                next1 =
-                    List.drop (List.length got) sought
-                        |> List.head
-                        |> Maybe.withDefault ""
-
-                next2 =
-                    List.drop (List.length got + 1) sought
-                        |> List.head
-                        |> Maybe.withDefault ""
-            in
-            PrefixMatch { next1 = next1, next2 = next2 }
-
-        else
-            NoMatch
-
-
-type Match
-    = FullMatch
-    | PrefixMatch { next1 : String, next2 : String }
-    | NoMatch
-
-
 view : FormConfig -> IR.Gadget a -> Model -> H.Html Msg
 view config gadget model =
     let
@@ -660,18 +616,39 @@ submit config gadget model =
         Ok value ->
             IR.toOutput gadget value
 
-        Err errors ->
+        Err parsingErrors ->
             case
-                dummy config (IR.irType gadget) errors model
+                dummy config (IR.irType gadget) parsingErrors model
                     |> submitHelp config []
                     |> Result.andThen (IR.toOutput gadget)
             of
                 Ok _ ->
-                    Err errors
+                    Err parsingErrors
 
-                Err dummyErrors ->
-                    Err (errors ++ dummyErrors)
-                        |> Debug.log "need to filter out dummyErrors whose paths are ancestors of errors (I think?)"
+                Err validationErrors ->
+                    let
+                        parsingErrorPaths =
+                            parsingErrors
+                                |> List.map .path
+                                |> List.Extra.unique
+
+                        filteredValidationErrors =
+                            -- don't keep validation errors for paths that are
+                            -- ancestors of parsing errors (because these
+                            -- validation errors will potentially be based on
+                            -- dummy values, so they should be discarded)
+                            List.filter
+                                (\validationError ->
+                                    parsingErrorPaths
+                                        |> List.any
+                                            (\parsingErrorPath ->
+                                                validationError.path |> pathIsAncestorOf parsingErrorPath
+                                            )
+                                        |> not
+                                )
+                                validationErrors
+                    in
+                    Err (parsingErrors ++ filteredValidationErrors)
 
 
 submitHelp : FormConfig -> Path -> Model -> Result (List Error) Value
@@ -1075,7 +1052,107 @@ variantTypeToArgsDict v =
                     [ arg1, arg2, arg3, arg4, arg5 ]
 
 
+
+-- PATH
+
+
 pathToString : Path -> String
 pathToString path =
     List.reverse path
         |> String.join "-"
+
+
+{-|
+
+    import Gadget.Adapter.Form exposing (..)
+
+    [] |> pathIsAncestorOf []
+    --> True
+
+    [] |> pathIsAncestorOf [ "" ]
+    --> True
+
+    [ "" ] |> pathIsAncestorOf []
+    --> False
+
+    [ "b", "a" ] |> pathIsAncestorOf [ "c", "b", "a" ]
+    --> True
+
+    [ "d", "a" ] |> pathIsAncestorOf [ "c", "b", "a" ]
+    --> False
+
+    [ "c", "b", "a" ] |> pathIsAncestorOf [ "c", "b", "a" ]
+    --> True
+
+    [ "c", "b", "a" ] |> pathIsAncestorOf [ "b", "a" ]
+    --> False
+
+-}
+pathIsAncestorOf : Path -> Path -> Bool
+pathIsAncestorOf descendant ancestor =
+    pathIsAncestorOfHelp (List.reverse descendant) (List.reverse ancestor)
+
+
+pathIsAncestorOfHelp : List a -> List a -> Bool
+pathIsAncestorOfHelp descendant ancestor =
+    case ( descendant, ancestor ) of
+        ( [], [] ) ->
+            True
+
+        ( d :: restD, a :: restA ) ->
+            if d == a then
+                pathIsAncestorOfHelp restD restA
+
+            else
+                False
+
+        ( [], a :: restA ) ->
+            -- descendant is shorter than ancestor, so it can't really be a descendant
+            False
+
+        ( d :: restD, [] ) ->
+            True
+
+
+matchPath : Path -> Path -> Match
+matchPath revSought revGot =
+    let
+        sought =
+            List.reverse revSought
+
+        got =
+            List.reverse revGot
+    in
+    if got == sought then
+        FullMatch
+
+    else
+        let
+            gotPrefix =
+                List.take (List.length sought) got
+
+            soughtPrefix =
+                List.take (List.length got) sought
+        in
+        if gotPrefix == soughtPrefix then
+            let
+                next1 =
+                    List.drop (List.length got) sought
+                        |> List.head
+                        |> Maybe.withDefault ""
+
+                next2 =
+                    List.drop (List.length got + 1) sought
+                        |> List.head
+                        |> Maybe.withDefault ""
+            in
+            PrefixMatch { next1 = next1, next2 = next2 }
+
+        else
+            NoMatch
+
+
+type Match
+    = FullMatch
+    | PrefixMatch { next1 : String, next2 : String }
+    | NoMatch
