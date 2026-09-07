@@ -111,7 +111,7 @@ default =
     , float = float
     , char = char
     , string = string
-    , feedback = \error -> H.strong [ HA.style "color" "red" ] [ H.text error ]
+    , feedback = \error -> H.output [ HA.class "feedback" ] [ H.text error ]
     }
 
 
@@ -160,6 +160,7 @@ makeDummyModel config irType errors realModel =
     dummyHelp config errorPaths [] realModel dummyModel
 
 
+dummyHelp : FormConfig -> Set.Set Path -> Path -> Model -> Model -> Model
 dummyHelp config errorPaths path realModel dummyModel =
     case ( realModel, dummyModel ) of
         ( Primitive _ _ _, _ ) ->
@@ -936,7 +937,7 @@ int =
         , submit =
             \model ->
                 String.toInt model
-                    |> Result.fromMaybe "Not an integer"
+                    |> Result.fromMaybe "This must be an integer"
         }
 
 
@@ -962,7 +963,7 @@ float =
         , submit =
             \model ->
                 String.toFloat model
-                    |> Result.fromMaybe "Not a decimal number"
+                    |> Result.fromMaybe "This must be a decimal number"
         }
 
 
@@ -1039,7 +1040,7 @@ char =
             \model ->
                 String.uncons model
                     |> Maybe.map Tuple.first
-                    |> Result.fromMaybe "Cannot be blank"
+                    |> Result.fromMaybe "This must not be blank"
         }
 
 
