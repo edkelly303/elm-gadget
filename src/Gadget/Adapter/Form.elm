@@ -671,7 +671,7 @@ submit config gadget model =
 
                 Err dummyErrors ->
                     Err (errors ++ dummyErrors)
-                    |> Debug.log "need to filter out dummyErrors whose paths are ancestors of errors (I think?)"
+                        |> Debug.log "need to filter out dummyErrors whose paths are ancestors of errors (I think?)"
 
 
 submitHelp : FormConfig -> Path -> Model -> Result (List Error) Value
