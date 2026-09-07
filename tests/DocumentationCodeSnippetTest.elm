@@ -404,7 +404,8 @@ tests =
                         "0"
                         (\() ->
                             randomPerson__Gadget_Adapter_Random__generator_0
-                                |> Expect.equal { age = -1353461051, name = "" }
+                                |> Expect.equal
+                                    (Maybe.Just { age = -1353461051, name = "" })
                         )
                     ]
                 ]

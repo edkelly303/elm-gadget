@@ -135,23 +135,23 @@ choose first rest gadget =
             (Random.initialSeed 2)
             |> Tuple.first
 
-    randomPerson --> { age = -1353461051, name = "" }
+    randomPerson --> Just { age = -1353461051, name = "" }
 
 -}
-generator : IR.Gadget a -> Random.Generator a
+generator : IR.Gadget a -> Random.Generator (Maybe a)
 generator gadget =
     IR.irType gadget
         |> randomAdapter
         |> Random.map (IR.toOutput gadget)
         |> Random.andThen
             (\res ->
-                case res of
-                    Ok b ->
-                        Random.constant b
+                Random.constant <|
+                    case res of
+                        Ok b ->
+                            Just b
 
-                    Err _ ->
-                        -- let's hope this never happens...
-                        generator gadget
+                        Err _ ->
+                            Nothing
             )
 
 
