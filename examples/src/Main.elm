@@ -32,7 +32,7 @@ type alias Person =
 
 
 type Pet
-    = Dog { name : String }
+    = Dog { dogName : String }
     | Robot Char (Maybe Int)
 
 
@@ -97,9 +97,9 @@ petGadget =
         |> Gadget.variant1
             "Dog"
             Dog
-            (Gadget.record (\name -> { name = name })
-                |> Gadget.field "name"
-                    .name
+            (Gadget.record (\dogName -> { dogName = dogName })
+                |> Gadget.field "dogName"
+                    .dogName
                     (Gadget.string
                         |> Gadget.Adapter.Fuzz.useOverride "dogName"
                         |> Gadget.Adapter.Random.choose "Rex" [ "Fido", "Kevin", "Rover", "Fifi", "George", "Winnie" ]
