@@ -282,7 +282,7 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
     case model of
         Primitive primitiveType metadata modelValue ->
             Primitive primitiveType metadata <|
-                if (modelPath |> Debug.log "modelPath") == (msgPath |> Debug.log "msgPath") then
+                if modelPath == msgPath then
                     let
                         updateFor typ_ =
                             run .update config typ_ msgValue modelValue
