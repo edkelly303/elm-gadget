@@ -99,6 +99,7 @@ type alias FormConfig =
     , char : Control
     , string : Control
     , feedback : String -> H.Html Msg
+    , control : List (H.Html Msg) -> List (H.Html Msg)
     }
 
 
@@ -112,6 +113,7 @@ default =
     , char = char
     , string = string
     , feedback = \error -> H.output [ HA.class "feedback" ] [ H.text error ]
+    , control = \inner -> [ H.div [ HA.class "control" ] inner ]
     }
 
 
@@ -507,143 +509,157 @@ viewHelp config errs modelPath model =
                             []
                     )
 
-        input =
-            case model of
-                Primitive primitiveType metadata modelValue ->
-                    let
-                        viewFor typ =
-                            run .view config typ id modelValue
-                                |> List.singleton
-                    in
-                    List.map (H.map (\msg -> Msg modelPath msg)) <|
-                        H.label [ HA.for id ] [ H.text (maybeLabel metadata |> Maybe.withDefault id) ]
-                            :: (case primitiveType of
-                                    PUnit ->
-                                        []
-
-                                    PString ->
-                                        viewFor .string
-
-                                    PChar ->
-                                        viewFor .char
-
-                                    PInt ->
-                                        viewFor .int
-
-                                    PFloat ->
-                                        viewFor .float
-
-                                    PBool ->
-                                        viewFor .bool
-                               )
-
-                Record metadata fields ->
-                    let
-                        inner =
-                            Dict.toList fields
-                                |> List.sortBy (\( _, ( idx, _ ) ) -> idx)
-                                |> List.concatMap (\( name, ( _, childModel ) ) -> viewHelp config errs (name :: modelPath) childModel)
-                    in
-                    case maybeLabel metadata of
-                        Nothing ->
-                            inner
-
-                        Just label_ ->
-                            [ H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) ]
-
-                Tuple metadata a b ->
-                    let
-                        inner =
-                            viewHelp config errs ("0" :: modelPath) a
-                                ++ viewHelp config errs ("1" :: modelPath) b
-                    in
-                    case maybeLabel metadata of
-                        Nothing ->
-                            inner
-
-                        Just label_ ->
-                            [ H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) ]
-
-                Triple metadata a b c ->
-                    let
-                        inner =
-                            viewHelp config errs ("0" :: modelPath) a
-                                ++ viewHelp config errs ("1" :: modelPath) b
-                                ++ viewHelp config errs ("2" :: modelPath) c
-                    in
-                    case maybeLabel metadata of
-                        Nothing ->
-                            inner
-
-                        Just label_ ->
-                            [ H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) ]
-
-                Collection metadata _ childModels ->
-                    [ H.fieldset []
-                        (case maybeLabel metadata of
-                            Nothing ->
-                                []
-
-                            Just legend ->
-                                List.concat
-                                    [ [ H.legend [] [ H.text legend ] ]
-                                    , [ H.input [ HA.type_ "button", HE.onClick (Msg modelPath UnitValue), HA.value "Add an item" ] [] ]
-                                    , childModels
-                                        |> Dict.map (\idx childModel -> viewHelp config errs (idx :: modelPath) childModel)
-                                        |> Dict.values
-                                        |> List.concat
-                                    ]
-                        )
-                    ]
-
-                Sum selected metadata childModels ->
-                    case Dict.get selected childModels of
-                        Nothing ->
-                            [ H.text "ERROR! Missing variant" ]
-
-                        Just ( _, variant ) ->
-                            let
-                                childView =
-                                    Dict.map (\idx arg -> viewHelp config errs (idx :: selected :: modelPath) arg) variant
-                                        |> Dict.values
-                                        |> List.concat
-
-                                ( customLabel_, variantLabels ) =
-                                    tools.decode "customLabel" (Gadget.tuple Gadget.string (Gadget.list Gadget.string)) metadata
-                                        |> Maybe.withDefault ( pathToString modelPath, [] )
-                            in
-                            H.fieldset []
-                                (H.legend [] [ H.text customLabel_ ]
-                                    :: (childModels
-                                            |> Dict.map
-                                                (\name ( idx, _ ) ->
-                                                    let
-                                                        childId =
-                                                            pathToString (name :: modelPath)
-                                                    in
-                                                    H.span []
-                                                        [ H.input
-                                                            [ HA.id childId
-                                                            , HA.name id
-                                                            , HA.type_ "radio"
-                                                            , HE.onCheck (\_ -> Msg modelPath (StringValue name))
-                                                            , HA.checked (selected == name)
-                                                            ]
-                                                            []
-                                                        , H.label [ HA.for childId ]
-                                                            [ H.text
-                                                                (List.Extra.getAt idx variantLabels
-                                                                    |> Maybe.withDefault (maybeLabel metadata |> Maybe.withDefault "")
-                                                                )
-                                                            ]
-                                                        ]
-                                                )
-                                            |> Dict.values
-                                       )
-                                )
-                                :: childView
+        isInvalid =
+            List.isEmpty feedback
     in
-    [ H.div [] (input ++ feedback) ]
+    case model of
+        Primitive primitiveType metadata modelValue ->
+            let
+                viewFor typ =
+                    [ run .view config typ id modelValue ]
+            in
+            config.control
+                ((List.map (H.map (\msg -> Msg modelPath msg)) <|
+                    (H.label [ HA.for id ] [ H.text (maybeLabel metadata |> Maybe.withDefault id) ]
+                        :: (case primitiveType of
+                                PUnit ->
+                                    []
+
+                                PString ->
+                                    viewFor .string
+
+                                PChar ->
+                                    viewFor .char
+
+                                PInt ->
+                                    viewFor .int
+
+                                PFloat ->
+                                    viewFor .float
+
+                                PBool ->
+                                    viewFor .bool
+                           )
+                    )
+                 )
+                    ++ feedback
+                )
+
+        Record metadata fields ->
+            let
+                inner =
+                    Dict.toList fields
+                        |> List.sortBy (\( _, ( idx, _ ) ) -> idx)
+                        |> List.concatMap (\( name, ( _, childModel ) ) -> viewHelp config errs (name :: modelPath) childModel)
+            in
+            case maybeLabel metadata of
+                Nothing ->
+                    inner ++ feedback
+
+                Just label_ ->
+                    [ H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) ] ++ feedback
+
+        Tuple metadata a b ->
+            let
+                inner =
+                    viewHelp config errs ("0" :: modelPath) a
+                        ++ viewHelp config errs ("1" :: modelPath) b
+            in
+            case maybeLabel metadata of
+                Nothing ->
+                    inner ++ feedback
+
+                Just label_ ->
+                    [ H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) ] ++ feedback
+
+        Triple metadata a b c ->
+            let
+                inner =
+                    viewHelp config errs ("0" :: modelPath) a
+                        ++ viewHelp config errs ("1" :: modelPath) b
+                        ++ viewHelp config errs ("2" :: modelPath) c
+            in
+            case maybeLabel metadata of
+                Nothing ->
+                    inner ++ feedback
+
+                Just label_ ->
+                    [ H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) ] ++ feedback
+
+        Collection metadata _ childModels ->
+            [ H.fieldset []
+                (case maybeLabel metadata of
+                    Nothing ->
+                        List.concat
+                            [ [ H.input [ HA.type_ "button", HE.onClick (Msg modelPath UnitValue), HA.value "Add an item" ] [] ]
+                            , childModels
+                                |> Dict.map (\idx childModel -> viewHelp config errs (idx :: modelPath) childModel)
+                                |> Dict.values
+                                |> List.concat
+                            , feedback
+                            ]
+
+                    Just legend ->
+                        List.concat
+                            [ [ H.legend [] [ H.text legend ] ]
+                            , [ H.input [ HA.type_ "button", HE.onClick (Msg modelPath UnitValue), HA.value "Add an item" ] [] ]
+                            , childModels
+                                |> Dict.map (\idx childModel -> viewHelp config errs (idx :: modelPath) childModel)
+                                |> Dict.values
+                                |> List.concat
+                            , feedback
+                            ]
+                )
+            ]
+
+        Sum selected metadata childModels ->
+            case Dict.get selected childModels of
+                Nothing ->
+                    [ H.text "ERROR! Missing variant" ]
+
+                Just ( _, variant ) ->
+                    let
+                        childView =
+                            Dict.map (\idx arg -> viewHelp config errs (idx :: selected :: modelPath) arg) variant
+                                |> Dict.values
+                                |> List.concat
+
+                        ( customLabel_, variantLabels ) =
+                            tools.decode "customLabel" (Gadget.tuple Gadget.string (Gadget.list Gadget.string)) metadata
+                                |> Maybe.withDefault ( pathToString modelPath, [] )
+                    in
+                    (H.fieldset []
+                        (H.legend [] [ H.text customLabel_ ]
+                            :: (childModels
+                                    |> Dict.map
+                                        (\name ( idx, _ ) ->
+                                            let
+                                                childId =
+                                                    pathToString (name :: modelPath)
+                                            in
+                                            H.span []
+                                                [ H.input
+                                                    [ HA.id childId
+                                                    , HA.name id
+                                                    , HA.type_ "radio"
+                                                    , HE.onCheck (\_ -> Msg modelPath (StringValue name))
+                                                    , HA.checked (selected == name)
+                                                    ]
+                                                    []
+                                                , H.label [ HA.for childId ]
+                                                    [ H.text
+                                                        (List.Extra.getAt idx variantLabels
+                                                            |> Maybe.withDefault (maybeLabel metadata |> Maybe.withDefault "")
+                                                        )
+                                                    ]
+                                                ]
+                                        )
+                                    |> Dict.values
+                               )
+                        )
+                        :: childView
+                    )
+                        ++ feedback
 
 
 submit : FormConfig -> IR.Gadget a -> Model -> Result (List Error) a
