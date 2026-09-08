@@ -36,7 +36,7 @@ suite =
                 errors
                     |> Expect.equal
                         (Err
-                            [ { error = "Not an integer", path = [ "bar" ] }
+                            [ { error = "This must be an integer", path = [ "bar" ] }
                             , { error = "This error should show up", path = [ "baz" ] }
                             ]
                         )
@@ -66,7 +66,7 @@ suite =
                 errors
                     |> Expect.equal
                         (Err
-                            [ { error = "Not an integer", path = [ "bar" ] }
+                            [ { error = "This must be an integer", path = [ "bar" ] }
                             ]
                         )
         ]
