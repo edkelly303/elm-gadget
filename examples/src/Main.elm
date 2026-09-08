@@ -74,7 +74,7 @@ personGadget =
                 |> Gadget.Adapter.Form.label "What is your height (in centimetres)?"
                 |> Gadget.Adapter.Form.validate
                     (\f ->
-                        if f<50 then
+                        if f < 50 then
                             Err [ "This must be at least 50cm" ]
 
                         else
