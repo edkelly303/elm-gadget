@@ -569,7 +569,7 @@ viewHelp config errs modelPath model =
                     inner ++ feedback
 
                 Just label_ ->
-                    [ H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) ] ++ feedback
+                    H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) :: feedback
 
         Tuple metadata a b ->
             let
@@ -582,7 +582,7 @@ viewHelp config errs modelPath model =
                     inner ++ feedback
 
                 Just label_ ->
-                    [ H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) ] ++ feedback
+                    H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) :: feedback
 
         Triple metadata a b c ->
             let
@@ -596,7 +596,7 @@ viewHelp config errs modelPath model =
                     inner ++ feedback
 
                 Just label_ ->
-                    [ H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) ] ++ feedback
+                    H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) :: feedback
 
         Collection metadata _ childModels ->
             [ H.fieldset []
