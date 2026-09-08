@@ -26,14 +26,14 @@ code.withoutSpaces {
     word-break: break-all;
 }
 
-button {
+button, input[type="button"] {
     display: block;
-    padding: 10px;
+    padding: 5x;
     margin: 15px 5px;;
     font-size: 16px;
     background-color: rgb(230, 230, 255);
     border: none;
-    border-radius: 10px;
+    border-radius: 5px;
     box-shadow: 0px 0px 4px 4px rgb(210, 210, 255);
 }
 
@@ -211,7 +211,7 @@ form {
     & label:has(+input[type="checkbox"]) {
         display:inline-block;
     }
-    
+        
     & form-control, fieldset {
         display: flex;
         flex-direction: column;
