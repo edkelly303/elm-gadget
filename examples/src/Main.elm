@@ -50,14 +50,6 @@ personGadget =
                         else
                             Ok s
                     )
-                |> Gadget.Adapter.Form.validate
-                    (\s ->
-                        if s /= "Hayleigh" then
-                            Err "You must be Hayleigh"
-
-                        else
-                            Ok s
-                    )
                 |> Gadget.Adapter.Random.choose "Ed" [ "Leonardo", "Wolfgang", "Rupert", "Mario", "Martin" ]
                 |> Gadget.Adapter.Form.label "What is your name?"
             )
