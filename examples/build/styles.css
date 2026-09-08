@@ -27,6 +27,7 @@ code.withoutSpaces {
 }
 
 button, input[type="button"] {
+    min-width: none;
     display: block;
     padding: 5x;
     margin: 15px 5px;;
@@ -190,6 +191,9 @@ button, input[type="button"] {
     }
 }
 form {
+    max-width: 800px;
+    min-width: 300px;
+    margin: auto;
     background-color: rgb(248, 248, 255);
     padding: 20px; 
     border: solid 2px rgb(210, 210, 255);
@@ -204,6 +208,10 @@ form {
         display: block;
     }
     
+    & input {
+        min-width: none;
+    }
+
     & input[type="radio"]+label {
         display:inline-block;
     }
@@ -213,6 +221,7 @@ form {
     }
         
     & form-control, fieldset {
+        min-width: none;
         display: flex;
         flex-direction: column;
         gap: 10px;
