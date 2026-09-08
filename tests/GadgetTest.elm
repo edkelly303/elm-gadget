@@ -24,7 +24,7 @@ gadgetTests =
                 let
                     fmr =
                         recordGadget
-                            |> Gadget.filterMap (\_ -> Err "filterMapping failed") identity
+                            |> Gadget.filterMap (\_ -> Err [ "filterMapping failed" ]) identity
                 in
                 { bool = True, int = 1 }
                     |> Gadget.IR.fromInput fmr
