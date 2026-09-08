@@ -45,7 +45,7 @@ personGadget =
                 |> Gadget.Adapter.Form.validate
                     (\s ->
                         if String.isEmpty s then
-                            Err "Must not be blank"
+                            Err "This must not be blank"
 
                         else
                             Ok s
@@ -107,7 +107,7 @@ petGadget =
                         |> Gadget.Adapter.Form.validate
                             (\s ->
                                 if String.isEmpty s then
-                                    Err "Must not be blank"
+                                    Err "This must not be blank"
 
                                 else
                                     Ok s
@@ -217,7 +217,7 @@ gadget =
 --             |> Gadget.Adapter.Form.validate
 --                 (\s ->
 --                     if String.isEmpty s then
---                         Err "Must not be empty"
+--                         Err "This must not be blank"
 --                     else
 --                         Ok s
 --                 )
