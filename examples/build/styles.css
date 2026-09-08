@@ -228,26 +228,36 @@ form {
         padding: 10px;
         border: solid 1px rgb(210, 210, 255);
         border-radius: 5px;
-        &.invalid {background-color: rgb(253, 241, 255);}
-        & .feedback {
-            color:rgb(255, 0, 128);
-            font-size: 14px;
-            display: flex;
-            align-items: center;
+        
+        &.invalid {
+            background-color: rgb(253, 241, 255);
+        }
+        
+        & output {
+            display:flex;
+            flex-direction:column;
+            gap: 5px;
             
-            &::before {
-                content: "";
-                display: inline-block;
-                background-color: rgb(255, 0, 128);
-                -webkit-mask: url('warning-circle.svg');
-                -webkit-mask-size: 20px;
-                -webkit-mask-repeat: no-repeat;
-                mask: url('warning-circle.svg');
-                mask-size: 18px;
-                mask-repeat: no-repeat;
-                width: 18px;
-                height: 18px;
-                margin-right: 5px;
+            & span {
+                color:rgb(255, 0, 128);
+                font-size: 14px;
+                display: flex;
+                align-items: center;
+                
+                &::before {
+                    content: "";
+                    display: inline-block;
+                    background-color: rgb(255, 0, 128);
+                    -webkit-mask: url('warning-circle.svg');
+                    -webkit-mask-size: 20px;
+                    -webkit-mask-repeat: no-repeat;
+                    mask: url('warning-circle.svg');
+                    mask-size: 18px;
+                    mask-repeat: no-repeat;
+                    width: 18px;
+                    height: 18px;
+                    margin-right: 5px;
+                }
             }
         }
     }

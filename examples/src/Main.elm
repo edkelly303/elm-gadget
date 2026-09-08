@@ -44,11 +44,25 @@ personGadget =
             (Gadget.string
                 |> Gadget.Adapter.Form.validate
                     (\s ->
-                        if String.isEmpty s then
-                            Err "This must not be blank"
+                        case
+                            List.filterMap identity
+                                [ if String.isEmpty s then
+                                    Just "This must not be blank"
 
-                        else
-                            Ok s
+                                  else
+                                    Nothing
+                                , if String.length s < 3 then
+                                    Just "This must be at least 3 characters"
+
+                                  else
+                                    Nothing
+                                ]
+                        of
+                            [] ->
+                                Ok s
+
+                            errs ->
+                                Err errs
                     )
                 |> Gadget.Adapter.Random.choose "Ed" [ "Leonardo", "Wolfgang", "Rupert", "Mario", "Martin" ]
                 |> Gadget.Adapter.Form.label "What is your name?"
@@ -107,7 +121,7 @@ petGadget =
                         |> Gadget.Adapter.Form.validate
                             (\s ->
                                 if String.isEmpty s then
-                                    Err "This must not be blank"
+                                    Err [ "This must not be blank" ]
 
                                 else
                                     Ok s
