@@ -72,6 +72,7 @@ type alias InnerControl =
     , placeholder : Value
     , update : Value -> Value -> Value
     , view : String -> Value -> H.Html Value
+    , layout : { label : H.Html Msg, input : H.Html Msg, feedback : List (H.Html Msg) } -> List (H.Html Msg)
     , submit : Path -> Value -> Result (List Error) Value
     }
 
@@ -527,35 +528,40 @@ viewHelp config errs modelPath model =
     case model of
         Primitive primitiveType metadata modelValue ->
             let
-                viewFor typ =
-                    [ run .view config typ id modelValue ]
+                maybeControl =
+                    case primitiveType of
+                        PUnit ->
+                            Nothing
+
+                        PString ->
+                            Just config.string
+
+                        PChar ->
+                            Just config.char
+
+                        PInt ->
+                            Just config.int
+
+                        PFloat ->
+                            Just config.float
+
+                        PBool ->
+                            Just config.bool
             in
-            config.control isValid
-                ((List.map (H.map (\msg -> Msg modelPath msg)) <|
-                    (H.label [ HA.for id ] [ H.text (maybeLabel metadata |> Maybe.withDefault id) ]
-                        :: (case primitiveType of
-                                PUnit ->
-                                    []
+            case maybeControl of
+                Just (Control c) ->
+                    config.control isValid <|
+                        c.layout
+                            { label =
+                                H.label [ HA.for id ] [ H.text (maybeLabel metadata |> Maybe.withDefault id) ]
+                            , input =
+                                c.view id modelValue |> H.map (Msg modelPath)
+                            , feedback =
+                                feedback
+                            }
 
-                                PString ->
-                                    viewFor .string
-
-                                PChar ->
-                                    viewFor .char
-
-                                PInt ->
-                                    viewFor .int
-
-                                PFloat ->
-                                    viewFor .float
-
-                                PBool ->
-                                    viewFor .bool
-                           )
-                    )
-                 )
-                    ++ feedback
-                )
+                Nothing ->
+                    []
 
         Record metadata fields ->
             let
@@ -931,6 +937,9 @@ control config =
                 Result.map (config.view id) (IR.toOutput config.model modelValue)
                     |> Result.Extra.extract (List.map (.error >> H.text) >> H.div [])
                     |> H.map (\msg -> IR.fromInput config.msg msg)
+        , layout =
+            \ui ->
+                [ ui.label, ui.input ] ++ ui.feedback
         , submit =
             \path modelValue ->
                 IR.toOutput config.model modelValue
@@ -941,6 +950,11 @@ control config =
                                 |> Result.map (IR.fromInput config.output)
                         )
         }
+
+
+withLayout : ({ label : H.Html Msg, input : H.Html Msg, feedback : List (H.Html Msg) } -> List (H.Html Msg)) -> Control -> Control
+withLayout f (Control c) =
+    Control { c | layout = f }
 
 
 int : Control
@@ -1037,6 +1051,7 @@ bool =
                     []
         , submit = Ok
         }
+        |> withLayout (\ui -> [ ui.input, ui.label ] ++ ui.feedback)
 
 
 char : Control

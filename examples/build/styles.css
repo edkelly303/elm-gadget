@@ -216,10 +216,10 @@ form {
         display:inline-block;
     }
     
-    & label:has(+input[type="checkbox"]) {
-        display:inline-block;
+    & :has(input[type="checkbox"]+label) {
+        flex-direction: row;
     }
-        
+
     & form-control, fieldset {
         min-width: none;
         display: flex;
