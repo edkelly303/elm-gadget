@@ -99,7 +99,7 @@ type alias FormConfig =
     , char : Control
     , string : Control
     , feedback : String -> H.Html Msg
-    , control : List (H.Html Msg) -> List (H.Html Msg)
+    , control : Bool -> List (H.Html Msg) -> List (H.Html Msg)
     }
 
 
@@ -113,7 +113,19 @@ default =
     , char = char
     , string = string
     , feedback = \error -> H.output [ HA.class "feedback" ] [ H.text error ]
-    , control = \inner -> [ H.div [ HA.class "control" ] inner ]
+    , control =
+        \validity inner ->
+            [ H.node "form-control"
+                [ HA.class
+                    (if validity then
+                        "valid"
+
+                     else
+                        "invalid"
+                    )
+                ]
+                inner
+            ]
     }
 
 
@@ -509,7 +521,7 @@ viewHelp config errs modelPath model =
                             []
                     )
 
-        isInvalid =
+        isValid =
             List.isEmpty feedback
     in
     case model of
@@ -518,7 +530,7 @@ viewHelp config errs modelPath model =
                 viewFor typ =
                     [ run .view config typ id modelValue ]
             in
-            config.control
+            config.control isValid
                 ((List.map (H.map (\msg -> Msg modelPath msg)) <|
                     (H.label [ HA.for id ] [ H.text (maybeLabel metadata |> Maybe.withDefault id) ]
                         :: (case primitiveType of
