@@ -646,7 +646,7 @@ viewHelp config errs modelPath model =
                             tools.decode "customLabel" (Gadget.tuple Gadget.string (Gadget.list Gadget.string)) metadata
                                 |> Maybe.withDefault ( pathToString modelPath, [] )
                     in
-                    (H.fieldset []
+                    (H.fieldset [ HA.class "custom-variant-selector" ]
                         (H.legend [] [ H.text customLabel_ ]
                             :: (childModels
                                     |> Dict.map

@@ -203,17 +203,9 @@ form {
     display: flex;
     flex-direction: column;
     gap: 20px;
-
-    & label,legend {
-        display: block;
-    }
     
     & input {
         min-width: none;
-    }
-
-    & input[type="radio"]+label {
-        display:inline-block;
     }
     
     & :has(input[type="checkbox"]+label) {
@@ -229,6 +221,11 @@ form {
         border: solid 1px rgb(210, 210, 255);
         border-radius: 5px;
         
+        &.custom-variant-selector {
+            display:flex;
+            flex-direction: row;
+        }
+
         &.invalid {
             background-color: rgb(253, 241, 255);
         }
