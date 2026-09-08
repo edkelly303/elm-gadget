@@ -72,7 +72,7 @@ type alias InnerControl =
     , placeholder : Value
     , update : Value -> Value -> Value
     , view : String -> Value -> H.Html Value
-    , layout : { label : H.Html Msg, input : H.Html Msg, feedback : List (H.Html Msg) } -> List (H.Html Msg)
+    , layout : { label : H.Html Msg, input : H.Html Msg, feedback : H.Html Msg } -> List (H.Html Msg)
     , submit : Path -> Value -> Result (List Error) Value
     }
 
@@ -113,7 +113,7 @@ default =
     , float = float
     , char = char
     , string = string
-    , feedback = \error -> H.output [ HA.class "feedback" ] [ H.text error ]
+    , feedback = \error -> H.span [] [ H.text error ]
     , control =
         \validity inner ->
             [ H.node "form-control"
@@ -557,7 +557,7 @@ viewHelp config errs modelPath model =
                             , input =
                                 c.view id modelValue |> H.map (Msg modelPath)
                             , feedback =
-                                feedback
+                                H.output [] feedback
                             }
 
                 Nothing ->
@@ -899,7 +899,7 @@ label l gadget =
 
 {-| TODO
 -}
-validate : (a -> Result String a) -> Gadget.Gadget a -> Gadget.Gadget a
+validate : (a -> Result (List String) a) -> Gadget.Gadget a -> Gadget.Gadget a
 validate f =
     Gadget.filterMap f identity
 
@@ -939,7 +939,7 @@ control config =
                     |> H.map (\msg -> IR.fromInput config.msg msg)
         , layout =
             \ui ->
-                [ ui.label, ui.input ] ++ ui.feedback
+                [ ui.label, ui.input, ui.feedback ]
         , submit =
             \path modelValue ->
                 IR.toOutput config.model modelValue
@@ -952,7 +952,7 @@ control config =
         }
 
 
-withLayout : ({ label : H.Html Msg, input : H.Html Msg, feedback : List (H.Html Msg) } -> List (H.Html Msg)) -> Control -> Control
+withLayout : ({ label : H.Html Msg, input : H.Html Msg, feedback : H.Html Msg } -> List (H.Html Msg)) -> Control -> Control
 withLayout f (Control c) =
     Control { c | layout = f }
 
@@ -1051,7 +1051,7 @@ bool =
                     []
         , submit = Ok
         }
-        |> withLayout (\ui -> [ ui.input, ui.label ] ++ ui.feedback)
+        |> withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
 
 
 char : Control

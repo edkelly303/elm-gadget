@@ -884,14 +884,21 @@ values. Instead, prefer a constructive approach, like this:
 
 -}
 filterMap :
-    (a -> Result String b)
+    (a -> Result (List String) b)
     -> (b -> a)
     -> Gadget a
     -> Gadget b
 filterMap aToB bToA (Gadget prev) =
     Gadget
         { fromInput = bToA >> prev.fromInput
-        , toOutput = \path value -> prev.toOutput path value |> Result.andThen (aToB >> Result.mapError (\error -> [ { path = path, error = error } ]))
+        , toOutput =
+            \path value ->
+                prev.toOutput path value
+                    |> Result.andThen
+                        (\a ->
+                            aToB a
+                                |> Result.mapError (List.map (\error -> { path = path, error = error }))
+                        )
         , irType = prev.irType
         }
 
