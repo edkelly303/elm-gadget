@@ -72,6 +72,14 @@ personGadget =
             (Gadget.float
                 |> Gadget.Adapter.Random.range 100 180
                 |> Gadget.Adapter.Form.label "What is your height (in centimetres)?"
+                |> Gadget.Adapter.Form.validate
+                    (\f ->
+                        if f<50 then
+                            Err [ "This must be at least 50cm" ]
+
+                        else
+                            Ok f
+                    )
             )
         |> Gadget.field "pets"
             .pets
