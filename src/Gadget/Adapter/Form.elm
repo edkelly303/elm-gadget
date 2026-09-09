@@ -960,6 +960,7 @@ load config gadget a =
     loadHelp config (IR.fromInput gadget a) (IR.irType gadget)
 
 
+loadHelp : FormConfig -> Value -> Type -> Model
 loadHelp config value type_ =
     case ( value, type_ ) of
         ( UnitValue, UnitType metadata ) ->
@@ -1016,8 +1017,19 @@ loadHelp config value type_ =
                 _ ->
                     blank
 
+        ( ListValue itemValues, ListType metadata itemType ) ->
+            List.indexedMap (\idx itemValue -> ( String.fromInt idx, loadHelp config itemValue itemType )) itemValues
+                |> Dict.fromList
+                |> Collection metadata itemType
+
+        ( TupleValue aValue bValue, TupleType metadata aType bType ) ->
+            Tuple metadata (loadHelp config aValue aType) (loadHelp config bValue bType)
+
+        ( TripleValue aValue bValue cValue, TripleType metadata aType bType cType ) ->
+            Triple metadata (loadHelp config aValue aType) (loadHelp config bValue bType) (loadHelp config cValue cType)
+
         _ ->
-            Debug.todo "implement the other cases"
+            Primitive PUnit IR.emptyMetadata UnitValue
 
 
 combineAndAccumulateErrorsDict :

@@ -216,10 +216,13 @@ init _ =
     let
         ( formModel, formCmd ) =
             form.init
+
+        loadedFormModel =
+            form.load { name = "Ed", heightInCentimetres = 180, pets = [], tuple = ( True, False ), triple = ( False, True, False ) }
     in
     ( { seed = 0
       , prettyWidth = 120
-      , form = formModel
+      , form = loadedFormModel
       }
     , formCmd
     )
