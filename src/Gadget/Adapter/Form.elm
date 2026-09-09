@@ -170,7 +170,9 @@ initHelp initializer config path irType =
                     getType config
             in
             initializer c
-                |> Tuple.mapBoth (Primitive primitiveType metadata) (Cmd.map (Msg path))
+                |> Tuple.mapBoth
+                    (Primitive primitiveType metadata)
+                    (Cmd.map (Msg path))
     in
     case irType of
         UnitType m ->
@@ -196,7 +198,7 @@ initHelp initializer config path irType =
                 variantTypes =
                     ( firstName, firstVariantType ) :: restNamesAndVariantTypes
 
-                ( variants, cmds ) =
+                ( namedVariantModels, variantCmds ) =
                     variantTypes
                         |> List.indexedMap
                             (\idx ( variantName, variantType ) ->
@@ -220,19 +222,19 @@ initHelp initializer config path irType =
                         |> List.unzip
                         |> Tuple.mapBoth Dict.fromList List.concat
             in
-            ( Sum firstName m variants, Cmd.batch cmds )
+            ( Sum firstName m namedVariantModels, Cmd.batch variantCmds )
 
         RecordType m namedFieldTypes ->
             let
                 ( namedFieldModels, fieldCmds ) =
                     namedFieldTypes
                         |> List.indexedMap
-                            (\idx ( name, fieldType ) ->
+                            (\idx ( fieldName, fieldType ) ->
                                 let
                                     ( fieldModel, fieldCmd ) =
-                                        initHelp initializer config (name :: path) fieldType
+                                        initHelp initializer config (fieldName :: path) fieldType
                                 in
-                                ( ( name, ( idx, fieldModel ) ), fieldCmd )
+                                ( ( fieldName, ( idx, fieldModel ) ), fieldCmd )
                             )
                         |> List.unzip
                         |> Tuple.mapFirst Dict.fromList
