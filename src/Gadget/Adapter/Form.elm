@@ -54,7 +54,7 @@ tools =
 {-| TODO
 -}
 type alias Form a msg =
-    { init : Model
+    { init : ( Model, Cmd msg )
     , update : Msg -> Model -> Model
     , view : Model -> H.Html msg
     , submit : Model -> Result (List Error) a
@@ -68,7 +68,7 @@ type Control
 
 
 type alias InnerControl =
-    { init : Value
+    { init : ( Value, Cmd Value )
     , placeholder : Value
     , update : Value -> Value -> Value
     , view : String -> Value -> H.Html Value
@@ -83,7 +83,7 @@ type alias ControlConfig msg model output =
     { msg : IR.Gadget msg
     , model : IR.Gadget model
     , output : IR.Gadget output
-    , init : model
+    , init : ( model, Cmd msg )
     , placeholder : model
     , update : msg -> model -> model
     , view : String -> model -> H.Html msg
@@ -156,16 +156,100 @@ type PrimitiveType
     | PUnit
 
 
-init : FormConfig -> IR.Gadget a -> Model
+init : FormConfig -> IR.Gadget a -> ( Model, Cmd Msg )
 init config gadget =
-    initHelp .init config (IR.irType gadget)
+    initHelp .init config [] (IR.irType gadget)
+
+
+initHelp : (InnerControl -> ( Value, Cmd Value )) -> FormConfig -> Path -> Type -> ( Model, Cmd Msg )
+initHelp initializer config path irType =
+    let
+        initFor getType primitiveType metadata =
+            let
+                (Control c) =
+                    getType config
+            in
+            initializer c
+                |> Tuple.mapBoth (Primitive primitiveType metadata) (Cmd.map (Msg path))
+    in
+    case irType of
+        UnitType m ->
+            ( Primitive PUnit m UnitValue, Cmd.none )
+
+        BoolType m ->
+            initFor .bool PBool m
+
+        CharType m ->
+            initFor .char PChar m
+
+        StringType m ->
+            initFor .string PString m
+
+        IntType m ->
+            initFor .int PInt m
+
+        FloatType m ->
+            initFor .float PFloat m
+
+        CustomType m ( firstName, firstVariantType ) restNamesAndVariantTypes ->
+            let
+                variantTypes =
+                    ( firstName, firstVariantType ) :: restNamesAndVariantTypes
+
+                ( variants, cmds ) =
+                    variantTypes
+                        |> List.indexedMap
+                            (\idx ( variantName, variantType ) ->
+                                variantType
+                                    |> variantTypeToArgsList
+                                    |> List.map
+                                        (\( argName, argType ) ->
+                                            let
+                                                argPath =
+                                                    argName :: variantName :: path
+
+                                                ( argModel, argCmd ) =
+                                                    initHelp initializer config argPath argType
+                                            in
+                                            ( ( argName, argModel ), argCmd )
+                                        )
+                                    |> List.unzip
+                                    |> Tuple.mapFirst
+                                        (\list -> ( variantName, ( idx, Dict.fromList list ) ))
+                            )
+                        |> List.unzip
+                        |> Tuple.mapBoth Dict.fromList List.concat
+            in
+            ( Sum firstName m variants, Cmd.batch cmds )
+
+        RecordType m namedFieldTypes ->
+            let
+                fields =
+                    namedFieldTypes
+                        |> List.indexedMap (\idx ( n, f ) -> ( n, ( idx, f ) ))
+                        |> Dict.fromList
+                        |> Dict.map (\_ ( idx, fieldType ) -> ( idx, initHelp initializer config fieldType ))
+            in
+            Record m fields
+
+        ListType m innerType ->
+            Collection m innerType Dict.empty
+
+        LazyType _ innerType ->
+            initHelp initializer config (innerType ())
+
+        TupleType m a b ->
+            Tuple m (initHelp initializer config a) (initHelp initializer config b)
+
+        TripleType m a b c ->
+            Triple m (initHelp initializer config a) (initHelp initializer config b) (initHelp initializer config c)
 
 
 makeDummyModel : FormConfig -> Type -> List Error -> Model -> Model
 makeDummyModel config irType errors realModel =
     let
         dummyModel =
-            initHelp .placeholder config irType
+            initHelp (\c -> ( c.placeholder, Cmd.none )) config irType
 
         errorPaths =
             errors
@@ -210,7 +294,7 @@ dummyHelp config errorPaths path realModel dummyModel =
 
         ( Collection metadata innerType realItemModels, Collection _ _ _ ) ->
             realItemModels
-                |> Dict.map (\k v -> initHelp .placeholder config innerType |> dummyHelp config errorPaths (k :: path) v)
+                |> Dict.map (\k v -> initHelp (\c -> ( c.placeholder, Cmd.none )) config innerType |> dummyHelp config errorPaths (k :: path) v)
                 |> Collection metadata innerType
 
         ( Sum selected metadata realVariants, Sum _ _ dummyVariants ) ->
@@ -244,84 +328,6 @@ dummyHelp config errorPaths path realModel dummyModel =
             realModel
 
 
-run : (InnerControl -> method) -> FormConfig -> (FormConfig -> Control) -> method
-run getMethod config getType =
-    let
-        (Control c) =
-            getType config
-    in
-    getMethod c
-
-
-initHelp : (InnerControl -> Value) -> FormConfig -> Type -> Model
-initHelp initializer config irType =
-    let
-        initFor =
-            run initializer config
-    in
-    case irType of
-        UnitType m ->
-            Primitive PUnit m UnitValue
-
-        BoolType m ->
-            Primitive PBool m (initFor .bool)
-
-        CharType m ->
-            Primitive PChar m (initFor .char)
-
-        StringType m ->
-            Primitive PString m (initFor .string)
-
-        IntType m ->
-            Primitive PInt m (initFor .int)
-
-        FloatType m ->
-            Primitive PFloat m (initFor .float)
-
-        CustomType m ( firstName, firstVariantType ) restNamesAndVariantTypes ->
-            let
-                variantTypes =
-                    ( firstName, firstVariantType ) :: restNamesAndVariantTypes
-
-                variants =
-                    variantTypes
-                        |> List.indexedMap
-                            (\idx ( n, v ) ->
-                                ( n
-                                , ( idx
-                                  , v
-                                        |> variantTypeToArgsDict
-                                        |> Dict.map (\_ arg -> initHelp initializer config arg)
-                                  )
-                                )
-                            )
-                        |> Dict.fromList
-            in
-            Sum firstName m variants
-
-        RecordType m namedFieldTypes ->
-            let
-                fields =
-                    namedFieldTypes
-                        |> List.indexedMap (\idx ( n, f ) -> ( n, ( idx, f ) ))
-                        |> Dict.fromList
-                        |> Dict.map (\_ ( idx, fieldType ) -> ( idx, initHelp initializer config fieldType ))
-            in
-            Record m fields
-
-        ListType m innerType ->
-            Collection m innerType Dict.empty
-
-        LazyType _ innerType ->
-            initHelp initializer config (innerType ())
-
-        TupleType m a b ->
-            Tuple m (initHelp initializer config a) (initHelp initializer config b)
-
-        TripleType m a b c ->
-            Triple m (initHelp initializer config a) (initHelp initializer config b) (initHelp initializer config c)
-
-
 update : FormConfig -> Msg -> Model -> Model
 update config msg model =
     updateHelp config [] msg model
@@ -334,8 +340,12 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
             Primitive primitiveType metadata <|
                 if modelPath == msgPath then
                     let
-                        updateFor typ_ =
-                            run .update config typ_ msgValue modelValue
+                        updateFor getType =
+                            let
+                                (Control c) =
+                                    getType config
+                            in
+                            c.update msgValue modelValue
                     in
                     case primitiveType of
                         PUnit ->
@@ -883,9 +893,9 @@ fromGadget toMsg gadget =
 -}
 fromGadgetWithConfig : FormConfig -> (Msg -> msg) -> IR.Gadget a -> Form a msg
 fromGadgetWithConfig config toMsg gadget =
-    { init = init config gadget
+    { init = init config gadget |> Tuple.mapSecond (Cmd.map toMsg)
     , update = update config
-    , view = view config gadget >> H.map toMsg
+    , view = \model -> view config gadget model |> H.map toMsg
     , submit = submit config gadget
     }
 
@@ -923,7 +933,7 @@ control config =
             IR.fromInput config.model config.placeholder
     in
     Control
-        { init = IR.fromInput config.model config.init
+        { init = config.init |> Tuple.mapBoth (IR.fromInput config.model) (Cmd.map (IR.fromInput config.msg))
         , placeholder = placeholderValue
         , update =
             \msg modelValue ->
@@ -963,7 +973,7 @@ int =
         { model = Gadget.string
         , msg = Gadget.string
         , output = Gadget.int
-        , init = ""
+        , init = ( "", Cmd.none )
         , placeholder = "0"
         , update = \msg _ -> msg
         , view =
@@ -989,7 +999,7 @@ float =
         { model = Gadget.string
         , msg = Gadget.string
         , output = Gadget.float
-        , init = ""
+        , init = ( "", Cmd.none )
         , placeholder = "0.0"
         , update = \msg _ -> msg
         , view =
@@ -1015,7 +1025,7 @@ string =
         { model = Gadget.string
         , msg = Gadget.string
         , output = Gadget.string
-        , init = ""
+        , init = ( "", Cmd.none )
         , placeholder = ""
         , update = \msg _ -> msg
         , view =
@@ -1037,7 +1047,7 @@ bool =
         { model = Gadget.bool
         , msg = Gadget.bool
         , output = Gadget.bool
-        , init = False
+        , init = ( False, Cmd.none )
         , placeholder = False
         , update = \msg _ -> msg
         , view =
@@ -1060,7 +1070,7 @@ char =
         { model = Gadget.string
         , msg = Gadget.maybe Gadget.char
         , output = Gadget.char
-        , init = ""
+        , init = ( "", Cmd.none )
         , placeholder = "a"
         , update =
             \msg _ ->
@@ -1112,28 +1122,27 @@ argsListToVariantValue l =
             Err "Variant has too many args"
 
 
-variantTypeToArgsDict : VariantType -> Dict.Dict String Type
-variantTypeToArgsDict v =
-    Dict.fromList <|
-        List.indexedMap (\idx item -> ( String.fromInt idx, item )) <|
-            case v of
-                Variant0Type ->
-                    []
+variantTypeToArgsList : VariantType -> List ( String, Type )
+variantTypeToArgsList v =
+    List.indexedMap (\idx item -> ( String.fromInt idx, item )) <|
+        case v of
+            Variant0Type ->
+                []
 
-                Variant1Type arg1 ->
-                    [ arg1 ]
+            Variant1Type arg1 ->
+                [ arg1 ]
 
-                Variant2Type arg1 arg2 ->
-                    [ arg1, arg2 ]
+            Variant2Type arg1 arg2 ->
+                [ arg1, arg2 ]
 
-                Variant3Type arg1 arg2 arg3 ->
-                    [ arg1, arg2, arg3 ]
+            Variant3Type arg1 arg2 arg3 ->
+                [ arg1, arg2, arg3 ]
 
-                Variant4Type arg1 arg2 arg3 arg4 ->
-                    [ arg1, arg2, arg3, arg4 ]
+            Variant4Type arg1 arg2 arg3 arg4 ->
+                [ arg1, arg2, arg3, arg4 ]
 
-                Variant5Type arg1 arg2 arg3 arg4 arg5 ->
-                    [ arg1, arg2, arg3, arg4, arg5 ]
+            Variant5Type arg1 arg2 arg3 arg4 arg5 ->
+                [ arg1, arg2, arg3, arg4, arg5 ]
 
 
 
