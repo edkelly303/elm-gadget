@@ -994,29 +994,24 @@ loadHelp config value type_ =
             in
             case blank of
                 Sum _ _ variantModels ->
-                    case Dict.get name variantModels of
-                        Just ( idx, argsDict ) ->
-                            let
-                                argValues =
-                                    variantValueToArgsList variantValue
+                    let
+                        argValues =
+                            variantValueToArgsList variantValue
 
-                                argTypes =
-                                    List.Extra.getAt selected (firstNameAndVariantType :: restNamesAndVariantTypes)
-                                        |> Maybe.map Tuple.second
-                                        |> Maybe.withDefault Variant0Type
-                                        |> variantTypeToArgsList
+                        argTypes =
+                            List.Extra.getAt selected (firstNameAndVariantType :: restNamesAndVariantTypes)
+                                |> Maybe.map Tuple.second
+                                |> Maybe.withDefault Variant0Type
+                                |> variantTypeToArgsList
 
-                                newArgsDict =
-                                    List.map2
-                                        (\( argName, argValue ) ( _, argType ) -> ( argName, loadHelp config argValue argType ))
-                                        argValues
-                                        argTypes
-                                        |> Dict.fromList
-                            in
-                            Sum name metadata (Dict.insert name ( idx, newArgsDict ) variantModels)
-
-                        Nothing ->
-                            blank
+                        newArgsDict =
+                            List.map2
+                                (\( argName, argValue ) ( _, argType ) -> ( argName, loadHelp config argValue argType ))
+                                argValues
+                                argTypes
+                                |> Dict.fromList
+                    in
+                    Sum name metadata (Dict.insert name ( selected, newArgsDict ) variantModels)
 
                 _ ->
                     blank
