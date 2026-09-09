@@ -224,32 +224,57 @@ initHelp initializer config path irType =
 
         RecordType m namedFieldTypes ->
             let
-                fields =
+                ( namedFieldModels, fieldCmds ) =
                     namedFieldTypes
-                        |> List.indexedMap (\idx ( n, f ) -> ( n, ( idx, f ) ))
-                        |> Dict.fromList
-                        |> Dict.map (\_ ( idx, fieldType ) -> ( idx, initHelp initializer config fieldType ))
+                        |> List.indexedMap
+                            (\idx ( name, fieldType ) ->
+                                let
+                                    ( fieldModel, fieldCmd ) =
+                                        initHelp initializer config (name :: path) fieldType
+                                in
+                                ( ( name, ( idx, fieldModel ) ), fieldCmd )
+                            )
+                        |> List.unzip
+                        |> Tuple.mapFirst Dict.fromList
             in
-            Record m fields
+            ( Record m namedFieldModels, Cmd.batch fieldCmds )
 
         ListType m innerType ->
-            Collection m innerType Dict.empty
+            ( Collection m innerType Dict.empty, Cmd.none )
 
         LazyType _ innerType ->
-            initHelp initializer config (innerType ())
+            initHelp initializer config path (innerType ())
 
         TupleType m a b ->
-            Tuple m (initHelp initializer config a) (initHelp initializer config b)
+            let
+                ( aModel, aCmd ) =
+                    initHelp initializer config ("0" :: path) a
+
+                ( bModel, bCmd ) =
+                    initHelp initializer config ("1" :: path) b
+            in
+            ( Tuple m aModel bModel, Cmd.batch [ aCmd, bCmd ] )
 
         TripleType m a b c ->
-            Triple m (initHelp initializer config a) (initHelp initializer config b) (initHelp initializer config c)
+            let
+                ( aModel, aCmd ) =
+                    initHelp initializer config ("0" :: path) a
+
+                ( bModel, bCmd ) =
+                    initHelp initializer config ("1" :: path) b
+
+                ( cModel, cCmd ) =
+                    initHelp initializer config ("2" :: path) c
+            in
+            ( Triple m aModel bModel cModel, Cmd.batch [ aCmd, bCmd, cCmd ] )
 
 
 makeDummyModel : FormConfig -> Type -> List Error -> Model -> Model
 makeDummyModel config irType errors realModel =
     let
         dummyModel =
-            initHelp (\c -> ( c.placeholder, Cmd.none )) config irType
+            initHelp (\c -> ( c.placeholder, Cmd.none )) config [] irType
+                |> Tuple.first
 
         errorPaths =
             errors
@@ -294,7 +319,12 @@ dummyHelp config errorPaths path realModel dummyModel =
 
         ( Collection metadata innerType realItemModels, Collection _ _ _ ) ->
             realItemModels
-                |> Dict.map (\k v -> initHelp (\c -> ( c.placeholder, Cmd.none )) config innerType |> dummyHelp config errorPaths (k :: path) v)
+                |> Dict.map
+                    (\k v ->
+                        initHelp (\c -> ( c.placeholder, Cmd.none )) config (k :: path) innerType
+                            |> Tuple.first
+                            |> dummyHelp config errorPaths (k :: path) v
+                    )
                 |> Collection metadata innerType
 
         ( Sum selected metadata realVariants, Sum _ _ dummyVariants ) ->
@@ -437,8 +467,9 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
                     FullMatch ->
                         case msgValue of
                             UnitValue ->
-                                Dict.insert (String.fromInt (Dict.size childModels))
-                                    (initHelp .init config innerType)
+                                Dict.insert
+                                    (String.fromInt (Dict.size childModels))
+                                    (initHelp .init config modelPath innerType |> Tuple.first |> Debug.log "fix when we add Cmds to update")
                                     childModels
 
                             _ ->
