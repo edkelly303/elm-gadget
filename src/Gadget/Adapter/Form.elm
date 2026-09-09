@@ -757,13 +757,13 @@ viewHelp config errs modelPath model =
                         ++ feedback
 
 
-subscriptions config gadget model =
+subscriptions config model =
     subscriptionsHelp config [] model
 
 
 subscriptionsHelp config path model =
     case model of
-        Primitive primitiveType metadata modelValue ->
+        Primitive primitiveType _ modelValue ->
             let
                 subMe getType =
                     let
@@ -1038,7 +1038,7 @@ fromGadgetWithConfig config toMsg gadget =
     { init = init config gadget |> Tuple.mapSecond (Cmd.map toMsg)
     , update = \msg model -> update config msg model |> Tuple.mapSecond (Cmd.map toMsg)
     , view = \model -> view config gadget model |> H.map toMsg
-    , subscriptions = \model -> subscriptions config gadget model |> Sub.map toMsg
+    , subscriptions = \model -> subscriptions config model |> Sub.map toMsg
     , submit = submit config gadget
     }
 
@@ -1093,7 +1093,7 @@ control config =
         , layout =
             \ui ->
                 [ ui.label, ui.input, ui.feedback ]
-        , subscriptions = \model -> Sub.none
+        , subscriptions = \_ -> Sub.none
         , submit =
             \path modelValue ->
                 IR.toOutput config.model modelValue
@@ -1130,7 +1130,7 @@ int =
                     , HA.value model
                     ]
                     []
-        , subscriptions = \model -> Sub.none
+        , subscriptions = \_ -> Sub.none
         , submit =
             \model ->
                 String.toInt model
@@ -1157,7 +1157,7 @@ float =
                     , HA.value model
                     ]
                     []
-        , subscriptions = \model -> Sub.none
+        , subscriptions = \_ -> Sub.none
         , submit =
             \model ->
                 String.toFloat model
@@ -1183,7 +1183,7 @@ string =
                     , HA.value model
                     ]
                     []
-        , subscriptions = \model -> Sub.none
+        , subscriptions = \_ -> Sub.none
         , submit = Ok
         }
 
@@ -1206,7 +1206,7 @@ bool =
                     , HA.id id
                     ]
                     []
-        , subscriptions = \model -> Sub.none
+        , subscriptions = \_ -> Sub.none
         , submit = Ok
         }
         |> withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
@@ -1237,7 +1237,7 @@ char =
                     , HA.value model
                     ]
                     []
-        , subscriptions = \model -> Sub.none
+        , subscriptions = \_ -> Sub.none
         , submit =
             \model ->
                 String.uncons model
