@@ -55,7 +55,7 @@ tools =
 -}
 type alias Form a msg =
     { init : ( Model, Cmd msg )
-    , update : Msg -> Model -> Model
+    , update : Msg -> Model -> ( Model, Cmd msg )
     , view : Model -> H.Html msg
     , submit : Model -> Result (List Error) a
     }
@@ -70,7 +70,7 @@ type Control
 type alias InnerControl =
     { init : ( Value, Cmd Value )
     , placeholder : Value
-    , update : Value -> Value -> Value
+    , update : Value -> Value -> ( Value, Cmd Value )
     , view : String -> Value -> H.Html Value
     , layout : { label : H.Html Msg, input : H.Html Msg, feedback : H.Html Msg } -> List (H.Html Msg)
     , submit : Path -> Value -> Result (List Error) Value
@@ -85,7 +85,7 @@ type alias ControlConfig msg model output =
     , output : IR.Gadget output
     , init : ( model, Cmd msg )
     , placeholder : model
-    , update : msg -> model -> model
+    , update : msg -> model -> ( model, Cmd msg )
     , view : String -> model -> H.Html msg
     , submit : model -> Result String output
     }
@@ -360,16 +360,16 @@ dummyHelp config errorPaths path realModel dummyModel =
             realModel
 
 
-update : FormConfig -> Msg -> Model -> Model
+update : FormConfig -> Msg -> Model -> ( Model, Cmd Msg )
 update config msg model =
     updateHelp config [] msg model
 
 
-updateHelp : FormConfig -> Path -> Msg -> Model -> Model
+updateHelp : FormConfig -> Path -> Msg -> Model -> ( Model, Cmd Msg )
 updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
     case model of
         Primitive primitiveType metadata modelValue ->
-            Primitive primitiveType metadata <|
+            Tuple.mapBoth (Primitive primitiveType metadata) (Cmd.map (Msg modelPath)) <|
                 if modelPath == msgPath then
                     let
                         updateFor getType =
@@ -381,7 +381,7 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
                     in
                     case primitiveType of
                         PUnit ->
-                            modelValue
+                            ( modelValue, Cmd.none )
 
                         PString ->
                             updateFor .string
@@ -399,136 +399,167 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
                             updateFor .bool
 
                 else
-                    modelValue
+                    ( modelValue, Cmd.none )
 
         Record metadata fields ->
             case matchPath msgPath modelPath of
                 FullMatch ->
-                    model
+                    ( model, Cmd.none )
 
                 PrefixMatch { next1 } ->
-                    Dict.update next1
-                        (\m ->
-                            case m of
-                                Just ( idx, field ) ->
-                                    Just ( idx, updateHelp config (next1 :: modelPath) msg field )
+                    case Dict.get next1 fields of
+                        Just ( idx, oldField ) ->
+                            let
+                                ( newField, cmd ) =
+                                    updateHelp config (next1 :: modelPath) msg oldField
 
-                                Nothing ->
-                                    Nothing
-                        )
-                        fields
-                        |> Record metadata
+                                newFields =
+                                    Dict.insert next1
+                                        ( idx, newField )
+                                        fields
+                            in
+                            ( Record metadata newFields, cmd )
+
+                        Nothing ->
+                            ( model, Cmd.none )
 
                 NoMatch ->
-                    model
+                    ( model, Cmd.none )
 
         Tuple metadata a b ->
             case matchPath msgPath modelPath of
                 FullMatch ->
-                    model
+                    ( model, Cmd.none )
 
                 PrefixMatch { next1 } ->
                     case next1 of
                         "0" ->
-                            Tuple metadata (updateHelp config ("0" :: modelPath) msg a) b
+                            let
+                                ( new, cmd ) =
+                                    updateHelp config ("0" :: modelPath) msg a
+                            in
+                            ( Tuple metadata new b, cmd )
 
                         "1" ->
-                            Tuple metadata a (updateHelp config ("1" :: modelPath) msg b)
+                            let
+                                ( new, cmd ) =
+                                    updateHelp config ("1" :: modelPath) msg b
+                            in
+                            ( Tuple metadata a new, cmd )
 
                         _ ->
-                            model
+                            ( model, Cmd.none )
 
                 NoMatch ->
-                    model
+                    ( model, Cmd.none )
 
         Triple metadata a b c ->
             case matchPath msgPath modelPath of
                 FullMatch ->
-                    model
+                    ( model, Cmd.none )
 
                 PrefixMatch { next1 } ->
                     case next1 of
                         "0" ->
-                            Triple metadata (updateHelp config ("0" :: modelPath) msg a) b c
+                            let
+                                ( new, cmd ) =
+                                    updateHelp config ("0" :: modelPath) msg a
+                            in
+                            ( Triple metadata new b c, cmd )
 
                         "1" ->
-                            Triple metadata a (updateHelp config ("1" :: modelPath) msg b) c
+                            let
+                                ( new, cmd ) =
+                                    updateHelp config ("1" :: modelPath) msg b
+                            in
+                            ( Triple metadata a new c, cmd )
 
                         "2" ->
-                            Triple metadata a b (updateHelp config ("2" :: modelPath) msg c)
+                            let
+                                ( new, cmd ) =
+                                    updateHelp config ("2" :: modelPath) msg c
+                            in
+                            ( Triple metadata a b new, cmd )
 
                         _ ->
-                            model
+                            ( model, Cmd.none )
 
                 NoMatch ->
-                    model
+                    ( model, Cmd.none )
 
-        Collection metadata innerType childModels ->
-            Collection metadata innerType <|
-                case matchPath msgPath modelPath of
-                    FullMatch ->
-                        case msgValue of
-                            UnitValue ->
-                                Dict.insert
-                                    (String.fromInt (Dict.size childModels))
-                                    (initHelp .init config modelPath innerType |> Tuple.first |> Debug.log "fix when we add Cmds to update")
-                                    childModels
+        Collection metadata innerType itemModels ->
+            let
+                ( newItemModels, itemCmd ) =
+                    case matchPath msgPath modelPath of
+                        FullMatch ->
+                            case msgValue of
+                                UnitValue ->
+                                    let
+                                        ( newItemModel, newCmd ) =
+                                            initHelp .init config modelPath innerType
+                                    in
+                                    ( Dict.insert (String.fromInt (Dict.size itemModels)) newItemModel itemModels
+                                    , newCmd
+                                    )
 
-                            _ ->
-                                childModels
+                                _ ->
+                                    ( itemModels, Cmd.none )
 
-                    PrefixMatch { next1 } ->
-                        Dict.update next1
-                            (\m ->
-                                case m of
-                                    Just x ->
-                                        Just (updateHelp config (next1 :: modelPath) msg x)
+                        PrefixMatch { next1 } ->
+                            case Dict.get next1 itemModels of
+                                Just oldItemModel ->
+                                    let
+                                        ( newItemModel, newCmd ) =
+                                            updateHelp config (next1 :: modelPath) msg oldItemModel
+                                    in
+                                    ( Dict.insert next1 newItemModel itemModels
+                                    , newCmd
+                                    )
 
-                                    Nothing ->
-                                        Nothing
-                            )
-                            childModels
+                                Nothing ->
+                                    ( itemModels, Cmd.none )
 
-                    NoMatch ->
-                        childModels
+                        NoMatch ->
+                            ( itemModels, Cmd.none )
+            in
+            ( Collection metadata innerType newItemModels, itemCmd )
 
         Sum selected metadata variants ->
             case matchPath msgPath modelPath of
                 FullMatch ->
                     case msgValue of
                         StringValue newSelected ->
-                            Sum newSelected metadata variants
+                            ( Sum newSelected metadata variants, Cmd.none )
 
                         _ ->
-                            model
+                            ( model, Cmd.none )
 
                 PrefixMatch { next1, next2 } ->
-                    Sum selected metadata <|
-                        Dict.update next1
-                            (\maybeVariant ->
-                                case maybeVariant of
-                                    Just ( idx, variant ) ->
-                                        Just
-                                            ( idx
-                                            , Dict.update next2
-                                                (\maybeArg ->
-                                                    case maybeArg of
-                                                        Just arg ->
-                                                            Just (updateHelp config (next2 :: next1 :: modelPath) msg arg)
+                    case Dict.get next1 variants of
+                        Just ( idx, args ) ->
+                            case Dict.get next2 args of
+                                Just arg ->
+                                    let
+                                        ( newArg, cmd ) =
+                                            updateHelp config (next2 :: next1 :: modelPath) msg arg
 
-                                                        Nothing ->
-                                                            Nothing
-                                                )
-                                                variant
-                                            )
+                                        newVariants =
+                                            Dict.insert next1
+                                                ( idx, Dict.insert next2 newArg args )
+                                                variants
+                                    in
+                                    ( Sum selected metadata newVariants
+                                    , cmd
+                                    )
 
-                                    Nothing ->
-                                        Nothing
-                            )
-                            variants
+                                Nothing ->
+                                    ( model, Cmd.none )
+
+                        Nothing ->
+                            ( model, Cmd.none )
 
                 NoMatch ->
-                    model
+                    ( model, Cmd.none )
 
 
 view : FormConfig -> IR.Gadget a -> Model -> H.Html Msg
@@ -927,7 +958,7 @@ fromGadget toMsg gadget =
 fromGadgetWithConfig : FormConfig -> (Msg -> msg) -> IR.Gadget a -> Form a msg
 fromGadgetWithConfig config toMsg gadget =
     { init = init config gadget |> Tuple.mapSecond (Cmd.map toMsg)
-    , update = update config
+    , update = \msg model -> update config msg model |> Tuple.mapSecond (Cmd.map toMsg)
     , view = \model -> view config gadget model |> H.map toMsg
     , submit = submit config gadget
     }
@@ -973,8 +1004,8 @@ control config =
                 Result.map2 config.update
                     (IR.toOutput config.msg msg)
                     (IR.toOutput config.model modelValue)
-                    |> Result.map (IR.fromInput config.model)
-                    |> Result.withDefault modelValue
+                    |> Result.map (Tuple.mapBoth (IR.fromInput config.model) (Cmd.map (IR.fromInput config.msg)))
+                    |> Result.withDefault ( modelValue, Cmd.none )
         , view =
             \id modelValue ->
                 Result.map (config.view id) (IR.toOutput config.model modelValue)
@@ -1008,7 +1039,7 @@ int =
         , output = Gadget.int
         , init = ( "", Cmd.none )
         , placeholder = "0"
-        , update = \msg _ -> msg
+        , update = \msg _ -> ( msg, Cmd.none )
         , view =
             \id model ->
                 H.input
@@ -1034,7 +1065,7 @@ float =
         , output = Gadget.float
         , init = ( "", Cmd.none )
         , placeholder = "0.0"
-        , update = \msg _ -> msg
+        , update = \msg _ -> ( msg, Cmd.none )
         , view =
             \id model ->
                 H.input
@@ -1060,7 +1091,7 @@ string =
         , output = Gadget.string
         , init = ( "", Cmd.none )
         , placeholder = ""
-        , update = \msg _ -> msg
+        , update = \msg _ -> ( msg, Cmd.none )
         , view =
             \id model ->
                 H.input
@@ -1082,7 +1113,7 @@ bool =
         , output = Gadget.bool
         , init = ( False, Cmd.none )
         , placeholder = False
-        , update = \msg _ -> msg
+        , update = \msg _ -> ( msg, Cmd.none )
         , view =
             \id model ->
                 H.input
@@ -1109,10 +1140,10 @@ char =
             \msg _ ->
                 case msg of
                     Nothing ->
-                        ""
+                        ( "", Cmd.none )
 
                     Just c ->
-                        String.fromChar c
+                        ( String.fromChar c, Cmd.none )
         , view =
             \id model ->
                 H.input
