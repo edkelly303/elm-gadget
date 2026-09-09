@@ -37,7 +37,7 @@ TODO
 
 import Dict exposing (Dict)
 import Gadget
-import Gadget.IR as IR exposing (Error, Path, Type(..), Value(..), VariantType(..))
+import Gadget.IR as IR exposing (Error, Path, Type(..), Value(..), VariantType(..), VariantValue(..))
 import Html as H
 import Html.Attributes as HA
 import Html.Events as HE
@@ -55,6 +55,7 @@ tools =
 -}
 type alias Form a msg =
     { init : ( Model, Cmd msg )
+    , load : a -> Model
     , update : Msg -> Model -> ( Model, Cmd msg )
     , view : Model -> H.Html msg
     , subscriptions : Model -> Sub msg
@@ -954,6 +955,76 @@ parsePrimitiveControls config path model =
                     )
 
 
+load : FormConfig -> IR.Gadget a -> a -> Model
+load config gadget a =
+    loadHelp config (IR.fromInput gadget a) (IR.irType gadget)
+
+
+loadHelp config value type_ =
+    case ( value, type_ ) of
+        ( UnitValue, UnitType metadata ) ->
+            Primitive PUnit metadata UnitValue
+
+        ( BoolValue b, BoolType metadata ) ->
+            Primitive PBool metadata (BoolValue b)
+
+        ( CharValue s, CharType metadata ) ->
+            Primitive PChar metadata (CharValue s)
+
+        ( StringValue s, StringType metadata ) ->
+            Primitive PString metadata (StringValue s)
+
+        ( IntValue s, IntType metadata ) ->
+            Primitive PInt metadata (IntValue s)
+
+        ( FloatValue s, FloatType metadata ) ->
+            Primitive PFloat metadata (FloatValue s)
+
+        ( RecordValue namedFieldValues, RecordType metadata namedFieldTypes ) ->
+            List.Extra.zip namedFieldValues namedFieldTypes
+                |> List.indexedMap (\idx ( ( name, fieldValue ), ( _, fieldType ) ) -> ( name, ( idx, loadHelp config fieldValue fieldType ) ))
+                |> Dict.fromList
+                |> Record metadata
+
+        ( CustomValue selected ( name, variantValue ), CustomType metadata firstNameAndVariantType restNamesAndVariantTypes ) ->
+            let
+                blank =
+                    initHelp .init config [] type_
+                        |> Tuple.first
+            in
+            case blank of
+                Sum _ _ variantModels ->
+                    case Dict.get name variantModels of
+                        Just ( idx, argsDict ) ->
+                            let
+                                argValues =
+                                    variantValueToArgsList variantValue
+
+                                argTypes =
+                                    List.Extra.getAt selected (firstNameAndVariantType :: restNamesAndVariantTypes)
+                                        |> Maybe.map Tuple.second
+                                        |> Maybe.withDefault Variant0Type
+                                        |> variantTypeToArgsList
+
+                                newArgsDict =
+                                    List.map2
+                                        (\( argName, argValue ) ( _, argType ) -> ( argName, loadHelp config argValue argType ))
+                                        argValues
+                                        argTypes
+                                        |> Dict.fromList
+                            in
+                            Sum name metadata (Dict.insert name ( idx, newArgsDict ) variantModels)
+
+                        Nothing ->
+                            blank
+
+                _ ->
+                    blank
+
+        _ ->
+            Debug.todo "implement the other cases"
+
+
 combineAndAccumulateErrorsDict :
     Dict String (Result (List error) a)
     -> Result (List error) (Dict String a)
@@ -1036,6 +1107,7 @@ fromGadget toMsg gadget =
 fromGadgetWithConfig : FormConfig -> (Msg -> msg) -> IR.Gadget a -> Form a msg
 fromGadgetWithConfig config toMsg gadget =
     { init = init config gadget |> Tuple.mapSecond (Cmd.map toMsg)
+    , load = \output -> load config gadget output
     , update = \msg model -> update config msg model |> Tuple.mapSecond (Cmd.map toMsg)
     , view = \model -> view config gadget model |> H.map toMsg
     , subscriptions = \model -> subscriptions config model |> Sub.map toMsg
@@ -1291,6 +1363,29 @@ variantTypeToArgsList v =
                 [ arg1, arg2, arg3, arg4 ]
 
             Variant5Type arg1 arg2 arg3 arg4 arg5 ->
+                [ arg1, arg2, arg3, arg4, arg5 ]
+
+
+variantValueToArgsList : VariantValue -> List ( String, Value )
+variantValueToArgsList v =
+    List.indexedMap (\idx item -> ( String.fromInt idx, item )) <|
+        case v of
+            Variant0Value ->
+                []
+
+            Variant1Value arg1 ->
+                [ arg1 ]
+
+            Variant2Value arg1 arg2 ->
+                [ arg1, arg2 ]
+
+            Variant3Value arg1 arg2 arg3 ->
+                [ arg1, arg2, arg3 ]
+
+            Variant4Value arg1 arg2 arg3 arg4 ->
+                [ arg1, arg2, arg3, arg4 ]
+
+            Variant5Value arg1 arg2 arg3 arg4 arg5 ->
                 [ arg1, arg2, arg3, arg4, arg5 ]
 
 
