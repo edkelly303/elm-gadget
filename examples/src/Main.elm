@@ -209,11 +209,15 @@ form =
 
 
 init _ =
+    let
+        ( formModel, formCmd ) =
+            form.init
+    in
     ( { seed = 0
       , prettyWidth = 120
-      , form = form.init
+      , form = formModel
       }
-    , Cmd.none
+    , formCmd
     )
 
 
