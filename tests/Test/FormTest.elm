@@ -31,6 +31,7 @@ suite =
 
                     errors =
                         form.init
+                            |> Tuple.first
                             |> form.submit
                 in
                 errors
@@ -61,6 +62,7 @@ suite =
 
                     errors =
                         form.init
+                            |> Tuple.first
                             |> form.submit
                 in
                 errors
