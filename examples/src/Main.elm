@@ -199,8 +199,12 @@ update msg model =
             )
 
         FormUpdated formMsg ->
-            ( { model | form = form.update formMsg model.form }
-            , Cmd.none
+            let
+                ( formModel, formCmd ) =
+                    form.update formMsg model.form
+            in
+            ( { model | form = formModel }
+            , formCmd
             )
 
 
