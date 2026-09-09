@@ -57,6 +57,7 @@ type alias Form a msg =
     { init : ( Model, Cmd msg )
     , update : Msg -> Model -> ( Model, Cmd msg )
     , view : Model -> H.Html msg
+    , subscriptions : Model -> Sub msg
     , submit : Model -> Result (List Error) a
     }
 
@@ -72,6 +73,7 @@ type alias InnerControl =
     , placeholder : Value
     , update : Value -> Value -> ( Value, Cmd Value )
     , view : String -> Value -> H.Html Value
+    , subscriptions : Value -> Sub Value
     , layout : { label : H.Html Msg, input : H.Html Msg, feedback : H.Html Msg } -> List (H.Html Msg)
     , submit : Path -> Value -> Result (List Error) Value
     }
@@ -87,6 +89,7 @@ type alias ControlConfig msg model output =
     , placeholder : model
     , update : msg -> model -> ( model, Cmd msg )
     , view : String -> model -> H.Html msg
+    , subscriptions : model -> Sub msg
     , submit : model -> Result String output
     }
 
@@ -754,6 +757,81 @@ viewHelp config errs modelPath model =
                         ++ feedback
 
 
+subscriptions config gadget model =
+    subscriptionsHelp config [] model
+
+
+subscriptionsHelp config path model =
+    case model of
+        Primitive primitiveType metadata modelValue ->
+            let
+                subMe getType =
+                    let
+                        (Control c) =
+                            getType config
+                    in
+                    c.subscriptions modelValue
+                        |> Sub.map (Msg path)
+            in
+            case primitiveType of
+                PUnit ->
+                    Sub.none
+
+                PBool ->
+                    subMe .bool
+
+                PInt ->
+                    subMe .int
+
+                PFloat ->
+                    subMe .float
+
+                PChar ->
+                    subMe .char
+
+                PString ->
+                    subMe .string
+
+        Tuple _ a b ->
+            Sub.batch
+                [ subscriptionsHelp config ("0" :: path) a
+                , subscriptionsHelp config ("1" :: path) b
+                ]
+
+        Triple _ a b c ->
+            Sub.batch
+                [ subscriptionsHelp config ("0" :: path) a
+                , subscriptionsHelp config ("1" :: path) b
+                , subscriptionsHelp config ("2" :: path) c
+                ]
+
+        Record _ namedFieldModels ->
+            namedFieldModels
+                |> Dict.map (\fieldName ( _, fieldModel ) -> subscriptionsHelp config (fieldName :: path) fieldModel)
+                |> Dict.values
+                |> Sub.batch
+
+        Sum _ _ variantModels ->
+            variantModels
+                |> Dict.toList
+                |> List.concatMap
+                    (\( variantName, ( _, argModels ) ) ->
+                        argModels
+                            |> Dict.toList
+                            |> List.map
+                                (\( argName, argModel ) ->
+                                    subscriptionsHelp config (argName :: variantName :: path) argModel
+                                )
+                    )
+                |> Sub.batch
+
+        Collection _ _ itemModels ->
+            itemModels
+                |> Dict.map (\itemName itemModel -> subscriptionsHelp config (itemName :: path) itemModel)
+                |> Dict.values
+                |> Sub.batch
+
+
 submit : FormConfig -> IR.Gadget a -> Model -> Result (List Error) a
 submit config gadget model =
     case parsePrimitiveControls config [] model of
@@ -960,6 +1038,7 @@ fromGadgetWithConfig config toMsg gadget =
     { init = init config gadget |> Tuple.mapSecond (Cmd.map toMsg)
     , update = \msg model -> update config msg model |> Tuple.mapSecond (Cmd.map toMsg)
     , view = \model -> view config gadget model |> H.map toMsg
+    , subscriptions = \model -> subscriptions config gadget model |> Sub.map toMsg
     , submit = submit config gadget
     }
 
@@ -1014,6 +1093,7 @@ control config =
         , layout =
             \ui ->
                 [ ui.label, ui.input, ui.feedback ]
+        , subscriptions = \model -> Sub.none
         , submit =
             \path modelValue ->
                 IR.toOutput config.model modelValue
@@ -1050,6 +1130,7 @@ int =
                     , HA.value model
                     ]
                     []
+        , subscriptions = \model -> Sub.none
         , submit =
             \model ->
                 String.toInt model
@@ -1076,6 +1157,7 @@ float =
                     , HA.value model
                     ]
                     []
+        , subscriptions = \model -> Sub.none
         , submit =
             \model ->
                 String.toFloat model
@@ -1101,6 +1183,7 @@ string =
                     , HA.value model
                     ]
                     []
+        , subscriptions = \model -> Sub.none
         , submit = Ok
         }
 
@@ -1123,6 +1206,7 @@ bool =
                     , HA.id id
                     ]
                     []
+        , subscriptions = \model -> Sub.none
         , submit = Ok
         }
         |> withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
@@ -1153,6 +1237,7 @@ char =
                     , HA.value model
                     ]
                     []
+        , subscriptions = \model -> Sub.none
         , submit =
             \model ->
                 String.uncons model
