@@ -1,6 +1,6 @@
 module Gadget.Adapter.Form exposing
     ( Form, Model, Msg, fromGadget, fromGadgetWithConfig, FormConfig, default
-    , Control, ControlConfig, control
+    , Control, ControlConfig, makeControl
     , label, customLabels, validate
     )
 
@@ -105,8 +105,8 @@ type alias FormConfig =
     , float : Control Float
     , char : Control Char
     , string : Control String
-    , feedback : String -> H.Html Msg
-    , control : Bool -> List (H.Html Msg) -> List (H.Html Msg)
+    , viewFeedback : String -> H.Html Msg
+    , viewControl : Bool -> List (H.Html Msg) -> List (H.Html Msg)
     }
 
 
@@ -119,8 +119,8 @@ default =
     , float = float
     , char = char
     , string = string
-    , feedback = \error -> H.span [] [ H.text error ]
-    , control =
+    , viewFeedback = \error -> H.span [] [ H.text error ]
+    , viewControl =
         \validity inner ->
             [ H.node "form-control"
                 [ HA.class
@@ -596,7 +596,7 @@ viewHelp config errs modelPath model =
                 |> List.concatMap
                     (\{ path, error } ->
                         if path == modelPath then
-                            [ config.feedback error ]
+                            [ config.viewFeedback error ]
 
                         else
                             []
@@ -613,7 +613,7 @@ viewHelp config errs modelPath model =
                         (Control c) =
                             getType config
                     in
-                    config.control isValid <|
+                    config.viewControl isValid <|
                         c.layout
                             { label =
                                 H.label [ HA.for id ] [ H.text (maybeLabel metadata |> Maybe.withDefault id) ]
@@ -1157,8 +1157,8 @@ customLabels l ls gadget =
 
 {-| TODO
 -}
-control : ControlConfig msg model output -> Control output
-control config =
+makeControl : ControlConfig msg model output -> Control output
+makeControl config =
     let
         placeholderValue =
             config.placeholder
@@ -1209,7 +1209,7 @@ withLayout f (Control c) =
 
 int : Control Int
 int =
-    control
+    makeControl
         { model = Gadget.string
         , msg = Gadget.string
         , output = Gadget.int
@@ -1237,7 +1237,7 @@ int =
 
 float : Control Float
 float =
-    control
+    makeControl
         { model = Gadget.string
         , msg = Gadget.string
         , output = Gadget.float
@@ -1265,7 +1265,7 @@ float =
 
 string : Control String
 string =
-    control
+    makeControl
         { model = Gadget.string
         , msg = Gadget.string
         , output = Gadget.string
@@ -1289,7 +1289,7 @@ string =
 
 bool : Control Bool
 bool =
-    control
+    makeControl
         { model = Gadget.bool
         , msg = Gadget.bool
         , output = Gadget.bool
@@ -1314,7 +1314,7 @@ bool =
 
 char : Control Char
 char =
-    control
+    makeControl
         { model = Gadget.string
         , msg = Gadget.maybe Gadget.char
         , output = Gadget.char
