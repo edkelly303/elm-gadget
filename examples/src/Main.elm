@@ -218,7 +218,13 @@ init _ =
             form.init
 
         loadedFormModel =
-            form.load { name = "Ed", heightInCentimetres = 180, pets = [], tuple = ( True, False ), triple = ( False, True, False ) }
+            form.load
+                { name = "Ed"
+                , heightInCentimetres = 180
+                , pets = [ Robot 'A' (Just 3000) ]
+                , tuple = ( True, False )
+                , triple = ( False, True, False )
+                }
     in
     ( { seed = 0
       , prettyWidth = 120
