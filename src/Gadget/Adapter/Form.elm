@@ -1,8 +1,7 @@
 module Gadget.Adapter.Form exposing
     ( Form, Model, Msg, fromGadget, fromGadgetWithConfig, FormConfig, default
-    , Control, ControlConfig
+    , Control, ControlConfig, makeControl
     , label, customLabels, validate
-    , makeControl
     )
 
 {-|
@@ -30,7 +29,7 @@ TODO
 
 @docs Form, Model, Msg, fromGadget, fromGadgetWithConfig, FormConfig, default
 
-@docs Control, ControlConfig, control
+@docs Control, ControlConfig, makeControl
 
 @docs label, customLabels, validate
 
