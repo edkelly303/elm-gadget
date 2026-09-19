@@ -65,7 +65,7 @@ type alias Form a msg =
 
 {-| TODO
 -}
-type Control
+type Control output
     = Control InnerControl
 
 
@@ -100,11 +100,11 @@ type alias ControlConfig msg model output =
 {-| TODO
 -}
 type alias FormConfig =
-    { bool : Control
-    , int : Control
-    , float : Control
-    , char : Control
-    , string : Control
+    { bool : Control Bool
+    , int : Control Int
+    , float : Control Float
+    , char : Control Char
+    , string : Control String
     , feedback : String -> H.Html Msg
     , control : Bool -> List (H.Html Msg) -> List (H.Html Msg)
     }
@@ -608,28 +608,11 @@ viewHelp config errs modelPath model =
     case model of
         Primitive primitiveType metadata modelValue ->
             let
-                maybeControl =
-                    case primitiveType of
-                        PUnit ->
-                            Nothing
-
-                        PString ->
-                            Just config.string
-
-                        PChar ->
-                            Just config.char
-
-                        PInt ->
-                            Just config.int
-
-                        PFloat ->
-                            Just config.float
-
-                        PBool ->
-                            Just config.bool
-            in
-            case maybeControl of
-                Just (Control c) ->
+                viewMe getType =
+                    let
+                        (Control c) =
+                            getType config
+                    in
                     config.control isValid <|
                         c.layout
                             { label =
@@ -639,9 +622,25 @@ viewHelp config errs modelPath model =
                             , feedback =
                                 H.output [] feedback
                             }
-
-                Nothing ->
+            in
+            case primitiveType of
+                PUnit ->
                     []
+
+                PString ->
+                    viewMe .string
+
+                PChar ->
+                    viewMe .char
+
+                PInt ->
+                    viewMe .int
+
+                PFloat ->
+                    viewMe .float
+
+                PBool ->
+                    viewMe .bool
 
         Record metadata fields ->
             let
@@ -1158,7 +1157,7 @@ customLabels l ls gadget =
 
 {-| TODO
 -}
-control : ControlConfig msg model output -> Control
+control : ControlConfig msg model output -> Control output
 control config =
     let
         placeholderValue =
@@ -1203,12 +1202,12 @@ control config =
         }
 
 
-withLayout : ({ label : H.Html Msg, input : H.Html Msg, feedback : H.Html Msg } -> List (H.Html Msg)) -> Control -> Control
+withLayout : ({ label : H.Html Msg, input : H.Html Msg, feedback : H.Html Msg } -> List (H.Html Msg)) -> Control output -> Control output
 withLayout f (Control c) =
     Control { c | layout = f }
 
 
-int : Control
+int : Control Int
 int =
     control
         { model = Gadget.string
@@ -1236,7 +1235,7 @@ int =
         }
 
 
-float : Control
+float : Control Float
 float =
     control
         { model = Gadget.string
@@ -1264,7 +1263,7 @@ float =
         }
 
 
-string : Control
+string : Control String
 string =
     control
         { model = Gadget.string
@@ -1288,7 +1287,7 @@ string =
         }
 
 
-bool : Control
+bool : Control Bool
 bool =
     control
         { model = Gadget.bool
@@ -1313,7 +1312,7 @@ bool =
         |> withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
 
 
-char : Control
+char : Control Char
 char =
     control
         { model = Gadget.string
