@@ -39,6 +39,10 @@ ignoreDocSnippets =
     List.map (Rule.ignoreErrorsForFiles [ "tests/DocumentationCodeSnippetTest.elm" ])
 
 
+ignoreLib =
+    List.map (Rule.ignoreErrorsForDirectories [ "src/Lib" ])
+
+
 docs =
     [ Docs.NoMissing.rule
         { document = onlyExposed
@@ -78,6 +82,7 @@ unused =
         |> Rule.ignoreErrorsForFiles [ "src/Gadget.elm" ]
     ]
         |> ignoreDocSnippets
+        |> ignoreLib
 
 
 simplify =

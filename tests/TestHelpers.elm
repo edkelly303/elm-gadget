@@ -46,7 +46,7 @@ treeGadgetHelp n =
         |> Gadget.endCustom
 
 
-type alias Record =
+type alias ComplexRecord =
     { unit : ()
     , bool : Bool
     , int : Int
@@ -58,9 +58,9 @@ type alias Record =
     }
 
 
-recordGadget : Gadget.Gadget Record
-recordGadget =
-    Gadget.record Record
+complexRecordGadget : Gadget.Gadget ComplexRecord
+complexRecordGadget =
+    Gadget.record ComplexRecord
         |> Gadget.field "unit" .unit Gadget.unit
         |> Gadget.field "bool" .bool Gadget.bool
         |> Gadget.field "int" .int Gadget.int
@@ -69,6 +69,20 @@ recordGadget =
         |> Gadget.field "char" .char Gadget.char
         |> Gadget.field "custom" .custom customGadget
         |> Gadget.field "tuple" .tuple tupleGadget
+        |> Gadget.endRecord
+
+
+type alias SimpleRecord =
+    { bool : Bool
+    , int : Int
+    }
+
+
+recordGadget : Gadget.Gadget SimpleRecord
+recordGadget =
+    Gadget.record SimpleRecord
+        |> Gadget.field "bool" .bool Gadget.bool
+        |> Gadget.field "int" .int Gadget.int
         |> Gadget.endRecord
 
 

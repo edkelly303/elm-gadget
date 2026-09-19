@@ -1,0 +1,10 @@
+[
+  {
+    "languageId": "elm",
+    "command": "/home/ed/.cargo/bin/elm-language-server-rs",
+    "fileExtensions": [
+      ".json",
+      ".elm"
+    ]
+  }
+]

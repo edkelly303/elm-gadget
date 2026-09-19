@@ -404,7 +404,8 @@ tests =
                         "0"
                         (\() ->
                             randomPerson__Gadget_Adapter_Random__generator_0
-                                |> Expect.equal { age = -1353461051, name = "" }
+                                |> Expect.equal
+                                    (Maybe.Just { age = -1353461051, name = "" })
                         )
                     ]
                 ]
@@ -417,7 +418,12 @@ tests =
                         (\() ->
                             randomList__Gadget_Adapter_Random__listLength_0
                                 |> Expect.equal
-                                    [ Basics.True, Basics.False, Basics.False ]
+                                    (Maybe.Just
+                                        [ Basics.True
+                                        , Basics.False
+                                        , Basics.False
+                                        ]
+                                    )
                         )
                     ]
                 ]
@@ -429,7 +435,7 @@ tests =
                         "0"
                         (\() ->
                             randomInt__Gadget_Adapter_Random__range_0
-                                |> Expect.equal 6
+                                |> Expect.equal (Maybe.Just 6)
                         )
                     ]
                 ]
@@ -489,7 +495,7 @@ tests =
                         "2"
                         (\() ->
                             let
-                                unused : List ( String.String, List ( String.String, String.String ) )
+                                unused : List ( String.String, List ( String.String, Gadget.IR.Value ) )
                                 unused =
                                     allValues__Gadget_IR__MetadataTools_0
                             in
@@ -596,7 +602,7 @@ nonEmptyListGadget__Gadget__filterMap_0 a =
             (\list ->
                 case list of
                     [] ->
-                        Result.Err "must contain at least one item"
+                        Result.Err [ "must contain at least one item" ]
 
                     h :: t ->
                         Result.Ok ( h, t )
@@ -713,7 +719,7 @@ personGadget__Gadget_Adapter_Fuzz__fuzzerWithOverrides_0 =
 
 
 nameGadget__Gadget_Adapter_Fuzz__fuzzerWithOverrides_0 =
-    Gadget.string |> Gadget.Adapter.Fuzz.label "name"
+    Gadget.string |> Gadget.Adapter.Fuzz.useOverride "name"
 
 
 personFuzzer__Gadget_Adapter_Fuzz__fuzzerWithOverrides_0 =

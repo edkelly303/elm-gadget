@@ -66,7 +66,7 @@ values for the `Int` that it generates.
             (Random.initialSeed 0)
             |> Tuple.first
 
-    randomInt --> 6
+    randomInt --> Just 6
 
 -}
 range : number -> number -> IR.Gadget number -> IR.Gadget number
@@ -94,7 +94,7 @@ values for the length of the `List` that it generates.
             (Random.initialSeed 0)
             |> Tuple.first
 
-    randomList --> [ True, False, False ]
+    randomList --> Just [ True, False, False ]
 
 -}
 listLength : Int -> Int -> IR.Gadget (List a) -> IR.Gadget (List a)
@@ -135,23 +135,22 @@ choose first rest gadget =
             (Random.initialSeed 2)
             |> Tuple.first
 
-    randomPerson --> { age = -1353461051, name = "" }
+    randomPerson --> Just { age = -1353461051, name = "" }
 
 -}
-generator : IR.Gadget a -> Random.Generator a
+generator : IR.Gadget a -> Random.Generator (Maybe a)
 generator gadget =
     IR.irType gadget
         |> randomAdapter
         |> Random.map (IR.toOutput gadget)
-        |> Random.andThen
+        |> Random.map
             (\res ->
                 case res of
                     Ok b ->
-                        Random.constant b
+                        Just b
 
                     Err _ ->
-                        -- let's hope this never happens...
-                        generator gadget
+                        Nothing
             )
 
 

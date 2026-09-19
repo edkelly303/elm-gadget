@@ -1,0 +1,1526 @@
+module Gadget.Adapter.Form exposing
+    ( Form, Model, Msg, fromGadget, fromGadgetWithConfig, FormConfig, default
+    , Control, ControlConfig, control
+    , label, customLabels, validate
+    )
+
+{-|
+
+
+## ☠️ **Warning:** Not designed for production use! ☠️
+
+The `Gadget.Adapter` modules are included in this package as toy adapters to
+show you what Gadgets are capable of, and provide source-code examples that you
+can use to get started with writing your own adapters. You should probably write
+your own production-grade adapters that are designed for your specific use-case.
+
+
+## Introduction
+
+TODO
+
+
+## Example
+
+    TODO
+
+
+## API
+
+@docs Form, Model, Msg, fromGadget, fromGadgetWithConfig, FormConfig, default
+
+@docs Control, ControlConfig, control
+
+@docs label, customLabels, validate
+
+-}
+
+import Dict exposing (Dict)
+import Gadget
+import Gadget.IR as IR exposing (Error, Path, Type(..), Value(..), VariantType(..), VariantValue(..))
+import Html as H
+import Html.Attributes as HA
+import Html.Events as HE
+import List.Extra
+import Result.Extra
+import Set
+
+
+tools : IR.MetadataTools meta a
+tools =
+    IR.makeMetadataTools "Gadget.Adapter.Form"
+
+
+{-| TODO
+-}
+type alias Form a msg =
+    { init : ( Model, Cmd msg )
+    , load : a -> Model
+    , update : Msg -> Model -> ( Model, Cmd msg )
+    , view : Model -> H.Html msg
+    , subscriptions : Model -> Sub msg
+    , submit : Model -> Result (List Error) a
+    }
+
+
+{-| TODO
+-}
+type Control
+    = Control InnerControl
+
+
+type alias InnerControl =
+    { init : ( Value, Cmd Value )
+    , load : Value -> Value
+    , placeholder : Value
+    , update : Value -> Value -> ( Value, Cmd Value )
+    , view : String -> Value -> H.Html Value
+    , subscriptions : Value -> Sub Value
+    , layout : { label : H.Html Msg, input : H.Html Msg, feedback : H.Html Msg } -> List (H.Html Msg)
+    , submit : Path -> Value -> Result (List Error) Value
+    }
+
+
+{-| TODO
+-}
+type alias ControlConfig msg model output =
+    { msg : IR.Gadget msg
+    , model : IR.Gadget model
+    , output : IR.Gadget output
+    , init : ( model, Cmd msg )
+    , placeholder : output
+    , load : output -> model
+    , update : msg -> model -> ( model, Cmd msg )
+    , view : String -> model -> H.Html msg
+    , subscriptions : model -> Sub msg
+    , submit : model -> Result String output
+    }
+
+
+{-| TODO
+-}
+type alias FormConfig =
+    { bool : Control
+    , int : Control
+    , float : Control
+    , char : Control
+    , string : Control
+    , feedback : String -> H.Html Msg
+    , control : Bool -> List (H.Html Msg) -> List (H.Html Msg)
+    }
+
+
+{-| TODO
+-}
+default : FormConfig
+default =
+    { bool = bool
+    , int = int
+    , float = float
+    , char = char
+    , string = string
+    , feedback = \error -> H.span [] [ H.text error ]
+    , control =
+        \validity inner ->
+            [ H.node "form-control"
+                [ HA.class
+                    (if validity then
+                        "valid"
+
+                     else
+                        "invalid"
+                    )
+                ]
+                inner
+            ]
+    }
+
+
+{-| TODO
+-}
+type Model
+    = Sum String IR.Metadata (Dict String ( Int, Dict String Model ))
+    | Collection IR.Metadata Type (Dict String Model)
+    | Record IR.Metadata (Dict String ( Int, Model ))
+    | Tuple IR.Metadata Model Model
+    | Triple IR.Metadata Model Model Model
+    | Primitive PrimitiveType IR.Metadata Value
+
+
+{-| TODO
+-}
+type Msg
+    = Msg Path Value
+
+
+type PrimitiveType
+    = PString
+    | PChar
+    | PInt
+    | PFloat
+    | PBool
+    | PUnit
+
+
+init : FormConfig -> IR.Gadget a -> ( Model, Cmd Msg )
+init config gadget =
+    initHelp .init config [] (IR.irType gadget)
+
+
+initHelp : (InnerControl -> ( Value, Cmd Value )) -> FormConfig -> Path -> Type -> ( Model, Cmd Msg )
+initHelp initializer config path irType =
+    let
+        initFor getType primitiveType metadata =
+            let
+                (Control c) =
+                    getType config
+            in
+            initializer c
+                |> Tuple.mapBoth
+                    (Primitive primitiveType metadata)
+                    (Cmd.map (Msg path))
+    in
+    case irType of
+        UnitType m ->
+            ( Primitive PUnit m UnitValue, Cmd.none )
+
+        BoolType m ->
+            initFor .bool PBool m
+
+        CharType m ->
+            initFor .char PChar m
+
+        StringType m ->
+            initFor .string PString m
+
+        IntType m ->
+            initFor .int PInt m
+
+        FloatType m ->
+            initFor .float PFloat m
+
+        CustomType m ( firstName, firstVariantType ) restNamesAndVariantTypes ->
+            let
+                variantTypes =
+                    ( firstName, firstVariantType ) :: restNamesAndVariantTypes
+
+                ( namedVariantModels, variantCmds ) =
+                    variantTypes
+                        |> List.indexedMap
+                            (\idx ( variantName, variantType ) ->
+                                variantType
+                                    |> variantTypeToArgsList
+                                    |> List.map
+                                        (\( argName, argType ) ->
+                                            let
+                                                argPath =
+                                                    argName :: variantName :: path
+
+                                                ( argModel, argCmd ) =
+                                                    initHelp initializer config argPath argType
+                                            in
+                                            ( ( argName, argModel ), argCmd )
+                                        )
+                                    |> List.unzip
+                                    |> Tuple.mapFirst
+                                        (\list -> ( variantName, ( idx, Dict.fromList list ) ))
+                            )
+                        |> List.unzip
+                        |> Tuple.mapBoth Dict.fromList List.concat
+            in
+            ( Sum firstName m namedVariantModels, Cmd.batch variantCmds )
+
+        RecordType m namedFieldTypes ->
+            let
+                ( namedFieldModels, fieldCmds ) =
+                    namedFieldTypes
+                        |> List.indexedMap
+                            (\idx ( fieldName, fieldType ) ->
+                                let
+                                    ( fieldModel, fieldCmd ) =
+                                        initHelp initializer config (fieldName :: path) fieldType
+                                in
+                                ( ( fieldName, ( idx, fieldModel ) ), fieldCmd )
+                            )
+                        |> List.unzip
+                        |> Tuple.mapFirst Dict.fromList
+            in
+            ( Record m namedFieldModels, Cmd.batch fieldCmds )
+
+        ListType m innerType ->
+            ( Collection m innerType Dict.empty, Cmd.none )
+
+        LazyType _ innerType ->
+            initHelp initializer config path (innerType ())
+
+        TupleType m a b ->
+            let
+                ( aModel, aCmd ) =
+                    initHelp initializer config ("0" :: path) a
+
+                ( bModel, bCmd ) =
+                    initHelp initializer config ("1" :: path) b
+            in
+            ( Tuple m aModel bModel, Cmd.batch [ aCmd, bCmd ] )
+
+        TripleType m a b c ->
+            let
+                ( aModel, aCmd ) =
+                    initHelp initializer config ("0" :: path) a
+
+                ( bModel, bCmd ) =
+                    initHelp initializer config ("1" :: path) b
+
+                ( cModel, cCmd ) =
+                    initHelp initializer config ("2" :: path) c
+            in
+            ( Triple m aModel bModel cModel, Cmd.batch [ aCmd, bCmd, cCmd ] )
+
+
+makeDummyModel : FormConfig -> Type -> List Error -> Model -> Model
+makeDummyModel config irType errors realModel =
+    let
+        dummyModel =
+            initHelp (\c -> ( c.placeholder, Cmd.none )) config [] irType
+                |> Tuple.first
+
+        errorPaths =
+            errors
+                |> List.map .path
+                |> Set.fromList
+    in
+    dummyHelp config errorPaths [] realModel dummyModel
+
+
+dummyHelp : FormConfig -> Set.Set Path -> Path -> Model -> Model -> Model
+dummyHelp config errorPaths path realModel dummyModel =
+    case ( realModel, dummyModel ) of
+        ( Primitive _ _ _, _ ) ->
+            if Set.member path errorPaths then
+                dummyModel
+
+            else
+                realModel
+
+        ( Record metadata realFields, Record _ dummyFields ) ->
+            Dict.merge
+                (\_ _ _ -> Dict.empty)
+                (\k ( idx, realField ) ( _, dummyField ) out ->
+                    Dict.insert k ( idx, dummyHelp config errorPaths (k :: path) realField dummyField ) out
+                )
+                (\_ _ _ -> Dict.empty)
+                realFields
+                dummyFields
+                Dict.empty
+                |> Record metadata
+
+        ( Tuple metadata realA realB, Tuple _ dummyA dummyB ) ->
+            Tuple metadata
+                (dummyHelp config errorPaths ("0" :: path) realA dummyA)
+                (dummyHelp config errorPaths ("1" :: path) realB dummyB)
+
+        ( Triple metadata realA realB realC, Triple _ dummyA dummyB dummyC ) ->
+            Triple metadata
+                (dummyHelp config errorPaths ("0" :: path) realA dummyA)
+                (dummyHelp config errorPaths ("1" :: path) realB dummyB)
+                (dummyHelp config errorPaths ("2" :: path) realC dummyC)
+
+        ( Collection metadata innerType realItemModels, Collection _ _ _ ) ->
+            realItemModels
+                |> Dict.map
+                    (\k v ->
+                        initHelp (\c -> ( c.placeholder, Cmd.none )) config (k :: path) innerType
+                            |> Tuple.first
+                            |> dummyHelp config errorPaths (k :: path) v
+                    )
+                |> Collection metadata innerType
+
+        ( Sum selected metadata realVariants, Sum _ _ dummyVariants ) ->
+            Dict.merge
+                (\_ _ _ -> Dict.empty)
+                (\variantKey ( idx, realArgs ) ( _, dummyArgs ) outVariants ->
+                    Dict.insert variantKey
+                        ( idx
+                        , Dict.merge
+                            (\_ _ _ -> Dict.empty)
+                            (\argKey realArg dummyArg outArgs ->
+                                Dict.insert
+                                    argKey
+                                    (dummyHelp config errorPaths (argKey :: variantKey :: path) realArg dummyArg)
+                                    outArgs
+                            )
+                            (\_ _ _ -> Dict.empty)
+                            realArgs
+                            dummyArgs
+                            Dict.empty
+                        )
+                        outVariants
+                )
+                (\_ _ _ -> Dict.empty)
+                realVariants
+                dummyVariants
+                Dict.empty
+                |> Sum selected metadata
+
+        _ ->
+            realModel
+
+
+update : FormConfig -> Msg -> Model -> ( Model, Cmd Msg )
+update config msg model =
+    updateHelp config [] msg model
+
+
+updateHelp : FormConfig -> Path -> Msg -> Model -> ( Model, Cmd Msg )
+updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
+    case model of
+        Primitive primitiveType metadata modelValue ->
+            Tuple.mapBoth (Primitive primitiveType metadata) (Cmd.map (Msg modelPath)) <|
+                if modelPath == msgPath then
+                    let
+                        updateFor getType =
+                            let
+                                (Control c) =
+                                    getType config
+                            in
+                            c.update msgValue modelValue
+                    in
+                    case primitiveType of
+                        PUnit ->
+                            ( modelValue, Cmd.none )
+
+                        PString ->
+                            updateFor .string
+
+                        PChar ->
+                            updateFor .char
+
+                        PInt ->
+                            updateFor .int
+
+                        PFloat ->
+                            updateFor .float
+
+                        PBool ->
+                            updateFor .bool
+
+                else
+                    ( modelValue, Cmd.none )
+
+        Record metadata fields ->
+            case matchPath msgPath modelPath of
+                FullMatch ->
+                    ( model, Cmd.none )
+
+                PrefixMatch { next1 } ->
+                    case Dict.get next1 fields of
+                        Just ( idx, oldField ) ->
+                            let
+                                ( newField, cmd ) =
+                                    updateHelp config (next1 :: modelPath) msg oldField
+
+                                newFields =
+                                    Dict.insert next1
+                                        ( idx, newField )
+                                        fields
+                            in
+                            ( Record metadata newFields, cmd )
+
+                        Nothing ->
+                            ( model, Cmd.none )
+
+                NoMatch ->
+                    ( model, Cmd.none )
+
+        Tuple metadata a b ->
+            case matchPath msgPath modelPath of
+                FullMatch ->
+                    ( model, Cmd.none )
+
+                PrefixMatch { next1 } ->
+                    case next1 of
+                        "0" ->
+                            let
+                                ( new, cmd ) =
+                                    updateHelp config ("0" :: modelPath) msg a
+                            in
+                            ( Tuple metadata new b, cmd )
+
+                        "1" ->
+                            let
+                                ( new, cmd ) =
+                                    updateHelp config ("1" :: modelPath) msg b
+                            in
+                            ( Tuple metadata a new, cmd )
+
+                        _ ->
+                            ( model, Cmd.none )
+
+                NoMatch ->
+                    ( model, Cmd.none )
+
+        Triple metadata a b c ->
+            case matchPath msgPath modelPath of
+                FullMatch ->
+                    ( model, Cmd.none )
+
+                PrefixMatch { next1 } ->
+                    case next1 of
+                        "0" ->
+                            let
+                                ( new, cmd ) =
+                                    updateHelp config ("0" :: modelPath) msg a
+                            in
+                            ( Triple metadata new b c, cmd )
+
+                        "1" ->
+                            let
+                                ( new, cmd ) =
+                                    updateHelp config ("1" :: modelPath) msg b
+                            in
+                            ( Triple metadata a new c, cmd )
+
+                        "2" ->
+                            let
+                                ( new, cmd ) =
+                                    updateHelp config ("2" :: modelPath) msg c
+                            in
+                            ( Triple metadata a b new, cmd )
+
+                        _ ->
+                            ( model, Cmd.none )
+
+                NoMatch ->
+                    ( model, Cmd.none )
+
+        Collection metadata innerType itemModels ->
+            let
+                ( newItemModels, itemCmd ) =
+                    case matchPath msgPath modelPath of
+                        FullMatch ->
+                            case msgValue of
+                                UnitValue ->
+                                    let
+                                        ( newItemModel, newCmd ) =
+                                            initHelp .init config modelPath innerType
+                                    in
+                                    ( Dict.insert (String.fromInt (Dict.size itemModels)) newItemModel itemModels
+                                    , newCmd
+                                    )
+
+                                _ ->
+                                    ( itemModels, Cmd.none )
+
+                        PrefixMatch { next1 } ->
+                            case Dict.get next1 itemModels of
+                                Just oldItemModel ->
+                                    let
+                                        ( newItemModel, newCmd ) =
+                                            updateHelp config (next1 :: modelPath) msg oldItemModel
+                                    in
+                                    ( Dict.insert next1 newItemModel itemModels
+                                    , newCmd
+                                    )
+
+                                Nothing ->
+                                    ( itemModels, Cmd.none )
+
+                        NoMatch ->
+                            ( itemModels, Cmd.none )
+            in
+            ( Collection metadata innerType newItemModels, itemCmd )
+
+        Sum selected metadata variants ->
+            case matchPath msgPath modelPath of
+                FullMatch ->
+                    case msgValue of
+                        StringValue newSelected ->
+                            ( Sum newSelected metadata variants, Cmd.none )
+
+                        _ ->
+                            ( model, Cmd.none )
+
+                PrefixMatch { next1, next2 } ->
+                    case Dict.get next1 variants of
+                        Just ( idx, args ) ->
+                            case Dict.get next2 args of
+                                Just arg ->
+                                    let
+                                        ( newArg, cmd ) =
+                                            updateHelp config (next2 :: next1 :: modelPath) msg arg
+
+                                        newVariants =
+                                            Dict.insert next1
+                                                ( idx, Dict.insert next2 newArg args )
+                                                variants
+                                    in
+                                    ( Sum selected metadata newVariants
+                                    , cmd
+                                    )
+
+                                Nothing ->
+                                    ( model, Cmd.none )
+
+                        Nothing ->
+                            ( model, Cmd.none )
+
+                NoMatch ->
+                    ( model, Cmd.none )
+
+
+view : FormConfig -> IR.Gadget a -> Model -> H.Html Msg
+view config gadget model =
+    let
+        errs =
+            case submit config gadget model of
+                Ok _ ->
+                    []
+
+                Err errs_ ->
+                    errs_
+    in
+    H.form [] (viewHelp config errs [] model)
+
+
+viewHelp : FormConfig -> List Error -> Path -> Model -> List (H.Html Msg)
+viewHelp config errs modelPath model =
+    let
+        id =
+            pathToString modelPath
+
+        maybeLabel metadata =
+            tools.decode "label" Gadget.string metadata
+
+        feedback =
+            errs
+                |> List.concatMap
+                    (\{ path, error } ->
+                        if path == modelPath then
+                            [ config.feedback error ]
+
+                        else
+                            []
+                    )
+
+        isValid =
+            List.isEmpty feedback
+    in
+    case model of
+        Primitive primitiveType metadata modelValue ->
+            let
+                maybeControl =
+                    case primitiveType of
+                        PUnit ->
+                            Nothing
+
+                        PString ->
+                            Just config.string
+
+                        PChar ->
+                            Just config.char
+
+                        PInt ->
+                            Just config.int
+
+                        PFloat ->
+                            Just config.float
+
+                        PBool ->
+                            Just config.bool
+            in
+            case maybeControl of
+                Just (Control c) ->
+                    config.control isValid <|
+                        c.layout
+                            { label =
+                                H.label [ HA.for id ] [ H.text (maybeLabel metadata |> Maybe.withDefault id) ]
+                            , input =
+                                c.view id modelValue |> H.map (Msg modelPath)
+                            , feedback =
+                                H.output [] feedback
+                            }
+
+                Nothing ->
+                    []
+
+        Record metadata fields ->
+            let
+                inner =
+                    Dict.toList fields
+                        |> List.sortBy (\( _, ( idx, _ ) ) -> idx)
+                        |> List.concatMap (\( name, ( _, childModel ) ) -> viewHelp config errs (name :: modelPath) childModel)
+            in
+            case maybeLabel metadata of
+                Nothing ->
+                    inner ++ feedback
+
+                Just label_ ->
+                    H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) :: feedback
+
+        Tuple metadata a b ->
+            let
+                inner =
+                    viewHelp config errs ("0" :: modelPath) a
+                        ++ viewHelp config errs ("1" :: modelPath) b
+            in
+            case maybeLabel metadata of
+                Nothing ->
+                    inner ++ feedback
+
+                Just label_ ->
+                    H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) :: feedback
+
+        Triple metadata a b c ->
+            let
+                inner =
+                    viewHelp config errs ("0" :: modelPath) a
+                        ++ viewHelp config errs ("1" :: modelPath) b
+                        ++ viewHelp config errs ("2" :: modelPath) c
+            in
+            case maybeLabel metadata of
+                Nothing ->
+                    inner ++ feedback
+
+                Just label_ ->
+                    H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) :: feedback
+
+        Collection metadata _ childModels ->
+            [ H.fieldset []
+                (case maybeLabel metadata of
+                    Nothing ->
+                        List.concat
+                            [ [ H.input [ HA.type_ "button", HE.onClick (Msg modelPath UnitValue), HA.value "Add an item" ] [] ]
+                            , childModels
+                                |> Dict.map (\idx childModel -> viewHelp config errs (idx :: modelPath) childModel)
+                                |> Dict.values
+                                |> List.concat
+                            , feedback
+                            ]
+
+                    Just legend ->
+                        List.concat
+                            [ [ H.legend [] [ H.text legend ] ]
+                            , [ H.input [ HA.type_ "button", HE.onClick (Msg modelPath UnitValue), HA.value "Add an item" ] [] ]
+                            , childModels
+                                |> Dict.map (\idx childModel -> viewHelp config errs (idx :: modelPath) childModel)
+                                |> Dict.values
+                                |> List.concat
+                            , feedback
+                            ]
+                )
+            ]
+
+        Sum selected metadata childModels ->
+            case Dict.get selected childModels of
+                Nothing ->
+                    [ H.text "ERROR! Missing variant" ]
+
+                Just ( _, variant ) ->
+                    let
+                        childView =
+                            Dict.map (\idx arg -> viewHelp config errs (idx :: selected :: modelPath) arg) variant
+                                |> Dict.values
+                                |> List.concat
+
+                        ( customLabel_, variantLabels ) =
+                            tools.decode "customLabel" (Gadget.tuple Gadget.string (Gadget.list Gadget.string)) metadata
+                                |> Maybe.withDefault ( pathToString modelPath, [] )
+                    in
+                    (H.fieldset [ HA.class "custom-variant-selector" ]
+                        (H.legend [] [ H.text customLabel_ ]
+                            :: (childModels
+                                    |> Dict.map
+                                        (\name ( idx, _ ) ->
+                                            let
+                                                childId =
+                                                    pathToString (name :: modelPath)
+                                            in
+                                            H.span []
+                                                [ H.input
+                                                    [ HA.id childId
+                                                    , HA.name id
+                                                    , HA.type_ "radio"
+                                                    , HE.onCheck (\_ -> Msg modelPath (StringValue name))
+                                                    , HA.checked (selected == name)
+                                                    ]
+                                                    []
+                                                , H.label [ HA.for childId ]
+                                                    [ H.text
+                                                        (List.Extra.getAt idx variantLabels
+                                                            |> Maybe.withDefault (maybeLabel metadata |> Maybe.withDefault "")
+                                                        )
+                                                    ]
+                                                ]
+                                        )
+                                    |> Dict.values
+                               )
+                        )
+                        :: childView
+                    )
+                        ++ feedback
+
+
+subscriptions config model =
+    subscriptionsHelp config [] model
+
+
+subscriptionsHelp config path model =
+    case model of
+        Primitive primitiveType _ modelValue ->
+            let
+                subMe getType =
+                    let
+                        (Control c) =
+                            getType config
+                    in
+                    c.subscriptions modelValue
+                        |> Sub.map (Msg path)
+            in
+            case primitiveType of
+                PUnit ->
+                    Sub.none
+
+                PBool ->
+                    subMe .bool
+
+                PInt ->
+                    subMe .int
+
+                PFloat ->
+                    subMe .float
+
+                PChar ->
+                    subMe .char
+
+                PString ->
+                    subMe .string
+
+        Tuple _ a b ->
+            Sub.batch
+                [ subscriptionsHelp config ("0" :: path) a
+                , subscriptionsHelp config ("1" :: path) b
+                ]
+
+        Triple _ a b c ->
+            Sub.batch
+                [ subscriptionsHelp config ("0" :: path) a
+                , subscriptionsHelp config ("1" :: path) b
+                , subscriptionsHelp config ("2" :: path) c
+                ]
+
+        Record _ namedFieldModels ->
+            namedFieldModels
+                |> Dict.map (\fieldName ( _, fieldModel ) -> subscriptionsHelp config (fieldName :: path) fieldModel)
+                |> Dict.values
+                |> Sub.batch
+
+        Sum _ _ variantModels ->
+            variantModels
+                |> Dict.toList
+                |> List.concatMap
+                    (\( variantName, ( _, argModels ) ) ->
+                        argModels
+                            |> Dict.toList
+                            |> List.map
+                                (\( argName, argModel ) ->
+                                    subscriptionsHelp config (argName :: variantName :: path) argModel
+                                )
+                    )
+                |> Sub.batch
+
+        Collection _ _ itemModels ->
+            itemModels
+                |> Dict.map (\itemName itemModel -> subscriptionsHelp config (itemName :: path) itemModel)
+                |> Dict.values
+                |> Sub.batch
+
+
+submit : FormConfig -> IR.Gadget a -> Model -> Result (List Error) a
+submit config gadget model =
+    case parsePrimitiveControls config [] model of
+        Ok outputValue ->
+            IR.toOutput gadget outputValue
+
+        Err parsingErrors ->
+            let
+                dummyModel =
+                    makeDummyModel config (IR.irType gadget) parsingErrors model
+            in
+            case parsePrimitiveControls config [] dummyModel of
+                Err fatal ->
+                    Err ({ error = "FATAL ERROR", path = [] } :: fatal)
+
+                Ok dummyOutputValue ->
+                    case IR.toOutput gadget dummyOutputValue of
+                        Ok _ ->
+                            Err parsingErrors
+
+                        Err validationErrors ->
+                            let
+                                parsingErrorPaths =
+                                    parsingErrors
+                                        |> List.map .path
+                                        |> List.Extra.unique
+
+                                filteredValidationErrors =
+                                    -- don't keep validation errors for paths that are
+                                    -- ancestors of parsing errors (because these
+                                    -- validation errors will potentially be based on
+                                    -- dummy values, so they should be discarded)
+                                    List.filter
+                                        (\validationError ->
+                                            parsingErrorPaths
+                                                |> List.any
+                                                    (\parsingErrorPath ->
+                                                        validationError.path |> pathIsAncestorOf parsingErrorPath
+                                                    )
+                                                |> not
+                                        )
+                                        validationErrors
+                            in
+                            Err (parsingErrors ++ filteredValidationErrors)
+
+
+parsePrimitiveControls : FormConfig -> Path -> Model -> Result (List Error) Value
+parsePrimitiveControls config path model =
+    case model of
+        Primitive primitiveType _ modelValue ->
+            let
+                submit_ getter =
+                    let
+                        (Control c) =
+                            getter config
+                    in
+                    c.submit path modelValue
+            in
+            case primitiveType of
+                PUnit ->
+                    Ok UnitValue
+
+                PString ->
+                    submit_ .string
+
+                PChar ->
+                    submit_ .char
+
+                PInt ->
+                    submit_ .int
+
+                PFloat ->
+                    submit_ .float
+
+                PBool ->
+                    submit_ .bool
+
+        Record _ fields ->
+            fields
+                |> Dict.map (\key ( idx, child ) -> parsePrimitiveControls config (key :: path) child |> Result.map (Tuple.pair idx))
+                |> combineAndAccumulateErrorsDict
+                |> Result.map
+                    (\r ->
+                        r
+                            |> Dict.toList
+                            |> List.sortBy (\( _, ( idx, _ ) ) -> idx)
+                            |> List.map (\( key, ( _, child ) ) -> ( key, child ))
+                            |> IR.RecordValue
+                    )
+
+        Tuple _ a b ->
+            Result.map2 IR.TupleValue
+                (parsePrimitiveControls config ("0" :: path) a)
+                (parsePrimitiveControls config ("1" :: path) b)
+
+        Triple _ a b c ->
+            Result.map3 IR.TripleValue
+                (parsePrimitiveControls config ("0" :: path) a)
+                (parsePrimitiveControls config ("1" :: path) b)
+                (parsePrimitiveControls config ("2" :: path) c)
+
+        Collection _ _ children ->
+            children
+                |> Dict.map (\idx child -> parsePrimitiveControls config (idx :: path) child)
+                |> Dict.values
+                |> combineAndAccumulateErrors
+                |> Result.map IR.ListValue
+
+        Sum selected _ children ->
+            Dict.get selected children
+                |> Result.fromMaybe [ { path = path, error = "Invalid Sum variant selection" } ]
+                |> Result.andThen
+                    (\( idx, variant ) ->
+                        variant
+                            |> Dict.map (\argIdx arg -> parsePrimitiveControls config (argIdx :: selected :: path) arg)
+                            |> Dict.values
+                            |> combineAndAccumulateErrors
+                            |> Result.andThen (argsListToVariantValue >> Result.mapError (\error -> [ { path = selected :: path, error = error } ]))
+                            |> Result.map (\v -> CustomValue idx ( selected, v ))
+                    )
+
+
+load : FormConfig -> IR.Gadget a -> a -> Model
+load config gadget a =
+    loadHelp config (IR.fromInput gadget a) (IR.irType gadget)
+
+
+loadHelp : FormConfig -> Value -> Type -> Model
+loadHelp config value type_ =
+    let
+        loadMe typ metadata getType =
+            let
+                (Control c) =
+                    getType config
+            in
+            Primitive typ metadata (c.load value)
+    in
+    case ( value, type_ ) of
+        ( UnitValue, UnitType metadata ) ->
+            Primitive PUnit metadata UnitValue
+
+        ( BoolValue _, BoolType metadata ) ->
+            loadMe PBool metadata .bool
+
+        ( CharValue _, CharType metadata ) ->
+            loadMe PChar metadata .char
+
+        ( StringValue _, StringType metadata ) ->
+            loadMe PString metadata .string
+
+        ( IntValue _, IntType metadata ) ->
+            loadMe PInt metadata .int
+
+        ( FloatValue _, FloatType metadata ) ->
+            loadMe PFloat metadata .float
+
+        ( RecordValue namedFieldValues, RecordType metadata namedFieldTypes ) ->
+            List.Extra.zip namedFieldValues namedFieldTypes
+                |> List.indexedMap (\idx ( ( name, fieldValue ), ( _, fieldType ) ) -> ( name, ( idx, loadHelp config fieldValue fieldType ) ))
+                |> Dict.fromList
+                |> Record metadata
+
+        ( CustomValue selected ( name, variantValue ), CustomType metadata firstNameAndVariantType restNamesAndVariantTypes ) ->
+            let
+                blank =
+                    initHelp .init config [] type_
+                        |> Tuple.first
+            in
+            case blank of
+                Sum _ _ variantModels ->
+                    let
+                        argValues =
+                            variantValueToArgsList variantValue
+
+                        argTypes =
+                            List.Extra.getAt selected (firstNameAndVariantType :: restNamesAndVariantTypes)
+                                |> Maybe.map Tuple.second
+                                |> Maybe.withDefault Variant0Type
+                                |> variantTypeToArgsList
+
+                        newArgsDict =
+                            List.map2
+                                (\( argName, argValue ) ( _, argType ) -> ( argName, loadHelp config argValue argType ))
+                                argValues
+                                argTypes
+                                |> Dict.fromList
+                    in
+                    Sum name metadata (Dict.insert name ( selected, newArgsDict ) variantModels)
+
+                _ ->
+                    blank
+
+        ( ListValue itemValues, ListType metadata itemType ) ->
+            List.indexedMap (\idx itemValue -> ( String.fromInt idx, loadHelp config itemValue itemType )) itemValues
+                |> Dict.fromList
+                |> Collection metadata itemType
+
+        ( TupleValue aValue bValue, TupleType metadata aType bType ) ->
+            Tuple metadata (loadHelp config aValue aType) (loadHelp config bValue bType)
+
+        ( TripleValue aValue bValue cValue, TripleType metadata aType bType cType ) ->
+            Triple metadata (loadHelp config aValue aType) (loadHelp config bValue bType) (loadHelp config cValue cType)
+
+        _ ->
+            Primitive PUnit IR.emptyMetadata UnitValue
+
+
+combineAndAccumulateErrorsDict :
+    Dict String (Result (List error) a)
+    -> Result (List error) (Dict String a)
+combineAndAccumulateErrorsDict dict =
+    combineAndAccumulateErrorsDictHelp dict (Ok Dict.empty)
+
+
+combineAndAccumulateErrorsDictHelp :
+    Dict String (Result (List error) value)
+    -> Result (List error) (Dict String value)
+    -> Result (List error) (Dict String value)
+combineAndAccumulateErrorsDictHelp dict acc =
+    Dict.foldl
+        (\k v out ->
+            case v of
+                Ok thisOutput ->
+                    case out of
+                        Ok outputs ->
+                            Ok (Dict.insert k thisOutput outputs)
+
+                        Err errs ->
+                            Err errs
+
+                Err thisError ->
+                    case out of
+                        Ok _ ->
+                            Err thisError
+
+                        Err errs ->
+                            Err (thisError ++ errs)
+        )
+        acc
+        dict
+
+
+combineAndAccumulateErrors : List (Result (List error) a) -> Result (List error) (List a)
+combineAndAccumulateErrors list =
+    combineAndAccumulateErrorsHelp list (Ok [])
+
+
+combineAndAccumulateErrorsHelp : List (Result (List error) value) -> Result (List error) (List value) -> Result (List error) (List value)
+combineAndAccumulateErrorsHelp list acc =
+    case list of
+        (Ok thisOutput) :: rest ->
+            combineAndAccumulateErrorsHelp rest <|
+                case acc of
+                    Ok outputs ->
+                        Ok (thisOutput :: outputs)
+
+                    Err errs ->
+                        Err errs
+
+        (Err thisError) :: rest ->
+            combineAndAccumulateErrorsHelp rest <|
+                case acc of
+                    Ok _ ->
+                        Err thisError
+
+                    Err errors ->
+                        Err (thisError ++ errors)
+
+        [] ->
+            case acc of
+                Ok outputs ->
+                    Ok (List.reverse outputs)
+
+                Err errors ->
+                    Err (List.reverse errors)
+
+
+{-| TODO
+-}
+fromGadget : (Msg -> msg) -> IR.Gadget a -> Form a msg
+fromGadget toMsg gadget =
+    fromGadgetWithConfig default toMsg gadget
+
+
+{-| TODO
+-}
+fromGadgetWithConfig : FormConfig -> (Msg -> msg) -> IR.Gadget a -> Form a msg
+fromGadgetWithConfig config toMsg gadget =
+    { init = init config gadget |> Tuple.mapSecond (Cmd.map toMsg)
+    , load = \output -> load config gadget output
+    , update = \msg model -> update config msg model |> Tuple.mapSecond (Cmd.map toMsg)
+    , view = \model -> view config gadget model |> H.map toMsg
+    , subscriptions = \model -> subscriptions config model |> Sub.map toMsg
+    , submit = submit config gadget
+    }
+
+
+{-| TODO
+-}
+label : String -> IR.Gadget a -> IR.Gadget a
+label l gadget =
+    tools.attach "label" Gadget.string l gadget
+
+
+{-| TODO
+-}
+validate : (a -> Result (List String) a) -> Gadget.Gadget a -> Gadget.Gadget a
+validate f =
+    Gadget.filterMap f identity
+
+
+{-| TODO
+-}
+customLabels : String -> List String -> IR.Gadget a -> IR.Gadget a
+customLabels l ls gadget =
+    tools.attach "customLabel"
+        (Gadget.tuple Gadget.string (Gadget.list Gadget.string))
+        ( l, ls )
+        gadget
+
+
+{-| TODO
+-}
+control : ControlConfig msg model output -> Control
+control config =
+    let
+        placeholderValue =
+            config.placeholder
+                |> config.load
+                |> IR.fromInput config.model
+    in
+    Control
+        { init = config.init |> Tuple.mapBoth (IR.fromInput config.model) (Cmd.map (IR.fromInput config.msg))
+        , load =
+            \outputValue ->
+                IR.toOutput config.output outputValue
+                    |> Result.map (\output -> config.load output)
+                    |> Result.map (IR.fromInput config.model)
+                    |> Result.withDefault placeholderValue
+        , placeholder = placeholderValue
+        , update =
+            \msg modelValue ->
+                Result.map2 config.update
+                    (IR.toOutput config.msg msg)
+                    (IR.toOutput config.model modelValue)
+                    |> Result.map (Tuple.mapBoth (IR.fromInput config.model) (Cmd.map (IR.fromInput config.msg)))
+                    |> Result.withDefault ( modelValue, Cmd.none )
+        , view =
+            \id modelValue ->
+                Result.map (config.view id) (IR.toOutput config.model modelValue)
+                    |> Result.Extra.extract (List.map (.error >> H.text) >> H.div [])
+                    |> H.map (\msg -> IR.fromInput config.msg msg)
+        , layout =
+            \ui ->
+                [ ui.label, ui.input, ui.feedback ]
+        , subscriptions = \_ -> Sub.none
+        , submit =
+            \path modelValue ->
+                IR.toOutput config.model modelValue
+                    |> Result.andThen
+                        (\model ->
+                            config.submit model
+                                |> Result.mapError (\error -> [ { error = error, path = path } ])
+                                |> Result.map (IR.fromInput config.output)
+                        )
+        }
+
+
+withLayout : ({ label : H.Html Msg, input : H.Html Msg, feedback : H.Html Msg } -> List (H.Html Msg)) -> Control -> Control
+withLayout f (Control c) =
+    Control { c | layout = f }
+
+
+int : Control
+int =
+    control
+        { model = Gadget.string
+        , msg = Gadget.string
+        , output = Gadget.int
+        , init = ( "", Cmd.none )
+        , placeholder = 0
+        , load = String.fromInt
+        , update = \msg _ -> ( msg, Cmd.none )
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "number"
+                    , HA.attribute "inputmode" "numeric"
+                    , HE.onInput identity
+                    , HA.id id
+                    , HA.value model
+                    ]
+                    []
+        , subscriptions = \_ -> Sub.none
+        , submit =
+            \model ->
+                String.toInt model
+                    |> Result.fromMaybe "This must be an integer"
+        }
+
+
+float : Control
+float =
+    control
+        { model = Gadget.string
+        , msg = Gadget.string
+        , output = Gadget.float
+        , init = ( "", Cmd.none )
+        , placeholder = 0.0
+        , load = String.fromFloat
+        , update = \msg _ -> ( msg, Cmd.none )
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "number"
+                    , HA.attribute "inputmode" "decimal"
+                    , HE.onInput identity
+                    , HA.id id
+                    , HA.value model
+                    ]
+                    []
+        , subscriptions = \_ -> Sub.none
+        , submit =
+            \model ->
+                String.toFloat model
+                    |> Result.fromMaybe "This must be a decimal number"
+        }
+
+
+string : Control
+string =
+    control
+        { model = Gadget.string
+        , msg = Gadget.string
+        , output = Gadget.string
+        , init = ( "", Cmd.none )
+        , placeholder = ""
+        , load = identity
+        , update = \msg _ -> ( msg, Cmd.none )
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "text"
+                    , HE.onInput identity
+                    , HA.id id
+                    , HA.value model
+                    ]
+                    []
+        , subscriptions = \_ -> Sub.none
+        , submit = Ok
+        }
+
+
+bool : Control
+bool =
+    control
+        { model = Gadget.bool
+        , msg = Gadget.bool
+        , output = Gadget.bool
+        , init = ( False, Cmd.none )
+        , placeholder = False
+        , load = identity
+        , update = \msg _ -> ( msg, Cmd.none )
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "checkbox"
+                    , HE.onCheck identity
+                    , HA.checked model
+                    , HA.id id
+                    ]
+                    []
+        , subscriptions = \_ -> Sub.none
+        , submit = Ok
+        }
+        |> withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
+
+
+char : Control
+char =
+    control
+        { model = Gadget.string
+        , msg = Gadget.maybe Gadget.char
+        , output = Gadget.char
+        , init = ( "", Cmd.none )
+        , placeholder = 'a'
+        , load = String.fromChar
+        , update =
+            \msg _ ->
+                case msg of
+                    Nothing ->
+                        ( "", Cmd.none )
+
+                    Just c ->
+                        ( String.fromChar c, Cmd.none )
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "text"
+                    , HE.onInput (\str -> String.uncons str |> Maybe.map Tuple.first)
+                    , HA.id id
+                    , HA.value model
+                    ]
+                    []
+        , subscriptions = \_ -> Sub.none
+        , submit =
+            \model ->
+                String.uncons model
+                    |> Maybe.map Tuple.first
+                    |> Result.fromMaybe "This must not be blank"
+        }
+
+
+argsListToVariantValue : List Value -> Result String IR.VariantValue
+argsListToVariantValue l =
+    case l of
+        [] ->
+            Ok IR.Variant0Value
+
+        [ arg1 ] ->
+            Ok <| IR.Variant1Value arg1
+
+        [ arg1, arg2 ] ->
+            Ok <| IR.Variant2Value arg1 arg2
+
+        [ arg1, arg2, arg3 ] ->
+            Ok <| IR.Variant3Value arg1 arg2 arg3
+
+        [ arg1, arg2, arg3, arg4 ] ->
+            Ok <| IR.Variant4Value arg1 arg2 arg3 arg4
+
+        [ arg1, arg2, arg3, arg4, arg5 ] ->
+            Ok <| IR.Variant5Value arg1 arg2 arg3 arg4 arg5
+
+        _ ->
+            Err "Variant has too many args"
+
+
+variantTypeToArgsList : VariantType -> List ( String, Type )
+variantTypeToArgsList v =
+    List.indexedMap (\idx item -> ( String.fromInt idx, item )) <|
+        case v of
+            Variant0Type ->
+                []
+
+            Variant1Type arg1 ->
+                [ arg1 ]
+
+            Variant2Type arg1 arg2 ->
+                [ arg1, arg2 ]
+
+            Variant3Type arg1 arg2 arg3 ->
+                [ arg1, arg2, arg3 ]
+
+            Variant4Type arg1 arg2 arg3 arg4 ->
+                [ arg1, arg2, arg3, arg4 ]
+
+            Variant5Type arg1 arg2 arg3 arg4 arg5 ->
+                [ arg1, arg2, arg3, arg4, arg5 ]
+
+
+variantValueToArgsList : VariantValue -> List ( String, Value )
+variantValueToArgsList v =
+    List.indexedMap (\idx item -> ( String.fromInt idx, item )) <|
+        case v of
+            Variant0Value ->
+                []
+
+            Variant1Value arg1 ->
+                [ arg1 ]
+
+            Variant2Value arg1 arg2 ->
+                [ arg1, arg2 ]
+
+            Variant3Value arg1 arg2 arg3 ->
+                [ arg1, arg2, arg3 ]
+
+            Variant4Value arg1 arg2 arg3 arg4 ->
+                [ arg1, arg2, arg3, arg4 ]
+
+            Variant5Value arg1 arg2 arg3 arg4 arg5 ->
+                [ arg1, arg2, arg3, arg4, arg5 ]
+
+
+
+-- PATH
+
+
+pathToString : Path -> String
+pathToString path =
+    List.reverse path
+        |> String.join "-"
+
+
+
+{-
+
+   [] |> pathIsAncestorOf []
+   --> True
+
+   [] |> pathIsAncestorOf [ "" ]
+   --> True
+
+   [ "" ] |> pathIsAncestorOf []
+   --> False
+
+   [ "b", "a" ] |> pathIsAncestorOf [ "c", "b", "a" ]
+   --> True
+
+   [ "d", "a" ] |> pathIsAncestorOf [ "c", "b", "a" ]
+   --> False
+
+   [ "c", "b", "a" ] |> pathIsAncestorOf [ "c", "b", "a" ]
+   --> True
+
+   [ "c", "b", "a" ] |> pathIsAncestorOf [ "b", "a" ]
+   --> False
+
+-}
+
+
+pathIsAncestorOf : Path -> Path -> Bool
+pathIsAncestorOf descendant ancestor =
+    pathIsAncestorOfHelp (List.reverse descendant) (List.reverse ancestor)
+
+
+pathIsAncestorOfHelp : List a -> List a -> Bool
+pathIsAncestorOfHelp descendant ancestor =
+    case ( descendant, ancestor ) of
+        ( [], [] ) ->
+            True
+
+        ( d :: restD, a :: restA ) ->
+            if d == a then
+                pathIsAncestorOfHelp restD restA
+
+            else
+                False
+
+        ( [], _ :: _ ) ->
+            -- descendant is shorter than ancestor, so it can't really be a descendant
+            False
+
+        ( _ :: _, [] ) ->
+            True
+
+
+matchPath : Path -> Path -> Match
+matchPath revSought revGot =
+    let
+        sought =
+            List.reverse revSought
+
+        got =
+            List.reverse revGot
+    in
+    if got == sought then
+        FullMatch
+
+    else
+        let
+            gotPrefix =
+                List.take (List.length sought) got
+
+            soughtPrefix =
+                List.take (List.length got) sought
+        in
+        if gotPrefix == soughtPrefix then
+            let
+                next1 =
+                    List.drop (List.length got) sought
+                        |> List.head
+                        |> Maybe.withDefault ""
+
+                next2 =
+                    List.drop (List.length got + 1) sought
+                        |> List.head
+                        |> Maybe.withDefault ""
+            in
+            PrefixMatch { next1 = next1, next2 = next2 }
+
+        else
+            NoMatch
+
+
+type Match
+    = FullMatch
+    | PrefixMatch { next1 : String, next2 : String }
+    | NoMatch

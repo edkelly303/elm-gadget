@@ -1,6 +1,6 @@
 module Gadget.IR exposing
     ( Gadget(..)
-    , fromInput, irType, toOutput, Error
+    , fromInput, irType, toOutput, Error, Path
     , Value(..), VariantValue(..), Type(..), VariantType(..)
     , Metadata, MetadataTools, makeMetadataTools, emptyMetadata
     )
@@ -23,7 +23,7 @@ various `Gadget.Adapter` modules in this package:
 
 @docs Gadget
 
-@docs fromInput, irType, toOutput, Error
+@docs fromInput, irType, toOutput, Error, Path
 
 @docs Value, VariantValue, Type, VariantType
 
@@ -40,15 +40,21 @@ with an appropriate Gadget to convert values to and from the `IR` type.
 type Gadget a
     = Gadget
         { fromInput : a -> Value
-        , toOutput : Value -> Result Error a
+        , toOutput : Path -> Value -> Result (List Error) a
         , irType : Type
         }
 
 
-{-| An error that may be generated if `toOutput` fails.
+{-| An error that may result if `toOutput` fails.
 -}
 type alias Error =
-    String
+    { path : Path, error : String }
+
+
+{-| A type used within `Error` to specify _where_ something went wrong.
+-}
+type alias Path =
+    List String
 
 
 {-| When an Elm value is translated into IR, its structure and contents are
@@ -124,9 +130,9 @@ irType (Gadget c) =
 {-| Use an appropriate Gadget to attempt to convert an `Value` into an Elm
 value.
 -}
-toOutput : Gadget a -> Value -> Result Error a
+toOutput : Gadget a -> Value -> Result (List Error) a
 toOutput (Gadget c) a =
-    c.toOutput a
+    c.toOutput [] a
 
 
 {-| A type used by `Type` variants to carry metadata.
@@ -185,7 +191,7 @@ For example, here's how [`Gadget.Adapter.Random`](Gadget-Adapter-Random) defines
     allValues =
         tools.debug metadata
 
-    allValues --: List (String, List (String, String))
+    allValues --: List (String, List (String, Gadget.IR.Value))
 
 -}
 type alias MetadataTools meta a =
@@ -193,7 +199,7 @@ type alias MetadataTools meta a =
     , extract : Type -> Metadata
     , decode : String -> Gadget meta -> Metadata -> Maybe meta
     , get : String -> Metadata -> Maybe Value
-    , debug : Metadata -> List ( String, List ( String, String ) )
+    , debug : Metadata -> List ( String, List ( String, Value ) )
     }
 
 
@@ -262,95 +268,8 @@ makeMetadataTools adapterId =
                 |> Maybe.andThen (toOutput metaGadget >> Result.toMaybe)
 
         debug (Metadata metadata) =
-            Dict.map
-                (\_ dict ->
-                    dict
-                        |> Dict.map (\_ value -> debugValue value)
-                        |> Dict.toList
-                )
-                metadata
+            Dict.map (\_ v -> Dict.toList v) metadata
                 |> Dict.toList
-
-        debugValue value =
-            case value of
-                UnitValue ->
-                    "()"
-
-                BoolValue b ->
-                    if b then
-                        "True"
-
-                    else
-                        "False"
-
-                CharValue c ->
-                    "'" ++ String.fromChar c ++ "'"
-
-                StringValue s ->
-                    "\"" ++ escape s ++ "\""
-
-                IntValue i ->
-                    String.fromInt i
-
-                FloatValue f ->
-                    String.fromFloat f
-
-                CustomValue _ ( name, variant ) ->
-                    name ++ String.join " " (List.map debugValue (argsToList variant))
-
-                RecordValue namedFields ->
-                    "{ " ++ (List.map (\( name, field ) -> name ++ " = " ++ debugValue field) namedFields |> String.join ", ") ++ " }"
-
-                ListValue items ->
-                    "[ " ++ (List.map debugValue items |> String.join ", ") ++ " ]"
-
-                TupleValue a b ->
-                    "( " ++ debugValue a ++ ", " ++ debugValue b ++ " )"
-
-                TripleValue a b c ->
-                    "( " ++ debugValue a ++ ", " ++ debugValue b ++ debugValue c ++ " )"
-
-        escape s =
-            s
-                |> String.replace "\"" "\\\""
-                |> String.replace "\t" "\\t"
-                |> String.replace "\u{000D}" "\\r"
-                |> String.replace "\n" "\\n"
-                |> Debug.log "TODO: learn how to escape a string properly"
-
-        argsToList variant =
-            case variant of
-                Variant0Value ->
-                    []
-
-                Variant1Value arg ->
-                    [ arg ]
-
-                Variant2Value arg1 arg2 ->
-                    [ arg1
-                    , arg2
-                    ]
-
-                Variant3Value arg1 arg2 arg3 ->
-                    [ arg1
-                    , arg2
-                    , arg3
-                    ]
-
-                Variant4Value arg1 arg2 arg3 arg4 ->
-                    [ arg1
-                    , arg2
-                    , arg3
-                    , arg4
-                    ]
-
-                Variant5Value arg1 arg2 arg3 arg4 arg5 ->
-                    [ arg1
-                    , arg2
-                    , arg3
-                    , arg4
-                    , arg5
-                    ]
 
         mapMetadata f type_ =
             case type_ of

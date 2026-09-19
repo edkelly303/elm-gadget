@@ -4,10 +4,12 @@ import Browser
 import Fuzz
 import Gadget
 import Gadget.Adapter.Diff
+import Gadget.Adapter.Form
 import Gadget.Adapter.Fuzz
 import Gadget.Adapter.Html
 import Gadget.Adapter.Json
 import Gadget.Adapter.Pretty
+import Gadget.Adapter.Quine
 import Gadget.Adapter.Random
 import Gadget.Adapter.String
 import Gadget.IR
@@ -30,7 +32,7 @@ type alias Person =
 
 
 type Pet
-    = Dog { name : String }
+    = Dog { dogName : String }
     | Robot Char (Maybe Int)
 
 
@@ -39,15 +41,67 @@ personGadget =
     Gadget.record Person
         |> Gadget.field "name"
             .name
-            (Gadget.string |> Gadget.Adapter.Random.choose "Ed" [ "Leonardo", "Wolfgang", "Rupert", "Mario", "Martin" ])
+            (Gadget.string
+                |> Gadget.Adapter.Form.validate
+                    (\s ->
+                        case
+                            List.filterMap identity
+                                [ if String.isEmpty s then
+                                    Just "This must not be blank"
+
+                                  else
+                                    Nothing
+                                , if String.length s < 2 then
+                                    Just "This must be at least 2 characters"
+
+                                  else
+                                    Nothing
+                                ]
+                        of
+                            [] ->
+                                Ok s
+
+                            errs ->
+                                Err errs
+                    )
+                |> Gadget.Adapter.Random.choose "Ed" [ "Leonardo", "Wolfgang", "Rupert", "Mario", "Martin" ]
+                |> Gadget.Adapter.Form.label "What is your name?"
+            )
         |> Gadget.field "heightInCentimetres"
             .heightInCentimetres
-            (Gadget.float |> Gadget.Adapter.Random.range 100 180)
+            (Gadget.float
+                |> Gadget.Adapter.Random.range 100 180
+                |> Gadget.Adapter.Form.label "What is your height (in centimetres)?"
+                |> Gadget.Adapter.Form.validate
+                    (\f ->
+                        if f < 50 then
+                            Err [ "This must be at least 50cm" ]
+
+                        else
+                            Ok f
+                    )
+            )
         |> Gadget.field "pets"
             .pets
-            (Gadget.list petGadget |> Gadget.Adapter.Random.listLength 0 3)
-        |> Gadget.field "tuple" .tuple (Gadget.tuple Gadget.bool Gadget.bool)
-        |> Gadget.field "triple" .triple (Gadget.triple Gadget.bool Gadget.bool Gadget.bool)
+            (Gadget.list petGadget
+                |> Gadget.Adapter.Random.listLength 0 3
+                |> Gadget.Adapter.Form.label "Do you have any pets?"
+            )
+        |> Gadget.field "tuple"
+            .tuple
+            (Gadget.tuple
+                (Gadget.bool |> Gadget.Adapter.Form.label "one")
+                (Gadget.bool |> Gadget.Adapter.Form.label "two")
+                |> Gadget.Adapter.Form.label "What's your favourite pair of booleans?"
+            )
+        |> Gadget.field "triple"
+            .triple
+            (Gadget.triple
+                (Gadget.bool |> Gadget.Adapter.Form.label "one")
+                (Gadget.bool |> Gadget.Adapter.Form.label "two")
+                (Gadget.bool |> Gadget.Adapter.Form.label "three")
+                |> Gadget.Adapter.Form.label "And what about your favourite triple?"
+            )
         |> Gadget.endRecord
 
 
@@ -65,12 +119,21 @@ petGadget =
         |> Gadget.variant1
             "Dog"
             Dog
-            (Gadget.record (\name -> { name = name })
-                |> Gadget.field "name"
-                    .name
+            (Gadget.record (\dogName -> { dogName = dogName })
+                |> Gadget.field "dogName"
+                    .dogName
                     (Gadget.string
-                        |> Gadget.Adapter.Fuzz.label "dogName"
+                        |> Gadget.Adapter.Fuzz.useOverride "dogName"
                         |> Gadget.Adapter.Random.choose "Rex" [ "Fido", "Kevin", "Rover", "Fifi", "George", "Winnie" ]
+                        |> Gadget.Adapter.Form.label "What is your dog's name?"
+                        |> Gadget.Adapter.Form.validate
+                            (\s ->
+                                if String.isEmpty s then
+                                    Err [ "This must not be blank" ]
+
+                                else
+                                    Ok s
+                            )
                     )
                 |> Gadget.endRecord
             )
@@ -78,16 +141,20 @@ petGadget =
             "Robot"
             Robot
             (Gadget.char
-                |> Gadget.Adapter.Fuzz.label "series"
+                |> Gadget.Adapter.Fuzz.useOverride "series"
                 |> Gadget.Adapter.Random.choose 'A' (List.range 66 90 |> List.map Char.fromCode)
+                |> Gadget.Adapter.Form.label "What is your robot's model series?"
             )
             (Gadget.maybe
                 (Gadget.int
-                    |> Gadget.Adapter.Fuzz.label "model"
+                    |> Gadget.Adapter.Fuzz.useOverride "model"
                     |> Gadget.Adapter.Random.range 1000 5000
+                    |> Gadget.Adapter.Form.label "What is your robot's model number?"
                 )
+                |> Gadget.Adapter.Form.customLabels "Does your robot have a model number?" [ "Yes", "No" ]
             )
         |> Gadget.endCustom
+        |> Gadget.Adapter.Form.customLabels "What type of pet do you have?" [ "Dog", "Robot" ]
 
 
 main : Program () Model Msg
@@ -101,22 +168,24 @@ main =
 
 
 type alias Model =
-    { seeds : ( Int, Int )
+    { seed : Int
     , prettyWidth : Int
+    , form : Gadget.Adapter.Form.Model
     }
 
 
 type Msg
     = UserClickedRegenerate
     | UserChangedPrettyWidth String
-    | NewSeeds ( Int, Int )
+    | NewSeed Int
+    | FormUpdated Gadget.Adapter.Form.Msg
 
 
 update msg model =
     case msg of
         UserClickedRegenerate ->
             ( model
-            , Random.generate NewSeeds (Random.pair (Random.int 0 Random.maxInt) (Random.int 0 Random.maxInt))
+            , Random.generate NewSeed (Random.int 0 Random.maxInt)
             )
 
         UserChangedPrettyWidth s ->
@@ -124,27 +193,81 @@ update msg model =
             , Cmd.none
             )
 
-        NewSeeds newSeeds ->
-            ( { model | seeds = newSeeds }
+        NewSeed newSeed ->
+            ( { model | seed = newSeed }
             , Cmd.none
             )
 
+        FormUpdated formMsg ->
+            let
+                ( formModel, formCmd ) =
+                    form.update formMsg model.form
+            in
+            ( { model | form = formModel }
+            , formCmd
+            )
+
+
+form =
+    Gadget.Adapter.Form.fromGadget FormUpdated gadget
+
 
 init _ =
-    ( { seeds = ( 0, 1 )
-      , prettyWidth = 80
+    let
+        ( formModel, formCmd ) =
+            form.init
+
+        loadedFormModel =
+            form.load
+                { name = "Ed"
+                , heightInCentimetres = 180
+                , pets = [ Robot 'A' (Just 3000) ]
+                , tuple = ( True, False )
+                , triple = ( False, True, False )
+                }
+    in
+    ( { seed = 0
+      , prettyWidth = 120
+      , form = loadedFormModel
       }
-    , Cmd.none
+    , formCmd
     )
+
+
+gadget =
+    personGadget
+
+
+
+-- Gadget.maybe Gadget.int
+-- Gadget.result
+--     (Gadget.result
+--         (Gadget.int |> Gadget.Adapter.Form.label "hello")
+--         (Gadget.int |> Gadget.Adapter.Form.label "world")
+--     )
+--     (Gadget.result Gadget.int Gadget.int)
+-- petGadget
+-- Gadget.record (\x y -> { x = x, y = y })
+--     |> Gadget.field "x" .x (Gadget.int |> Gadget.Adapter.Form.label "How much is x?")
+--     |> Gadget.field "y"
+--         .y
+--         (Gadget.string
+--             |> Gadget.Adapter.Form.label "What is y?"
+--             |> Gadget.Adapter.Form.validate
+--                 (\s ->
+--                     if String.isEmpty s then
+--                         Err "This must not be blank"
+--                     else
+--                         Ok s
+--                 )
+--         )
+--     |> Gadget.endRecord
+--     |> Gadget.Adapter.Form.validate (\_ -> Err "filterMap failed")
 
 
 view : Model -> H.Html Msg
 view model =
     let
-        gadget =
-            --Gadget.tuple Gadget.float (Gadget.list Gadget.string)
-            personGadget
-
         fuzzOverrides =
             [ Gadget.Adapter.Fuzz.override "dogName" Gadget.string (Fuzz.oneOf (List.map Fuzz.constant [ "Fido", "Kevin", "Rover", "Fifi", "George", "Winnie" ]))
             , Gadget.Adapter.Fuzz.override "series" Gadget.char (Fuzz.oneOf (List.range 65 90 |> List.map Char.fromCode |> List.map Fuzz.constant))
@@ -160,104 +283,136 @@ view model =
         randomGenerator =
             Gadget.Adapter.Random.generator gadget
 
-        ( seed1, seed2 ) =
-            model.seeds
-
         firstValue =
-            Random.step randomGenerator (Random.initialSeed seed1)
+            Random.step randomGenerator (Random.initialSeed model.seed)
                 |> Tuple.first
+                |> Result.fromMaybe "Generator failed"
 
-        secondValue =
-            Random.step randomGenerator (Random.initialSeed seed2)
-                |> Tuple.first
+        formOutput =
+            form.submit model.form
+                |> Result.mapError (\errors -> List.map (\{ path, error } -> "[" ++ String.join "-" path ++ "]: " ++ error) errors |> String.join "\n")
 
         pretty g x =
             H.pre [] [ H.text (Gadget.Adapter.Pretty.print g model.prettyWidth x) ]
 
         diff =
-            Gadget.Adapter.Diff.diff gadget firstValue secondValue
+            Result.map2 (Gadget.Adapter.Diff.diff gadget) firstValue formOutput
 
         patched =
-            Gadget.Adapter.Diff.patch gadget diff firstValue
+            Result.map2 (Gadget.Adapter.Diff.patch gadget) diff firstValue
+                |> Result.andThen identity
 
         encoded =
-            JE.encode 2 (Gadget.Adapter.Json.encode gadget firstValue)
+            Result.map (Gadget.Adapter.Json.encode gadget >> JE.encode 2) firstValue
 
         decoded =
-            JD.decodeString (Gadget.Adapter.Json.decoder gadget) encoded
-                |> Result.mapError (\_ -> "Decoding failed!")
+            encoded
+                |> Result.andThen (JD.decodeString (Gadget.Adapter.Json.decoder gadget) >> Result.mapError (\_ -> "Decoding failed!"))
 
         printed =
-            Gadget.Adapter.String.print gadget firstValue
+            firstValue
+                |> Result.map (Gadget.Adapter.String.print gadget)
 
         parsed =
-            Parser.run (Gadget.Adapter.String.parser gadget) printed
-                |> Result.mapError Parser.deadEndsToString
+            printed
+                |> Result.andThen (Parser.run (Gadget.Adapter.String.parser gadget) >> Result.mapError Parser.deadEndsToString)
     in
     H.div []
         [ H.h1 [] [ H.text "elm-gadget examples" ]
-        , H.button [ HE.onClick UserClickedRegenerate ] [ H.text "Click to regenerate!" ]
-        , head "Pretty printer width"
-        , H.span []
-            [ H.input
-                [ HA.type_ "range"
-                , HA.min "0"
-                , HA.max "120"
-                , HA.step "10"
-                , HA.value (String.fromInt model.prettyWidth)
-                , HE.onInput UserChangedPrettyWidth
-                , HA.style "width" "500px"
-                , HA.list "markers"
-                , HA.style "margin" "0px"
-                ]
-                []
-            , H.text (" " ++ String.fromInt model.prettyWidth ++ " columns")
-            , H.datalist
-                [ HA.id "markers"
-                , HA.style "display" "flex"
-                , HA.style "flex-direction" "column"
-                , HA.style "justify-content" "space-between"
-                , HA.style "writing-mode" "vertical-lr"
-                , HA.style "width" "500px"
-                ]
-                (List.map
-                    (\n ->
-                        H.option
-                            [ HA.value (String.fromInt (10 * n))
-                            , HA.style "padding" "0px"
-                            ]
-                            []
+        , widthAdjuster model
+        , demo "Form"
+            [ head "Form input"
+            , form.view model.form
+            , head "Form output"
+            , H.pre []
+                [ H.text
+                    (formOutput
+                        |> Gadget.Adapter.Pretty.print
+                            (Gadget.result Gadget.string gadget)
+                            model.prettyWidth
                     )
-                    (List.range 0 12)
-                )
+                ]
             ]
-        , head "Random generator (first value, pretty-printed)"
-        , pretty gadget firstValue
-        , head "Random generator (second value, pretty-printed)"
-        , pretty gadget secondValue
-        , head "Diff between first & second values"
-        , pretty Gadget.Adapter.Diff.changes diff
-        , head "Patch first value with diff"
-        , pretty (Gadget.result Gadget.string gadget) patched
-        , head "Patched value equals second value?"
-        , pretty Gadget.bool (patched == Ok secondValue)
-        , head "Html viewer (first value)"
-        , Gadget.Adapter.Html.view gadget firstValue
-        , head "Html viewer (second value)"
-        , Gadget.Adapter.Html.view gadget secondValue
-        , head "String printer (first value)"
-        , H.code [ HA.class "withoutSpaces" ] [ H.text printed ]
-        , head "String parser (first value)"
-        , pretty (Gadget.result Gadget.string gadget) parsed
-        , head "JSON encoder (first value)"
-        , H.pre [] [ H.text encoded ]
-        , head "JSON decoder (first value)"
-        , pretty (Gadget.result Gadget.string gadget) decoded
-        , head "Fuzzer"
-        , pretty (Gadget.list gadget) fuzzed
+        , demo "Random generator"
+            [ H.button [ HE.onClick UserClickedRegenerate ] [ H.text "Click to regenerate!" ]
+            , Result.map (pretty gadget) firstValue |> Result.withDefault (H.text "")
+            ]
+        , demo "Differ & patcher"
+            [ head "Diff between the randomly generated value and the form output value"
+            , pretty (Gadget.result Gadget.string Gadget.Adapter.Diff.changes) diff
+            , head "Result of patching the randomly generated value with diff"
+            , patched
+                |> Result.map (pretty gadget)
+                |> Result.withDefault (H.text "")
+            , head "Does the patched value equal the form output value?"
+            , pretty Gadget.bool (patched == formOutput)
+            ]
+        , demo "Html viewer"
+            [ head "Randomly generated value"
+            , Result.map (Gadget.Adapter.Html.view gadget) firstValue |> Result.withDefault (H.text "")
+            , case formOutput of
+                Ok v ->
+                    H.div [] [ head "Form output value", Gadget.Adapter.Html.view gadget v ]
+
+                Err _ ->
+                    H.text ""
+            ]
+        , demo "String printer"
+            [ H.code [ HA.class "withoutSpaces" ] [ H.text (Result.withDefault "" printed) ] ]
+        , demo "String parser"
+            [ pretty (Gadget.result Gadget.string gadget) parsed ]
+        , demo "JSON encoder"
+            [ H.pre [] [ H.text (Result.withDefault "" encoded) ] ]
+        , demo "JSON decoder"
+            [ pretty (Gadget.result Gadget.string gadget) decoded ]
+        , demo "Fuzzer"
+            [ pretty (Gadget.list gadget) fuzzed ]
+        , demo "Quine"
+            [ H.pre [] [ H.text (Gadget.Adapter.Quine.quine model.prettyWidth gadget) ] ]
         ]
+
+
+widthAdjuster model =
+    H.span [ HA.class "widthAdjuster" ]
+        [ H.strong [] [ H.text "Pretty printer width: " ]
+        , H.input
+            [ HA.type_ "range"
+            , HA.min "0"
+            , HA.max "120"
+            , HA.step "10"
+            , HA.value (String.fromInt model.prettyWidth)
+            , HE.onInput UserChangedPrettyWidth
+            , HA.list "markers"
+            , HA.style "width" "500px"
+            , HA.style "margin" "0px"
+            ]
+            []
+        , H.text (" " ++ String.fromInt model.prettyWidth ++ " columns")
+        , H.datalist
+            [ HA.id "markers"
+            , HA.style "display" "flex"
+            , HA.style "flex-direction" "column"
+            , HA.style "justify-content" "space-between"
+            , HA.style "writing-mode" "vertical-lr"
+            , HA.style "width" "500px"
+            ]
+            (List.map
+                (\n ->
+                    H.option
+                        [ HA.value (String.fromInt (10 * n))
+                        , HA.style "padding" "0px"
+                        ]
+                        []
+                )
+                (List.range 0 12)
+            )
+        ]
+
+
+demo title contents =
+    H.details [ HA.class "demo" ] (H.summary [] [ H.strong [] [ H.text title ] ] :: contents)
 
 
 head : String -> H.Html msg
 head txt =
-    H.h2 [] [ H.text txt ]
+    H.h3 [] [ H.text txt ]
