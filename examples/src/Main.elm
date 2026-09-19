@@ -51,8 +51,8 @@ personGadget =
 
                                   else
                                     Nothing
-                                , if String.length s < 3 then
-                                    Just "This must be at least 3 characters"
+                                , if String.length s < 2 then
+                                    Just "This must be at least 2 characters"
 
                                   else
                                     Nothing
