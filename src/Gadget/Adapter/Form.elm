@@ -1,7 +1,8 @@
 module Gadget.Adapter.Form exposing
     ( Form, Model, Msg, fromGadget, fromGadgetWithConfig, FormConfig, default
-    , Control, ControlConfig, makeControl
+    , Control, ControlConfig
     , label, customLabels, validate
+    , makeControl
     )
 
 {-|
