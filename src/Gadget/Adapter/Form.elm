@@ -71,6 +71,7 @@ type Control
 
 type alias InnerControl =
     { init : ( Value, Cmd Value )
+    , load : Value -> Value
     , placeholder : Value
     , update : Value -> Value -> ( Value, Cmd Value )
     , view : String -> Value -> H.Html Value
@@ -87,7 +88,8 @@ type alias ControlConfig msg model output =
     , model : IR.Gadget model
     , output : IR.Gadget output
     , init : ( model, Cmd msg )
-    , placeholder : model
+    , placeholder : output
+    , load : output -> model
     , update : msg -> model -> ( model, Cmd msg )
     , view : String -> model -> H.Html msg
     , subscriptions : model -> Sub msg
@@ -962,24 +964,32 @@ load config gadget a =
 
 loadHelp : FormConfig -> Value -> Type -> Model
 loadHelp config value type_ =
+    let
+        loadMe typ metadata getType =
+            let
+                (Control c) =
+                    getType config
+            in
+            Primitive typ metadata (c.load value)
+    in
     case ( value, type_ ) of
         ( UnitValue, UnitType metadata ) ->
             Primitive PUnit metadata UnitValue
 
-        ( BoolValue b, BoolType metadata ) ->
-            Primitive PBool metadata (BoolValue b)
+        ( BoolValue _, BoolType metadata ) ->
+            loadMe PBool metadata .bool
 
-        ( CharValue s, CharType metadata ) ->
-            Primitive PChar metadata (CharValue s)
+        ( CharValue _, CharType metadata ) ->
+            loadMe PChar metadata .char
 
-        ( StringValue s, StringType metadata ) ->
-            Primitive PString metadata (StringValue s)
+        ( StringValue _, StringType metadata ) ->
+            loadMe PString metadata .string
 
-        ( IntValue s, IntType metadata ) ->
-            Primitive PInt metadata (IntValue s)
+        ( IntValue _, IntType metadata ) ->
+            loadMe PInt metadata .int
 
-        ( FloatValue s, FloatType metadata ) ->
-            Primitive PFloat metadata (FloatValue s)
+        ( FloatValue _, FloatType metadata ) ->
+            loadMe PFloat metadata .float
 
         ( RecordValue namedFieldValues, RecordType metadata namedFieldTypes ) ->
             List.Extra.zip namedFieldValues namedFieldTypes
@@ -1152,10 +1162,18 @@ control : ControlConfig msg model output -> Control
 control config =
     let
         placeholderValue =
-            IR.fromInput config.model config.placeholder
+            config.placeholder
+                |> config.load
+                |> IR.fromInput config.model
     in
     Control
         { init = config.init |> Tuple.mapBoth (IR.fromInput config.model) (Cmd.map (IR.fromInput config.msg))
+        , load =
+            \outputValue ->
+                IR.toOutput config.output outputValue
+                    |> Result.map (\output -> config.load output)
+                    |> Result.map (IR.fromInput config.model)
+                    |> Result.withDefault placeholderValue
         , placeholder = placeholderValue
         , update =
             \msg modelValue ->
@@ -1197,7 +1215,8 @@ int =
         , msg = Gadget.string
         , output = Gadget.int
         , init = ( "", Cmd.none )
-        , placeholder = "0"
+        , placeholder = 0
+        , load = String.fromInt
         , update = \msg _ -> ( msg, Cmd.none )
         , view =
             \id model ->
@@ -1224,7 +1243,8 @@ float =
         , msg = Gadget.string
         , output = Gadget.float
         , init = ( "", Cmd.none )
-        , placeholder = "0.0"
+        , placeholder = 0.0
+        , load = String.fromFloat
         , update = \msg _ -> ( msg, Cmd.none )
         , view =
             \id model ->
@@ -1252,6 +1272,7 @@ string =
         , output = Gadget.string
         , init = ( "", Cmd.none )
         , placeholder = ""
+        , load = identity
         , update = \msg _ -> ( msg, Cmd.none )
         , view =
             \id model ->
@@ -1275,6 +1296,7 @@ bool =
         , output = Gadget.bool
         , init = ( False, Cmd.none )
         , placeholder = False
+        , load = identity
         , update = \msg _ -> ( msg, Cmd.none )
         , view =
             \id model ->
@@ -1298,7 +1320,8 @@ char =
         , msg = Gadget.maybe Gadget.char
         , output = Gadget.char
         , init = ( "", Cmd.none )
-        , placeholder = "a"
+        , placeholder = 'a'
+        , load = String.fromChar
         , update =
             \msg _ ->
                 case msg of
