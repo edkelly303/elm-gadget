@@ -1,6 +1,6 @@
 module Gadget.Adapter.Form exposing
     ( Form, Model, Msg, fromGadget, fromGadgetWithConfig, FormConfig, default
-    , Control, ControlConfig, makeControl
+    , Control, ControlDefinition, makeControl
     , label, customLabels, validate
     )
 
@@ -29,7 +29,7 @@ TODO
 
 @docs Form, Model, Msg, fromGadget, fromGadgetWithConfig, FormConfig, default
 
-@docs Control, ControlConfig, makeControl
+@docs Control, ControlDefinition, makeControl
 
 @docs label, customLabels, validate
 
@@ -51,7 +51,8 @@ tools =
     IR.makeMetadataTools "Gadget.Adapter.Form"
 
 
-{-| TODO
+{-| A record of functions that you can plumb into a standard Elm application to
+manage the lifecycle of a form.
 -}
 type alias Form a msg =
     { init : ( Model, Cmd msg )
@@ -63,41 +64,59 @@ type alias Form a msg =
     }
 
 
-{-| TODO
+{-| The internal state of a form - as a user of this module, you don't need to
+worry about the details, so this is an opaque type.
 -}
-type Control output
-    = Control InnerControl
+type Model
+    = Sum String IR.Metadata (Dict String ( Int, Dict String Model ))
+    | Collection IR.Metadata Type (Dict String Model)
+    | Record IR.Metadata (Dict String ( Int, Model ))
+    | Tuple IR.Metadata Model Model
+    | Triple IR.Metadata Model Model Model
+    | Unit IR.Metadata
+    | Primitive PrimitiveType IR.Metadata Value
 
 
-type alias InnerControl =
-    { init : ( Value, Cmd Value )
-    , load : Value -> Value
-    , placeholder : Value
-    , update : Value -> Value -> ( Value, Cmd Value )
-    , view : String -> Value -> H.Html Value
-    , subscriptions : Value -> Sub Value
-    , layout : { label : H.Html Msg, input : H.Html Msg, feedback : H.Html Msg } -> List (H.Html Msg)
-    , submit : Path -> Value -> Result (List Error) Value
+type PrimitiveType
+    = PString
+    | PChar
+    | PInt
+    | PFloat
+    | PBool
+
+
+{-| The internal messages used to update the form - as a user of this module,
+you don't need to worry about the details, so this is an opaque type.
+-}
+type Msg
+    = Msg Path Value
+
+
+{-| Convert a `Gadget` into a `Form`.
+-}
+fromGadget : (Msg -> msg) -> IR.Gadget a -> Form a msg
+fromGadget toMsg gadget =
+    fromGadgetWithConfig default toMsg gadget
+
+
+{-| Convert a `Gadget` into a `Form`, supplying a `FormConfig`.
+-}
+fromGadgetWithConfig : FormConfig -> (Msg -> msg) -> IR.Gadget a -> Form a msg
+fromGadgetWithConfig config toMsg gadget =
+    { init = init config gadget |> Tuple.mapSecond (Cmd.map toMsg)
+    , load = \output -> load config gadget output
+    , update = \msg model -> update config msg model |> Tuple.mapSecond (Cmd.map toMsg)
+    , view = \model -> view config gadget model |> H.map toMsg
+    , subscriptions = \model -> subscriptions config model |> Sub.map toMsg
+    , submit = submit config gadget
     }
 
 
-{-| TODO
--}
-type alias ControlConfig msg model output =
-    { msg : IR.Gadget msg
-    , model : IR.Gadget model
-    , output : IR.Gadget output
-    , init : ( model, Cmd msg )
-    , placeholder : output
-    , load : output -> model
-    , update : msg -> model -> ( model, Cmd msg )
-    , view : String -> model -> H.Html msg
-    , subscriptions : model -> Sub msg
-    , submit : model -> Result String output
-    }
-
-
-{-| TODO
+{-| A configuration record that you can use to tweak various details of how to
+convert a `Gadget` into a `Form`. For example, you can specify the types of form
+controls you would like to use for each primitive type `(Bool`, `Int`, `Float`,
+`Char`, `String`), you can configure how controls are laid out and how feedback
+is formatted, and so on.
 -}
 type alias FormConfig =
     { bool : Control Bool
@@ -110,7 +129,10 @@ type alias FormConfig =
     }
 
 
-{-| TODO
+{-| The default configuration record for forms.
+
+`fromGadget == fromGadgetWithConfig default`
+
 -}
 default : FormConfig
 default =
@@ -136,30 +158,90 @@ default =
     }
 
 
+{-| A custom form control.
+-}
+type Control output
+    = Control InnerControl
+
+
+type alias InnerControl =
+    { init : ( Value, Cmd Value )
+    , load : Value -> Value
+    , placeholder : Value
+    , update : Value -> Value -> ( Value, Cmd Value )
+    , view : String -> Value -> H.Html Value
+    , subscriptions : Value -> Sub Value
+    , layout : { label : H.Html Msg, input : H.Html Msg, feedback : H.Html Msg } -> List (H.Html Msg)
+    , submit : Path -> Value -> Result (List Error) Value
+    }
+
+
 {-| TODO
 -}
-type Model
-    = Sum String IR.Metadata (Dict String ( Int, Dict String Model ))
-    | Collection IR.Metadata Type (Dict String Model)
-    | Record IR.Metadata (Dict String ( Int, Model ))
-    | Tuple IR.Metadata Model Model
-    | Triple IR.Metadata Model Model Model
-    | Unit IR.Metadata
-    | Primitive PrimitiveType IR.Metadata Value
+type alias ControlDefinition msg model output =
+    { msg : IR.Gadget msg
+    , model : IR.Gadget model
+    , output : IR.Gadget output
+    , init : ( model, Cmd msg )
+    , placeholder : output
+    , load : output -> model
+    , update : msg -> model -> ( model, Cmd msg )
+    , view : String -> model -> H.Html msg
+    , subscriptions : model -> Sub msg
+    , submit : model -> Result String output
+    }
 
 
 {-| TODO
 -}
-type Msg
-    = Msg Path Value
+makeControl : ControlDefinition msg model output -> Control output
+makeControl config =
+    let
+        placeholderValue =
+            config.placeholder
+                |> config.load
+                |> IR.fromInput config.model
+    in
+    Control
+        { init = config.init |> Tuple.mapBoth (IR.fromInput config.model) (Cmd.map (IR.fromInput config.msg))
+        , load =
+            \outputValue ->
+                IR.toOutput config.output outputValue
+                    |> Result.map (\output -> config.load output)
+                    |> Result.map (IR.fromInput config.model)
+                    |> Result.withDefault placeholderValue
+        , placeholder = placeholderValue
+        , update =
+            \msg modelValue ->
+                Result.map2 config.update
+                    (IR.toOutput config.msg msg)
+                    (IR.toOutput config.model modelValue)
+                    |> Result.map (Tuple.mapBoth (IR.fromInput config.model) (Cmd.map (IR.fromInput config.msg)))
+                    |> Result.withDefault ( modelValue, Cmd.none )
+        , view =
+            \id modelValue ->
+                Result.map (config.view id) (IR.toOutput config.model modelValue)
+                    |> Result.Extra.extract (List.map (.error >> H.text) >> H.div [])
+                    |> H.map (\msg -> IR.fromInput config.msg msg)
+        , layout =
+            \ui ->
+                [ ui.label, ui.input, ui.feedback ]
+        , subscriptions = \_ -> Sub.none
+        , submit =
+            \path modelValue ->
+                IR.toOutput config.model modelValue
+                    |> Result.andThen
+                        (\model ->
+                            config.submit model
+                                |> Result.mapError (\error -> [ { error = error, path = path } ])
+                                |> Result.map (IR.fromInput config.output)
+                        )
+        }
 
 
-type PrimitiveType
-    = PString
-    | PChar
-    | PInt
-    | PFloat
-    | PBool
+withLayout : ({ label : H.Html Msg, input : H.Html Msg, feedback : H.Html Msg } -> List (H.Html Msg)) -> Control output -> Control output
+withLayout f (Control c) =
+    Control { c | layout = f }
 
 
 init : FormConfig -> IR.Gadget a -> ( Model, Cmd Msg )
@@ -1113,26 +1195,6 @@ combineAndAccumulateErrorsHelp list acc =
 
 {-| TODO
 -}
-fromGadget : (Msg -> msg) -> IR.Gadget a -> Form a msg
-fromGadget toMsg gadget =
-    fromGadgetWithConfig default toMsg gadget
-
-
-{-| TODO
--}
-fromGadgetWithConfig : FormConfig -> (Msg -> msg) -> IR.Gadget a -> Form a msg
-fromGadgetWithConfig config toMsg gadget =
-    { init = init config gadget |> Tuple.mapSecond (Cmd.map toMsg)
-    , load = \output -> load config gadget output
-    , update = \msg model -> update config msg model |> Tuple.mapSecond (Cmd.map toMsg)
-    , view = \model -> view config gadget model |> H.map toMsg
-    , subscriptions = \model -> subscriptions config model |> Sub.map toMsg
-    , submit = submit config gadget
-    }
-
-
-{-| TODO
--}
 label : String -> IR.Gadget a -> IR.Gadget a
 label l gadget =
     tools.attach "label" Gadget.string l gadget
@@ -1153,58 +1215,6 @@ customLabels l ls gadget =
         (Gadget.tuple Gadget.string (Gadget.list Gadget.string))
         ( l, ls )
         gadget
-
-
-{-| TODO
--}
-makeControl : ControlConfig msg model output -> Control output
-makeControl config =
-    let
-        placeholderValue =
-            config.placeholder
-                |> config.load
-                |> IR.fromInput config.model
-    in
-    Control
-        { init = config.init |> Tuple.mapBoth (IR.fromInput config.model) (Cmd.map (IR.fromInput config.msg))
-        , load =
-            \outputValue ->
-                IR.toOutput config.output outputValue
-                    |> Result.map (\output -> config.load output)
-                    |> Result.map (IR.fromInput config.model)
-                    |> Result.withDefault placeholderValue
-        , placeholder = placeholderValue
-        , update =
-            \msg modelValue ->
-                Result.map2 config.update
-                    (IR.toOutput config.msg msg)
-                    (IR.toOutput config.model modelValue)
-                    |> Result.map (Tuple.mapBoth (IR.fromInput config.model) (Cmd.map (IR.fromInput config.msg)))
-                    |> Result.withDefault ( modelValue, Cmd.none )
-        , view =
-            \id modelValue ->
-                Result.map (config.view id) (IR.toOutput config.model modelValue)
-                    |> Result.Extra.extract (List.map (.error >> H.text) >> H.div [])
-                    |> H.map (\msg -> IR.fromInput config.msg msg)
-        , layout =
-            \ui ->
-                [ ui.label, ui.input, ui.feedback ]
-        , subscriptions = \_ -> Sub.none
-        , submit =
-            \path modelValue ->
-                IR.toOutput config.model modelValue
-                    |> Result.andThen
-                        (\model ->
-                            config.submit model
-                                |> Result.mapError (\error -> [ { error = error, path = path } ])
-                                |> Result.map (IR.fromInput config.output)
-                        )
-        }
-
-
-withLayout : ({ label : H.Html Msg, input : H.Html Msg, feedback : H.Html Msg } -> List (H.Html Msg)) -> Control output -> Control output
-withLayout f (Control c) =
-    Control { c | layout = f }
 
 
 int : Control Int
