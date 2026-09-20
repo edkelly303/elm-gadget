@@ -144,6 +144,7 @@ type Model
     | Record IR.Metadata (Dict String ( Int, Model ))
     | Tuple IR.Metadata Model Model
     | Triple IR.Metadata Model Model Model
+    | Unit IR.Metadata
     | Primitive PrimitiveType IR.Metadata Value
 
 
@@ -159,7 +160,6 @@ type PrimitiveType
     | PInt
     | PFloat
     | PBool
-    | PUnit
 
 
 init : FormConfig -> IR.Gadget a -> ( Model, Cmd Msg )
@@ -182,7 +182,7 @@ initHelp initializer config path irType =
     in
     case irType of
         UnitType m ->
-            ( Primitive PUnit m UnitValue, Cmd.none )
+            ( Unit m, Cmd.none )
 
         BoolType m ->
             initFor .bool PBool m
@@ -374,6 +374,9 @@ update config msg model =
 updateHelp : FormConfig -> Path -> Msg -> Model -> ( Model, Cmd Msg )
 updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
     case model of
+        Unit _ ->
+            ( model, Cmd.none )
+
         Primitive primitiveType metadata modelValue ->
             Tuple.mapBoth (Primitive primitiveType metadata) (Cmd.map (Msg modelPath)) <|
                 if modelPath == msgPath then
@@ -386,9 +389,6 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
                             c.update msgValue modelValue
                     in
                     case primitiveType of
-                        PUnit ->
-                            ( modelValue, Cmd.none )
-
                         PString ->
                             updateFor .string
 
@@ -606,6 +606,9 @@ viewHelp config errs modelPath model =
             List.isEmpty feedback
     in
     case model of
+        Unit _ ->
+            []
+
         Primitive primitiveType metadata modelValue ->
             let
                 viewMe getType =
@@ -624,9 +627,6 @@ viewHelp config errs modelPath model =
                             }
             in
             case primitiveType of
-                PUnit ->
-                    []
-
                 PString ->
                     viewMe .string
 
@@ -765,6 +765,9 @@ subscriptions config model =
 
 subscriptionsHelp config path model =
     case model of
+        Unit _ ->
+            Sub.none
+
         Primitive primitiveType _ modelValue ->
             let
                 subMe getType =
@@ -776,9 +779,6 @@ subscriptionsHelp config path model =
                         |> Sub.map (Msg path)
             in
             case primitiveType of
-                PUnit ->
-                    Sub.none
-
                 PBool ->
                     subMe .bool
 
@@ -883,6 +883,9 @@ submit config gadget model =
 parsePrimitiveControls : FormConfig -> Path -> Model -> Result (List Error) Value
 parsePrimitiveControls config path model =
     case model of
+        Unit _ ->
+            Ok UnitValue
+
         Primitive primitiveType _ modelValue ->
             let
                 submit_ getter =
@@ -893,9 +896,6 @@ parsePrimitiveControls config path model =
                     c.submit path modelValue
             in
             case primitiveType of
-                PUnit ->
-                    Ok UnitValue
-
                 PString ->
                     submit_ .string
 
@@ -973,7 +973,7 @@ loadHelp config value type_ =
     in
     case ( value, type_ ) of
         ( UnitValue, UnitType metadata ) ->
-            Primitive PUnit metadata UnitValue
+            Unit metadata
 
         ( BoolValue _, BoolType metadata ) ->
             loadMe PBool metadata .bool
@@ -1038,7 +1038,7 @@ loadHelp config value type_ =
             Triple metadata (loadHelp config aValue aType) (loadHelp config bValue bType) (loadHelp config cValue cType)
 
         _ ->
-            Primitive PUnit IR.emptyMetadata UnitValue
+            Unit IR.emptyMetadata
 
 
 combineAndAccumulateErrorsDict :
