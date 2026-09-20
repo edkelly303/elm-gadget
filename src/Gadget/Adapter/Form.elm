@@ -73,7 +73,7 @@ type Model
     | Record IR.Metadata (Dict String ( Int, Model ))
     | Tuple IR.Metadata Model Model
     | Triple IR.Metadata Model Model Model
-    | Unit IR.Metadata
+    | Unit
     | Primitive PrimitiveType IR.Metadata Value
 
 
@@ -263,8 +263,8 @@ initHelp initializer config path irType =
                     (Cmd.map (Msg path))
     in
     case irType of
-        UnitType m ->
-            ( Unit m, Cmd.none )
+        UnitType _ ->
+            ( Unit, Cmd.none )
 
         BoolType m ->
             initFor .bool PBool m
@@ -456,7 +456,7 @@ update config msg model =
 updateHelp : FormConfig -> Path -> Msg -> Model -> ( Model, Cmd Msg )
 updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
     case model of
-        Unit _ ->
+        Unit ->
             ( model, Cmd.none )
 
         Primitive primitiveType metadata modelValue ->
@@ -688,7 +688,7 @@ viewHelp config errs modelPath model =
             List.isEmpty feedback
     in
     case model of
-        Unit _ ->
+        Unit ->
             []
 
         Primitive primitiveType metadata modelValue ->
@@ -847,7 +847,7 @@ subscriptions config model =
 
 subscriptionsHelp config path model =
     case model of
-        Unit _ ->
+        Unit ->
             Sub.none
 
         Primitive primitiveType _ modelValue ->
@@ -965,7 +965,7 @@ submit config gadget model =
 parsePrimitiveControls : FormConfig -> Path -> Model -> Result (List Error) Value
 parsePrimitiveControls config path model =
     case model of
-        Unit _ ->
+        Unit ->
             Ok UnitValue
 
         Primitive primitiveType _ modelValue ->
@@ -1054,8 +1054,8 @@ loadHelp config value type_ =
             Primitive typ metadata (c.load value)
     in
     case ( value, type_ ) of
-        ( UnitValue, UnitType metadata ) ->
-            Unit metadata
+        ( UnitValue, UnitType _ ) ->
+            Unit
 
         ( BoolValue _, BoolType metadata ) ->
             loadMe PBool metadata .bool
@@ -1120,7 +1120,7 @@ loadHelp config value type_ =
             Triple metadata (loadHelp config aValue aType) (loadHelp config bValue bType) (loadHelp config cValue cType)
 
         _ ->
-            Unit IR.emptyMetadata
+            Unit
 
 
 combineAndAccumulateErrorsDict :
