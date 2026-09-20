@@ -1,7 +1,8 @@
 module Gadget.Adapter.Form exposing
-    ( Form, Model, Msg, fromGadget, fromGadgetWithConfig, FormConfig, default
+    ( fromGadget, fromGadgetWithConfig, Config, defaultConfig
+    , Form, Model, Msg
     , Control, ControlDefinition, makeControl
-    , label, customLabels, validate
+    , label, customLabels
     )
 
 {-|
@@ -27,11 +28,25 @@ TODO
 
 ## API
 
-@docs Form, Model, Msg, fromGadget, fromGadgetWithConfig, FormConfig, default
+
+### Creating forms
+
+@docs fromGadget, fromGadgetWithConfig, Config, defaultConfig
+
+
+### Using forms within an application
+
+@docs Form, Model, Msg
+
+
+### Defining custom form controls
 
 @docs Control, ControlDefinition, makeControl
 
-@docs label, customLabels, validate
+
+### Labelling form controls
+
+@docs label, customLabels
 
 -}
 
@@ -96,12 +111,12 @@ type Msg
 -}
 fromGadget : (Msg -> msg) -> IR.Gadget a -> Form a msg
 fromGadget toMsg gadget =
-    fromGadgetWithConfig default toMsg gadget
+    fromGadgetWithConfig defaultConfig toMsg gadget
 
 
-{-| Convert a `Gadget` into a `Form`, supplying a `FormConfig`.
+{-| Convert a `Gadget` into a `Form`, supplying a `Config`.
 -}
-fromGadgetWithConfig : FormConfig -> (Msg -> msg) -> IR.Gadget a -> Form a msg
+fromGadgetWithConfig : Config -> (Msg -> msg) -> IR.Gadget a -> Form a msg
 fromGadgetWithConfig config toMsg gadget =
     { init = init config gadget |> Tuple.mapSecond (Cmd.map toMsg)
     , load = \output -> load config gadget output
@@ -118,7 +133,7 @@ controls you would like to use for each primitive type `(Bool`, `Int`, `Float`,
 `Char`, `String`), you can configure how controls are laid out and how feedback
 is formatted, and so on.
 -}
-type alias FormConfig =
+type alias Config =
     { bool : Control Bool
     , int : Control Int
     , float : Control Float
@@ -131,11 +146,11 @@ type alias FormConfig =
 
 {-| The default configuration record for forms.
 
-`fromGadget == fromGadgetWithConfig default`
+`fromGadget == fromGadgetWithConfig defaultConfig`
 
 -}
-default : FormConfig
-default =
+defaultConfig : Config
+defaultConfig =
     { bool = bool
     , int = int
     , float = float
@@ -176,7 +191,7 @@ type alias InnerControl =
     }
 
 
-{-| TODO
+{-| A definition for a custom form control.
 -}
 type alias ControlDefinition msg model output =
     { msg : IR.Gadget msg
@@ -192,7 +207,7 @@ type alias ControlDefinition msg model output =
     }
 
 
-{-| TODO
+{-| Turn a `ControlDefinition` into a `Control`.
 -}
 makeControl : ControlDefinition msg model output -> Control output
 makeControl config =
@@ -244,12 +259,31 @@ withLayout f (Control c) =
     Control { c | layout = f }
 
 
-init : FormConfig -> IR.Gadget a -> ( Model, Cmd Msg )
+{-| Add a label to a `Gadget` - this will be displayed as an HTML `<label>` element
+-}
+label : String -> IR.Gadget a -> IR.Gadget a
+label l gadget =
+    tools.attach "label" Gadget.string l gadget
+
+
+{-| Add labels to a custom type `Gadget` - this allows you to define a label for
+the custom type itself (displayed as an HTML `<legend>` within a `<fieldset>`),
+and for each of its variants (displayed as HTML `<input type="radio">` buttons).
+-}
+customLabels : String -> List String -> IR.Gadget a -> IR.Gadget a
+customLabels l ls gadget =
+    tools.attach "customLabel"
+        (Gadget.tuple Gadget.string (Gadget.list Gadget.string))
+        ( l, ls )
+        gadget
+
+
+init : Config -> IR.Gadget a -> ( Model, Cmd Msg )
 init config gadget =
     initHelp .init config [] (IR.irType gadget)
 
 
-initHelp : (InnerControl -> ( Value, Cmd Value )) -> FormConfig -> Path -> Type -> ( Model, Cmd Msg )
+initHelp : (InnerControl -> ( Value, Cmd Value )) -> Config -> Path -> Type -> ( Model, Cmd Msg )
 initHelp initializer config path irType =
     let
         initFor getType primitiveType metadata =
@@ -359,7 +393,7 @@ initHelp initializer config path irType =
             ( Triple m aModel bModel cModel, Cmd.batch [ aCmd, bCmd, cCmd ] )
 
 
-makeDummyModel : FormConfig -> Type -> List Error -> Model -> Model
+makeDummyModel : Config -> Type -> List Error -> Model -> Model
 makeDummyModel config irType errors realModel =
     let
         dummyModel =
@@ -374,7 +408,7 @@ makeDummyModel config irType errors realModel =
     dummyHelp config errorPaths [] realModel dummyModel
 
 
-dummyHelp : FormConfig -> Set.Set Path -> Path -> Model -> Model -> Model
+dummyHelp : Config -> Set.Set Path -> Path -> Model -> Model -> Model
 dummyHelp config errorPaths path realModel dummyModel =
     case ( realModel, dummyModel ) of
         ( Primitive _ _ _, _ ) ->
@@ -448,12 +482,12 @@ dummyHelp config errorPaths path realModel dummyModel =
             realModel
 
 
-update : FormConfig -> Msg -> Model -> ( Model, Cmd Msg )
+update : Config -> Msg -> Model -> ( Model, Cmd Msg )
 update config msg model =
     updateHelp config [] msg model
 
 
-updateHelp : FormConfig -> Path -> Msg -> Model -> ( Model, Cmd Msg )
+updateHelp : Config -> Path -> Msg -> Model -> ( Model, Cmd Msg )
 updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
     case model of
         Unit ->
@@ -650,7 +684,7 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
                     ( model, Cmd.none )
 
 
-view : FormConfig -> IR.Gadget a -> Model -> H.Html Msg
+view : Config -> IR.Gadget a -> Model -> H.Html Msg
 view config gadget model =
     let
         errs =
@@ -664,7 +698,7 @@ view config gadget model =
     H.form [] (viewHelp config errs [] model)
 
 
-viewHelp : FormConfig -> List Error -> Path -> Model -> List (H.Html Msg)
+viewHelp : Config -> List Error -> Path -> Model -> List (H.Html Msg)
 viewHelp config errs modelPath model =
     let
         id =
@@ -916,7 +950,7 @@ subscriptionsHelp config path model =
                 |> Sub.batch
 
 
-submit : FormConfig -> IR.Gadget a -> Model -> Result (List Error) a
+submit : Config -> IR.Gadget a -> Model -> Result (List Error) a
 submit config gadget model =
     case parsePrimitiveControls config [] model of
         Ok outputValue ->
@@ -962,7 +996,7 @@ submit config gadget model =
                             Err (parsingErrors ++ filteredValidationErrors)
 
 
-parsePrimitiveControls : FormConfig -> Path -> Model -> Result (List Error) Value
+parsePrimitiveControls : Config -> Path -> Model -> Result (List Error) Value
 parsePrimitiveControls config path model =
     case model of
         Unit ->
@@ -1038,12 +1072,12 @@ parsePrimitiveControls config path model =
                     )
 
 
-load : FormConfig -> IR.Gadget a -> a -> Model
+load : Config -> IR.Gadget a -> a -> Model
 load config gadget a =
     loadHelp config (IR.fromInput gadget a) (IR.irType gadget)
 
 
-loadHelp : FormConfig -> Value -> Type -> Model
+loadHelp : Config -> Value -> Type -> Model
 loadHelp config value type_ =
     let
         loadMe typ metadata getType =
@@ -1191,30 +1225,6 @@ combineAndAccumulateErrorsHelp list acc =
 
                 Err errors ->
                     Err (List.reverse errors)
-
-
-{-| TODO
--}
-label : String -> IR.Gadget a -> IR.Gadget a
-label l gadget =
-    tools.attach "label" Gadget.string l gadget
-
-
-{-| TODO
--}
-validate : (a -> Result (List String) a) -> Gadget.Gadget a -> Gadget.Gadget a
-validate f =
-    Gadget.filterMap f identity
-
-
-{-| TODO
--}
-customLabels : String -> List String -> IR.Gadget a -> IR.Gadget a
-customLabels l ls gadget =
-    tools.attach "customLabel"
-        (Gadget.tuple Gadget.string (Gadget.list Gadget.string))
-        ( l, ls )
-        gadget
 
 
 int : Control Int

@@ -42,7 +42,7 @@ personGadget =
         |> Gadget.field "name"
             .name
             (Gadget.string
-                |> Gadget.Adapter.Form.validate
+                |> Gadget.filterMap
                     (\s ->
                         case
                             List.filterMap identity
@@ -64,6 +64,7 @@ personGadget =
                             errs ->
                                 Err errs
                     )
+                    identity
                 |> Gadget.Adapter.Random.choose "Ed" [ "Leonardo", "Wolfgang", "Rupert", "Mario", "Martin" ]
                 |> Gadget.Adapter.Form.label "What is your name?"
             )
@@ -72,7 +73,7 @@ personGadget =
             (Gadget.float
                 |> Gadget.Adapter.Random.range 100 180
                 |> Gadget.Adapter.Form.label "What is your height (in centimetres)?"
-                |> Gadget.Adapter.Form.validate
+                |> Gadget.filterMap
                     (\f ->
                         if f < 50 then
                             Err [ "This must be at least 50cm" ]
@@ -80,6 +81,7 @@ personGadget =
                         else
                             Ok f
                     )
+                    identity
             )
         |> Gadget.field "pets"
             .pets
@@ -126,7 +128,7 @@ petGadget =
                         |> Gadget.Adapter.Fuzz.useOverride "dogName"
                         |> Gadget.Adapter.Random.choose "Rex" [ "Fido", "Kevin", "Rover", "Fifi", "George", "Winnie" ]
                         |> Gadget.Adapter.Form.label "What is your dog's name?"
-                        |> Gadget.Adapter.Form.validate
+                        |> Gadget.filterMap
                             (\s ->
                                 if String.isEmpty s then
                                     Err [ "This must not be blank" ]
@@ -134,6 +136,7 @@ petGadget =
                                 else
                                     Ok s
                             )
+                            identity
                     )
                 |> Gadget.endRecord
             )

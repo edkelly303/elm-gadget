@@ -22,7 +22,7 @@ suite =
                             |> G.field "bar" .bar G.int
                             -- `bar` will fail on submission, because its initial
                             -- stats is `""`, and that won't parse as an integer
-                            |> G.field "baz" .baz (G.string |> F.validate (\_ -> Err [ "This error should show up" ]))
+                            |> G.field "baz" .baz (G.string |> G.filterMap (\_ -> Err [ "This error should show up" ]) identity)
                             -- `baz` is a sibling, not a direct ancestor of `bar`
                             |> G.endRecord
 
@@ -54,7 +54,7 @@ suite =
                                 .baz
                                 G.string
                             |> G.endRecord
-                            |> F.validate (\_ -> Err [ "This error shouldn't show up" ])
+                            |> G.filterMap (\_ -> Err [ "This error shouldn't show up" ]) identity
 
                     -- this error is on the root gadget, which is a direct ancestor of `bar`
                     form =
