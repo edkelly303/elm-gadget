@@ -13,7 +13,9 @@ your own production-grade adapters that are designed for your specific use-case.
 
 ## Introduction
 
-Display the source code of a Gadget.
+Display the source code of a Gadget. This is kind of a joke, I just wanted to
+see how possible it was. It mostly works, but a few things are broken (it can't
+handle `Gadget.filterMap`, for example).
 
 
 ## API
@@ -32,7 +34,18 @@ tools =
     IR.makeMetadataTools "Gadget.Adapter.Quine"
 
 
-{-| TODO: Show how to quine the heck out of all the things.
+{-| Convert a Gadget into a `String` representation of its own source code,
+pretty-printed to a specified number of columns.
+
+    import Gadget
+    import Gadget.Adapter.Quine as Quine
+
+    gadget =
+        Gadget.tuple Gadget.int Gadget.string
+
+    Quine.quine 80 gadget
+    --> "gadget = Gadget.tuple Gadget.int Gadget.string"
+
 -}
 quine : Int -> IR.Gadget a -> String
 quine columns gadget =

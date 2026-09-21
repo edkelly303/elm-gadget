@@ -13,6 +13,7 @@ import Gadget.Adapter.Form
 import Gadget.Adapter.Fuzz
 import Gadget.Adapter.Html
 import Gadget.Adapter.Json
+import Gadget.Adapter.Quine
 import Gadget.Adapter.Random
 import Gadget.Adapter.String
 import Gadget.IR
@@ -427,6 +428,24 @@ tests =
                         (\() ->
                             jsonString__Gadget_Adapter_Json__encode_0
                                 |> Expect.equal "1"
+                        )
+                    ]
+                ]
+            ]
+        , Test.describe
+            "Gadget.Adapter.Quine"
+            [ Test.describe
+                "quine"
+                [ Test.describe
+                    "code snippet 0"
+                    [ Test.test
+                        "0"
+                        (\() ->
+                            Gadget.Adapter.Quine.quine
+                                80
+                                gadget__Gadget_Adapter_Quine__quine_0
+                                |> Expect.equal
+                                    "gadget = Gadget.tuple Gadget.int Gadget.string"
                         )
                     ]
                 ]
@@ -920,6 +939,10 @@ json__Gadget_Adapter_Json__encode_0 =
 
 jsonString__Gadget_Adapter_Json__encode_0 =
     Json.Encode.encode 0 json__Gadget_Adapter_Json__encode_0
+
+
+gadget__Gadget_Adapter_Quine__quine_0 =
+    Gadget.tuple Gadget.int Gadget.string
 
 
 type alias Person__Gadget_Adapter_Random__generator_0 =
