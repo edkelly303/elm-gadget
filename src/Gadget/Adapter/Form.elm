@@ -111,7 +111,7 @@ This module allows you to turn Gadgets into simple HTML forms.
 
 The default form control for a `Gadget Int` is an HTML `<input type="number">`
 element, but let's say we wanted it to work more like the classic Elm counter
-example, with buttons for incrementing and decrementing the number. 
+example, with buttons for incrementing and decrementing the number.
 
 We can define a custom form control like this:
 
