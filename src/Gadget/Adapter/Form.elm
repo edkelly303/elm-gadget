@@ -18,12 +18,80 @@ your own production-grade adapters that are designed for your specific use-case.
 
 ## Introduction
 
-TODO
+This module allows you to turn Gadgets into simple HTML forms.
 
 
 ## Example
 
-    TODO
+    import Gadget
+    import Gadget.Adapter.Form as Form
+    import Html
+
+    gadget : Gadget.Gadget ( Bool, String )
+    gadget =
+        Gadget.tuple Gadget.bool Gadget.string
+
+    type Msg
+        = FormChanged Form.Msg
+        | FormSubmitted
+
+    type alias Model =
+        { formState : Form.Model
+        , otherFields : ()
+        }
+
+    form : Form.Form Msg ( Bool, String )
+    form =
+        Form.fromGadget FormChanged gadget
+
+    init =
+        let
+            ( formState, formCmd ) =
+                form.init
+        in
+        ( { formState = formState, otherFields = () }
+        , formCmd
+        )
+
+    update msg model =
+        case msg of
+            FormChanged formMsg ->
+                let
+                    ( formState, formCmd ) =
+                        form.update formMsg model.formState
+                in
+                ( { model | formState = formState }
+                , formCmd
+                )
+
+            FormSubmitted ->
+                let
+                    result =
+                        form.submit model.formState
+                in
+                case result of
+                    Ok output ->
+                        let
+                            _ =
+                                Debug.log "Success!" output
+                        in
+                        ( model, Cmd.none )
+
+                    Err errors ->
+                        let
+                            _ =
+                                Debug.log "Failure!" errors
+                        in
+                        ( model, Cmd.none )
+
+    view model =
+        form.view model.formState
+
+    subscriptions model =
+        form.subscriptions model.formState
+
+    -- doctest
+    init --: ( Model, Cmd Msg )
 
 
 ## API
@@ -40,6 +108,64 @@ TODO
 
 
 ### Defining custom form controls
+
+The default form control for a `Gadget Int` is an HTML `<input type="number">`
+element, but let's say we wanted it to work more like the classic Elm counter
+example, with buttons for incrementing and decrementing the number. 
+
+We can define a custom form control like this:
+
+    import Gadget
+    import Gadget.Adapter.Form as Form
+    import Html as H
+    import Html.Attributes as HA
+    import Html.Events as HE
+
+    counter =
+        Form.makeControl
+            { model = Gadget.int
+            , msg = Gadget.bool
+            , output = Gadget.int
+            , init = ( 0, Cmd.none )
+            , load = \output -> output
+            , placeholder = 0
+            , update =
+                \msg model ->
+                    ( if msg then
+                        model + 1
+
+                      else
+                        model - 1
+                    , Cmd.none
+                    )
+            , view =
+                \id model ->
+                    H.div [ HA.id id ]
+                        [ H.button [ HE.onClick False ]
+                            [ H.text "-" ]
+                        , H.text (String.fromInt model)
+                        , H.button [ HE.onClick True ]
+                            [ H.text "+" ]
+                        ]
+            , subscriptions = \_ -> Sub.none
+            , submit = \model -> Ok model
+            }
+
+    -- And now we can swap in our counter instead of the
+    -- default control for `Int`s:
+
+    form =
+        let
+            config =
+                Form.defaultConfig
+        in
+        Form.fromGadgetWithConfig
+            { config | int = counter}
+            identity
+            Gadget.int
+
+    -- doctest
+    counter --: Form.Control Int
 
 @docs Control, ControlDefinition, makeControl
 
@@ -69,7 +195,7 @@ tools =
 {-| A record of functions that you can plumb into a standard Elm application to
 manage the lifecycle of a form.
 -}
-type alias Form a msg =
+type alias Form msg a =
     { init : ( Model, Cmd msg )
     , load : a -> Model
     , update : Msg -> Model -> ( Model, Cmd msg )
@@ -109,14 +235,14 @@ type Msg
 
 {-| Convert a `Gadget` into a `Form`.
 -}
-fromGadget : (Msg -> msg) -> IR.Gadget a -> Form a msg
+fromGadget : (Msg -> msg) -> IR.Gadget a -> Form msg a
 fromGadget toMsg gadget =
     fromGadgetWithConfig defaultConfig toMsg gadget
 
 
 {-| Convert a `Gadget` into a `Form`, supplying a `Config`.
 -}
-fromGadgetWithConfig : Config -> (Msg -> msg) -> IR.Gadget a -> Form a msg
+fromGadgetWithConfig : Config -> (Msg -> msg) -> IR.Gadget a -> Form msg a
 fromGadgetWithConfig config toMsg gadget =
     { init = init config gadget |> Tuple.mapSecond (Cmd.map toMsg)
     , load = \output -> load config gadget output

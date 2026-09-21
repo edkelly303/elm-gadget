@@ -9,6 +9,7 @@ import Expect
 import Fuzz
 import Gadget
 import Gadget.Adapter.Diff
+import Gadget.Adapter.Form
 import Gadget.Adapter.Fuzz
 import Gadget.Adapter.Html
 import Gadget.Adapter.Json
@@ -16,9 +17,13 @@ import Gadget.Adapter.Random
 import Gadget.Adapter.String
 import Gadget.IR
 import Html
+import Html.Attributes
+import Html.Events
 import Json.Decode
 import Json.Encode
 import Parser
+import Platform.Cmd
+import Platform.Sub
 import Random
 import Set
 import Test
@@ -306,6 +311,38 @@ tests =
                                 changes__Gadget_Adapter_Diff__Header_0
                                 oldValue__Gadget_Adapter_Diff__Header_0
                                 |> Expect.equal (Result.Ok [ 1, 2, 3, 4 ])
+                        )
+                    ]
+                ]
+            ]
+        , Test.describe
+            "Gadget.Adapter.Form"
+            [ Test.describe
+                "module header"
+                [ Test.describe
+                    "code snippet 0"
+                    [ Test.test
+                        "0"
+                        (\() ->
+                            let
+                                unused : ( Model__Gadget_Adapter_Form__Header_0, Platform.Cmd.Cmd Msg__Gadget_Adapter_Form__Header_0 )
+                                unused =
+                                    init__Gadget_Adapter_Form__Header_0
+                            in
+                            Expect.pass
+                        )
+                    ]
+                , Test.describe
+                    "code snippet 1"
+                    [ Test.test
+                        "0"
+                        (\() ->
+                            let
+                                unused : Gadget.Adapter.Form.Control Basics.Int
+                                unused =
+                                    counter__Gadget_Adapter_Form__Header_1
+                            in
+                            Expect.pass
                         )
                     ]
                 ]
@@ -683,6 +720,120 @@ changes__Gadget_Adapter_Diff__Header_0 =
         gadget__Gadget_Adapter_Diff__Header_0
         oldValue__Gadget_Adapter_Diff__Header_0
         newValue__Gadget_Adapter_Diff__Header_0
+
+
+gadget__Gadget_Adapter_Form__Header_0 : Gadget.Gadget ( Basics.Bool, String.String )
+gadget__Gadget_Adapter_Form__Header_0 =
+    Gadget.tuple Gadget.bool Gadget.string
+
+
+type Msg__Gadget_Adapter_Form__Header_0
+    = FormChanged__Gadget_Adapter_Form__Header_0 Gadget.Adapter.Form.Msg
+    | FormSubmitted__Gadget_Adapter_Form__Header_0
+
+
+type alias Model__Gadget_Adapter_Form__Header_0 =
+    { formState : Gadget.Adapter.Form.Model, otherFields : () }
+
+
+form__Gadget_Adapter_Form__Header_0 : Gadget.Adapter.Form.Form Msg__Gadget_Adapter_Form__Header_0 ( Basics.Bool, String.String )
+form__Gadget_Adapter_Form__Header_0 =
+    Gadget.Adapter.Form.fromGadget
+        FormChanged__Gadget_Adapter_Form__Header_0
+        gadget__Gadget_Adapter_Form__Header_0
+
+
+init__Gadget_Adapter_Form__Header_0 =
+    let
+        ( formState, formCmd ) =
+            form__Gadget_Adapter_Form__Header_0.init
+    in
+    ( { formState = formState, otherFields = () }, formCmd )
+
+
+update__Gadget_Adapter_Form__Header_0 msg model =
+    case msg of
+        FormChanged__Gadget_Adapter_Form__Header_0 formMsg ->
+            let
+                ( formState, formCmd ) =
+                    form__Gadget_Adapter_Form__Header_0.update
+                        formMsg
+                        model.formState
+            in
+            ( { model | formState = formState }, formCmd )
+
+        FormSubmitted__Gadget_Adapter_Form__Header_0 ->
+            let
+                result =
+                    form__Gadget_Adapter_Form__Header_0.submit model.formState
+            in
+            case result of
+                Result.Ok output ->
+                    let
+                        _ =
+                            Debug.log "Success!" output
+                    in
+                    ( model, Platform.Cmd.none )
+
+                Result.Err errors ->
+                    let
+                        _ =
+                            Debug.log "Failure!" errors
+                    in
+                    ( model, Platform.Cmd.none )
+
+
+view__Gadget_Adapter_Form__Header_0 model =
+    form__Gadget_Adapter_Form__Header_0.view model.formState
+
+
+subscriptions__Gadget_Adapter_Form__Header_0 model =
+    form__Gadget_Adapter_Form__Header_0.subscriptions model.formState
+
+
+counter__Gadget_Adapter_Form__Header_1 =
+    Gadget.Adapter.Form.makeControl
+        { model = Gadget.int
+        , msg = Gadget.bool
+        , output = Gadget.int
+        , init = ( 0, Platform.Cmd.none )
+        , load = \output -> output
+        , placeholder = 0
+        , update =
+            \msg model ->
+                ( if msg then
+                    model + 1
+
+                  else
+                    model - 1
+                , Platform.Cmd.none
+                )
+        , view =
+            \id model ->
+                Html.div
+                    [ Html.Attributes.id id ]
+                    [ Html.button
+                        [ Html.Events.onClick Basics.False ]
+                        [ Html.text "-" ]
+                    , Html.text (String.fromInt model)
+                    , Html.button
+                        [ Html.Events.onClick Basics.True ]
+                        [ Html.text "+" ]
+                    ]
+        , subscriptions = \_ -> Platform.Sub.none
+        , submit = \model -> Result.Ok model
+        }
+
+
+form__Gadget_Adapter_Form__Header_1 =
+    let
+        config =
+            Gadget.Adapter.Form.defaultConfig
+    in
+    Gadget.Adapter.Form.fromGadgetWithConfig
+        { config | int = counter__Gadget_Adapter_Form__Header_1 }
+        Basics.identity
+        Gadget.int
 
 
 type alias Person__Gadget_Adapter_Fuzz__fuzzer_0 =
