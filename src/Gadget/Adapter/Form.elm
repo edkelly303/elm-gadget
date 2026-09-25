@@ -184,7 +184,6 @@ import Html.Attributes as HA
 import Html.Events as HE
 import List.Extra
 import Result.Extra
-import Set
 
 
 tools : IR.MetadataTools meta a
@@ -351,7 +350,7 @@ makeControl config =
                     |> Result.map (\output -> config.load output)
                     |> Result.map (IR.fromInput config.model)
                     |> Result.withDefault placeholderValue
-        , placeholder = placeholderValue
+        , placeholder = IR.fromInput config.output config.placeholder
         , update =
             \msg modelValue ->
                 Result.map2 config.update
@@ -406,18 +405,18 @@ customLabels l ls gadget =
 
 init : Config -> IR.Gadget a -> ( Model, Cmd Msg )
 init config gadget =
-    initHelp .init config [] (IR.irType gadget)
+    initHelp config [] (IR.irType gadget)
 
 
-initHelp : (InnerControl -> ( Value, Cmd Value )) -> Config -> Path -> Type -> ( Model, Cmd Msg )
-initHelp initializer config path irType =
+initHelp : Config -> Path -> Type -> ( Model, Cmd Msg )
+initHelp config path irType =
     let
         initFor getType primitiveType metadata =
             let
                 (Control c) =
                     getType config
             in
-            initializer c
+            c.init
                 |> Tuple.mapBoth
                     (Primitive primitiveType metadata)
                     (Cmd.map (Msg path))
@@ -459,7 +458,7 @@ initHelp initializer config path irType =
                                                     argName :: variantName :: path
 
                                                 ( argModel, argCmd ) =
-                                                    initHelp initializer config argPath argType
+                                                    initHelp config argPath argType
                                             in
                                             ( ( argName, argModel ), argCmd )
                                         )
@@ -480,7 +479,7 @@ initHelp initializer config path irType =
                             (\idx ( fieldName, fieldType ) ->
                                 let
                                     ( fieldModel, fieldCmd ) =
-                                        initHelp initializer config (fieldName :: path) fieldType
+                                        initHelp config (fieldName :: path) fieldType
                                 in
                                 ( ( fieldName, ( idx, fieldModel ) ), fieldCmd )
                             )
@@ -493,119 +492,30 @@ initHelp initializer config path irType =
             ( Collection m innerType Dict.empty, Cmd.none )
 
         LazyType _ innerType ->
-            initHelp initializer config path (innerType ())
+            initHelp config path (innerType ())
 
         TupleType m a b ->
             let
                 ( aModel, aCmd ) =
-                    initHelp initializer config ("0" :: path) a
+                    initHelp config ("0" :: path) a
 
                 ( bModel, bCmd ) =
-                    initHelp initializer config ("1" :: path) b
+                    initHelp config ("1" :: path) b
             in
             ( Tuple m aModel bModel, Cmd.batch [ aCmd, bCmd ] )
 
         TripleType m a b c ->
             let
                 ( aModel, aCmd ) =
-                    initHelp initializer config ("0" :: path) a
+                    initHelp config ("0" :: path) a
 
                 ( bModel, bCmd ) =
-                    initHelp initializer config ("1" :: path) b
+                    initHelp config ("1" :: path) b
 
                 ( cModel, cCmd ) =
-                    initHelp initializer config ("2" :: path) c
+                    initHelp config ("2" :: path) c
             in
             ( Triple m aModel bModel cModel, Cmd.batch [ aCmd, bCmd, cCmd ] )
-
-
-makeDummyModel : Config -> Type -> List Error -> Model -> Model
-makeDummyModel config irType errors realModel =
-    let
-        dummyModel =
-            initHelp (\c -> ( c.placeholder, Cmd.none )) config [] irType
-                |> Tuple.first
-
-        errorPaths =
-            errors
-                |> List.map .path
-                |> Set.fromList
-    in
-    dummyHelp config errorPaths [] realModel dummyModel
-
-
-dummyHelp : Config -> Set.Set Path -> Path -> Model -> Model -> Model
-dummyHelp config errorPaths path realModel dummyModel =
-    case ( realModel, dummyModel ) of
-        ( Primitive _ _ _, _ ) ->
-            if Set.member path errorPaths then
-                dummyModel
-
-            else
-                realModel
-
-        ( Record metadata realFields, Record _ dummyFields ) ->
-            Dict.merge
-                (\_ _ _ -> Dict.empty)
-                (\k ( idx, realField ) ( _, dummyField ) out ->
-                    Dict.insert k ( idx, dummyHelp config errorPaths (k :: path) realField dummyField ) out
-                )
-                (\_ _ _ -> Dict.empty)
-                realFields
-                dummyFields
-                Dict.empty
-                |> Record metadata
-
-        ( Tuple metadata realA realB, Tuple _ dummyA dummyB ) ->
-            Tuple metadata
-                (dummyHelp config errorPaths ("0" :: path) realA dummyA)
-                (dummyHelp config errorPaths ("1" :: path) realB dummyB)
-
-        ( Triple metadata realA realB realC, Triple _ dummyA dummyB dummyC ) ->
-            Triple metadata
-                (dummyHelp config errorPaths ("0" :: path) realA dummyA)
-                (dummyHelp config errorPaths ("1" :: path) realB dummyB)
-                (dummyHelp config errorPaths ("2" :: path) realC dummyC)
-
-        ( Collection metadata innerType realItemModels, Collection _ _ _ ) ->
-            realItemModels
-                |> Dict.map
-                    (\k v ->
-                        initHelp (\c -> ( c.placeholder, Cmd.none )) config (k :: path) innerType
-                            |> Tuple.first
-                            |> dummyHelp config errorPaths (k :: path) v
-                    )
-                |> Collection metadata innerType
-
-        ( Sum selected metadata realVariants, Sum _ _ dummyVariants ) ->
-            Dict.merge
-                (\_ _ _ -> Dict.empty)
-                (\variantKey ( idx, realArgs ) ( _, dummyArgs ) outVariants ->
-                    Dict.insert variantKey
-                        ( idx
-                        , Dict.merge
-                            (\_ _ _ -> Dict.empty)
-                            (\argKey realArg dummyArg outArgs ->
-                                Dict.insert
-                                    argKey
-                                    (dummyHelp config errorPaths (argKey :: variantKey :: path) realArg dummyArg)
-                                    outArgs
-                            )
-                            (\_ _ _ -> Dict.empty)
-                            realArgs
-                            dummyArgs
-                            Dict.empty
-                        )
-                        outVariants
-                )
-                (\_ _ _ -> Dict.empty)
-                realVariants
-                dummyVariants
-                Dict.empty
-                |> Sum selected metadata
-
-        _ ->
-            realModel
 
 
 update : Config -> Msg -> Model -> ( Model, Cmd Msg )
@@ -744,7 +654,7 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
                                 UnitValue ->
                                     let
                                         ( newItemModel, newCmd ) =
-                                            initHelp .init config modelPath innerType
+                                            initHelp config modelPath innerType
                                     in
                                     ( Dict.insert (String.fromInt (Dict.size itemModels)) newItemModel itemModels
                                     , newCmd
@@ -1078,55 +988,51 @@ subscriptionsHelp config path model =
 
 submit : Config -> IR.Gadget a -> Model -> Result (List Error) a
 submit config gadget model =
-    case parsePrimitiveControls config [] model of
-        Ok outputValue ->
-            IR.toOutput gadget outputValue
+    let
+        ( parsedValue, parsingErrors ) =
+            parsePrimitiveControls config [] model
+    in
+    case ( parsingErrors, IR.toOutput gadget parsedValue ) of
+        ( [], Ok output ) ->
+            Ok output
 
-        Err parsingErrors ->
+        ( _, Ok _ ) ->
+            Err parsingErrors
+
+        ( [], Err validationErrors ) ->
+            Err validationErrors
+
+        ( _, Err validationErrors ) ->
             let
-                dummyModel =
-                    makeDummyModel config (IR.irType gadget) parsingErrors model
+                parsingErrorPaths =
+                    parsingErrors
+                        |> List.map .path
+                        |> List.Extra.unique
+
+                filteredValidationErrors =
+                    -- don't keep validation errors for paths that are
+                    -- ancestors of parsing errors (because these
+                    -- validation errors will potentially be based on
+                    -- dummy values, so they should be discarded)
+                    List.filter
+                        (\validationError ->
+                            parsingErrorPaths
+                                |> List.any
+                                    (\parsingErrorPath ->
+                                        validationError.path |> pathIsAncestorOf parsingErrorPath
+                                    )
+                                |> not
+                        )
+                        validationErrors
             in
-            case parsePrimitiveControls config [] dummyModel of
-                Err fatal ->
-                    Err ({ error = "FATAL ERROR", path = [] } :: fatal)
-
-                Ok dummyOutputValue ->
-                    case IR.toOutput gadget dummyOutputValue of
-                        Ok _ ->
-                            Err parsingErrors
-
-                        Err validationErrors ->
-                            let
-                                parsingErrorPaths =
-                                    parsingErrors
-                                        |> List.map .path
-                                        |> List.Extra.unique
-
-                                filteredValidationErrors =
-                                    -- don't keep validation errors for paths that are
-                                    -- ancestors of parsing errors (because these
-                                    -- validation errors will potentially be based on
-                                    -- dummy values, so they should be discarded)
-                                    List.filter
-                                        (\validationError ->
-                                            parsingErrorPaths
-                                                |> List.any
-                                                    (\parsingErrorPath ->
-                                                        validationError.path |> pathIsAncestorOf parsingErrorPath
-                                                    )
-                                                |> not
-                                        )
-                                        validationErrors
-                            in
-                            Err (parsingErrors ++ filteredValidationErrors)
+            Err (parsingErrors ++ filteredValidationErrors)
 
 
-parsePrimitiveControls : Config -> Path -> Model -> Result (List Error) Value
+parsePrimitiveControls : Config -> Path -> Model -> ( Value, List Error )
 parsePrimitiveControls config path model =
     case model of
         Unit ->
-            Ok UnitValue
+            ( UnitValue, [] )
 
         Primitive primitiveType _ modelValue ->
             let
@@ -1135,7 +1041,12 @@ parsePrimitiveControls config path model =
                         (Control c) =
                             getter config
                     in
-                    c.submit path modelValue
+                    case c.submit path modelValue of
+                        Ok v ->
+                            ( v, [] )
+
+                        Err errs ->
+                            ( c.placeholder, errs )
             in
             case primitiveType of
                 PString ->
@@ -1155,47 +1066,69 @@ parsePrimitiveControls config path model =
 
         Record _ fields ->
             fields
-                |> Dict.map (\key ( idx, child ) -> parsePrimitiveControls config (key :: path) child |> Result.map (Tuple.pair idx))
-                |> combineAndAccumulateErrorsDict
-                |> Result.map
-                    (\r ->
-                        r
-                            |> Dict.toList
-                            |> List.sortBy (\( _, ( idx, _ ) ) -> idx)
-                            |> List.map (\( key, ( _, child ) ) -> ( key, child ))
-                            |> IR.RecordValue
+                |> Dict.toList
+                |> List.sortBy (\( _, ( idx, _ ) ) -> idx)
+                |> List.foldr
+                    (\( name, ( _, child ) ) ( namedValues, errs ) ->
+                        let
+                            ( value, thisErrs ) =
+                                parsePrimitiveControls config (name :: path) child
+                        in
+                        ( ( name, value ) :: namedValues, thisErrs ++ errs )
                     )
+                    ( [], [] )
+                |> Tuple.mapFirst IR.RecordValue
 
         Tuple _ a b ->
-            Result.map2 IR.TupleValue
-                (parsePrimitiveControls config ("0" :: path) a)
-                (parsePrimitiveControls config ("1" :: path) b)
+            let
+                ( aValue, aErrs ) =
+                    parsePrimitiveControls config ("0" :: path) a
+
+                ( bValue, bErrs ) =
+                    parsePrimitiveControls config ("1" :: path) b
+            in
+            ( TupleValue aValue bValue, aErrs ++ bErrs )
 
         Triple _ a b c ->
-            Result.map3 IR.TripleValue
-                (parsePrimitiveControls config ("0" :: path) a)
-                (parsePrimitiveControls config ("1" :: path) b)
-                (parsePrimitiveControls config ("2" :: path) c)
+            let
+                ( aValue, aErrs ) =
+                    parsePrimitiveControls config ("0" :: path) a
 
-        Collection _ _ children ->
-            children
-                |> Dict.map (\idx child -> parsePrimitiveControls config (idx :: path) child)
-                |> Dict.values
-                |> combineAndAccumulateErrors
-                |> Result.map IR.ListValue
+                ( bValue, bErrs ) =
+                    parsePrimitiveControls config ("1" :: path) b
 
-        Sum selected _ children ->
-            Dict.get selected children
-                |> Result.fromMaybe [ { path = path, error = "Invalid Sum variant selection" } ]
-                |> Result.andThen
-                    (\( idx, variant ) ->
-                        variant
-                            |> Dict.map (\argIdx arg -> parsePrimitiveControls config (argIdx :: selected :: path) arg)
-                            |> Dict.values
-                            |> combineAndAccumulateErrors
-                            |> Result.andThen (argsListToVariantValue >> Result.mapError (\error -> [ { path = selected :: path, error = error } ]))
-                            |> Result.map (\v -> CustomValue idx ( selected, v ))
-                    )
+                ( cValue, cErrs ) =
+                    parsePrimitiveControls config ("2" :: path) c
+            in
+            ( TripleValue aValue bValue cValue, aErrs ++ bErrs ++ cErrs )
+
+        Collection _ _ items ->
+            (items
+                |> Dict.map (\idx item -> parsePrimitiveControls config (idx :: path) item)
+            )
+                |> Dict.foldr (\_ ( thisValue, thisErrs ) ( values, errs ) -> ( thisValue :: values, thisErrs ++ errs )) ( [], [] )
+                |> Tuple.mapFirst IR.ListValue
+
+        Sum selected _ variants ->
+            case Dict.get selected variants of
+                Nothing ->
+                    -- should be impossible...
+                    ( UnitValue, [ { path = path, error = "Invalid Sum variant selection" } ] )
+
+                Just ( idx, variant ) ->
+                    let
+                        ( argsList, argsErrs ) =
+                            (variant
+                                |> Dict.map (\argIdx arg -> parsePrimitiveControls config (argIdx :: selected :: path) arg)
+                            )
+                                |> Dict.foldr (\_ ( thisValue, thisErrs ) ( values, errs ) -> ( thisValue :: values, thisErrs ++ errs )) ( [], [] )
+                    in
+                    case argsListToVariantValue argsList of
+                        Err errs ->
+                            ( CustomValue idx ( selected, Variant0Value ), { path = selected :: path, error = errs } :: argsErrs )
+
+                        Ok variantValue ->
+                            ( CustomValue idx ( selected, variantValue ), argsErrs )
 
 
 load : Config -> IR.Gadget a -> a -> Model
@@ -1241,7 +1174,7 @@ loadHelp config value type_ =
         ( CustomValue selected ( name, variantValue ), CustomType metadata firstNameAndVariantType restNamesAndVariantTypes ) ->
             let
                 blank =
-                    initHelp .init config [] type_
+                    initHelp config [] type_
                         |> Tuple.first
             in
             case blank of
@@ -1281,76 +1214,6 @@ loadHelp config value type_ =
 
         _ ->
             Unit
-
-
-combineAndAccumulateErrorsDict :
-    Dict String (Result (List error) a)
-    -> Result (List error) (Dict String a)
-combineAndAccumulateErrorsDict dict =
-    combineAndAccumulateErrorsDictHelp dict (Ok Dict.empty)
-
-
-combineAndAccumulateErrorsDictHelp :
-    Dict String (Result (List error) value)
-    -> Result (List error) (Dict String value)
-    -> Result (List error) (Dict String value)
-combineAndAccumulateErrorsDictHelp dict acc =
-    Dict.foldl
-        (\k v out ->
-            case v of
-                Ok thisOutput ->
-                    case out of
-                        Ok outputs ->
-                            Ok (Dict.insert k thisOutput outputs)
-
-                        Err errs ->
-                            Err errs
-
-                Err thisError ->
-                    case out of
-                        Ok _ ->
-                            Err thisError
-
-                        Err errs ->
-                            Err (thisError ++ errs)
-        )
-        acc
-        dict
-
-
-combineAndAccumulateErrors : List (Result (List error) a) -> Result (List error) (List a)
-combineAndAccumulateErrors list =
-    combineAndAccumulateErrorsHelp list (Ok [])
-
-
-combineAndAccumulateErrorsHelp : List (Result (List error) value) -> Result (List error) (List value) -> Result (List error) (List value)
-combineAndAccumulateErrorsHelp list acc =
-    case list of
-        (Ok thisOutput) :: rest ->
-            combineAndAccumulateErrorsHelp rest <|
-                case acc of
-                    Ok outputs ->
-                        Ok (thisOutput :: outputs)
-
-                    Err errs ->
-                        Err errs
-
-        (Err thisError) :: rest ->
-            combineAndAccumulateErrorsHelp rest <|
-                case acc of
-                    Ok _ ->
-                        Err thisError
-
-                    Err errors ->
-                        Err (thisError ++ errors)
-
-        [] ->
-            case acc of
-                Ok outputs ->
-                    Ok (List.reverse outputs)
-
-                Err errors ->
-                    Err (List.reverse errors)
 
 
 int : Control Int
