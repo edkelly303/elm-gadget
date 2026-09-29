@@ -161,7 +161,6 @@ unit =
         }
 
 
-
 {-| A Gadget for the `Bool` primitive type.
 -}
 bool : Gadget Bool
