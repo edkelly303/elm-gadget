@@ -1,7 +1,7 @@
 module Gadget.Adapter.Form.Lamdera exposing
     ( Control
     , ControlDefinition
-    , Either(..)
+    , CmdType(..)
     , Form
     , InternalConfig
     , Model
@@ -32,13 +32,13 @@ tools =
 {-| A record of functions that you can plumb into a standard Elm application to
 manage the lifecycle of a form.
 -}
-type alias Form backendModel backendMsg msg a =
-    { init : ( Model, Cmd msg )
+type alias Form backendModel backendMsg frontendMsg a =
+    { init : ( Model, Cmd frontendMsg )
     , load : a -> Model
-    , update : Msg -> Model -> ( Model, Cmd msg )
-    , updateFromBackend : Msg -> Model -> ( Model, Cmd msg )
-    , view : Model -> H.Html msg
-    , subscriptions : Model -> Sub msg
+    , update : Msg -> Model -> ( Model, Cmd frontendMsg )
+    , updateFromBackend : Msg -> Model -> ( Model, Cmd frontendMsg )
+    , view : Model -> H.Html frontendMsg
+    , subscriptions : Model -> Sub frontendMsg
     , submit : Model -> Result (List Error) a
     , respond : String -> Msg -> backendModel -> Cmd backendMsg
     }
@@ -75,13 +75,13 @@ type Msg
 {-| Convert a `Gadget` into a `Form`.
 -}
 fromGadget :
-    { mkMsg : Msg -> msg
-    , mkToBackend : Msg -> Cmd msg
+    { mkMsg : Msg -> frontendMsg
+    , mkToBackend : Msg -> Cmd frontendMsg
     , mkToFrontend : String -> Msg -> Cmd backendMsg
     , backendModelGadget : IR.Gadget backendModel
     }
     -> IR.Gadget a
-    -> Form backendModel backendMsg msg a
+    -> Form backendModel backendMsg frontendMsg a
 fromGadget makeMsgs gadget =
     fromGadgetWithConfig defaultConfig makeMsgs gadget
 
@@ -91,13 +91,13 @@ fromGadget makeMsgs gadget =
 fromGadgetWithConfig :
     Config backendModel
     ->
-        { mkMsg : Msg -> msg
-        , mkToBackend : Msg -> Cmd msg
+        { mkMsg : Msg -> frontendMsg
+        , mkToBackend : Msg -> Cmd frontendMsg
         , mkToFrontend : String -> Msg -> Cmd backendMsg
         , backendModelGadget : IR.Gadget backendModel
         }
     -> IR.Gadget a
-    -> Form backendModel backendMsg msg a
+    -> Form backendModel backendMsg frontendMsg a
 fromGadgetWithConfig c { mkMsg, mkToBackend, mkToFrontend, backendModelGadget } gadget =
     let
         unwrapControl (Control toControl) =
@@ -221,8 +221,8 @@ type alias InnerControl =
     { init : ( Value, Cmd Value )
     , load : Value -> Value
     , placeholder : Value
-    , update : Value -> Value -> ( Value, Either Value Value )
-    , updateFromBackend : Value -> Value -> ( Value, Either Value Value )
+    , update : Value -> Value -> ( Value, CmdType Value Value )
+    , updateFromBackend : Value -> Value -> ( Value, CmdType Value Value )
     , view : String -> Value -> H.Html Value
     , subscriptions : Value -> Sub Value
     , layout : { label : H.Html Msg, input : H.Html Msg, feedback : H.Html Msg } -> List (H.Html Msg)
@@ -233,68 +233,68 @@ type alias InnerControl =
 
 {-| A definition for a custom form control.
 -}
-type alias ControlDefinition toBackend toFrontend backendModel msg model output =
-    { msg : IR.Gadget msg
-    , model : IR.Gadget model
-    , output : IR.Gadget output
-    , toBackend : IR.Gadget toBackend
-    , toFrontend : IR.Gadget toFrontend
-    , init : ( model, Cmd msg )
+type alias ControlDefinition toBackend toFrontend backendModel frontendMsg frontendModel output =
+    { frontendMsgGadget : IR.Gadget frontendMsg
+    , frontendModelGadget : IR.Gadget frontendModel
+    , outputGadget : IR.Gadget output
+    , toBackendGadget : IR.Gadget toBackend
+    , toFrontendGadget : IR.Gadget toFrontend
+    , init : ( frontendModel, Cmd frontendMsg )
     , placeholder : output
-    , load : output -> model
-    , update : msg -> model -> ( model, Either msg toBackend )
-    , updateFromBackend : toFrontend -> model -> ( model, Either msg toBackend )
-    , view : String -> model -> H.Html msg
-    , subscriptions : model -> Sub msg
-    , submit : model -> Result String output
+    , load : output -> frontendModel
+    , update : frontendMsg -> frontendModel -> ( frontendModel, CmdType frontendMsg toBackend )
+    , updateFromBackend : toFrontend -> frontendModel -> ( frontendModel, CmdType frontendMsg toBackend )
+    , view : String -> frontendModel -> H.Html frontendMsg
+    , subscriptions : frontendModel -> Sub frontendMsg
+    , submit : frontendModel -> Result String output
     , respond : toBackend -> backendModel -> toFrontend
     }
 
 
-type Either a b
-    = Cmd (Cmd a)
-    | ToBackend b
+type CmdType frontendMsg toBackend
+    = Cmd (Cmd frontendMsg)
+    | ToBackend toBackend
 
 
 {-| Turn a `ControlDefinition` into a `Control`.
 -}
 makeControl :
-    ControlDefinition toBackend toFrontend backendModel msg model output
+    ControlDefinition toBackend toFrontend backendModel frontendMsg frontendModel output
     -> Control backendModel output
 makeControl config =
     let
         placeholderValue =
             config.placeholder
                 |> config.load
-                |> IR.fromInput config.model
+                |> IR.fromInput config.frontendModelGadget
     in
     Control <|
         \backendModelGadget ->
-            { init = config.init |> Tuple.mapBoth (IR.fromInput config.model) (Cmd.map (IR.fromInput config.msg))
+            { init = config.init |> Tuple.mapBoth (IR.fromInput config.frontendModelGadget) (Cmd.map (IR.fromInput config.frontendMsgGadget))
             , load =
                 \outputValue ->
-                    IR.toOutput config.output outputValue
+                    IR.toOutput config.outputGadget outputValue
                         |> Result.map (\output -> config.load output)
-                        |> Result.map (IR.fromInput config.model)
+                        |> Result.map (IR.fromInput config.frontendModelGadget)
                         |> Result.withDefault placeholderValue
-            , placeholder = IR.fromInput config.output config.placeholder
+            , placeholder = IR.fromInput config.outputGadget config.placeholder
             , update =
                 \msg modelValue ->
                     let
                         result =
                             Result.map2 config.update
-                                (IR.toOutput config.msg msg)
-                                (IR.toOutput config.model modelValue)
+                                (IR.toOutput config.frontendMsgGadget msg)
+                                (IR.toOutput config.frontendModelGadget modelValue)
                     in
                     case result of
                         Ok ( model, either ) ->
-                            ( IR.fromInput config.model model
+                            ( IR.fromInput config.frontendModelGadget model
                             , case either of
                                 Cmd cmd ->
-                                    Cmd (Cmd.map (IR.fromInput config.msg) cmd)
+                                    Cmd (Cmd.map (IR.fromInput config.frontendMsgGadget) cmd)
 
                                 ToBackend toBackend ->
-                                    ToBackend (IR.fromInput config.toBackend toBackend)
+                                    ToBackend (IR.fromInput config.toBackendGadget toBackend)
                             )
 
                         Err _ ->
@@ -306,18 +306,18 @@ makeControl config =
                     let
                         result =
                             Result.map2 config.updateFromBackend
-                                (IR.toOutput config.toFrontend msg)
-                                (IR.toOutput config.model modelValue)
+                                (IR.toOutput config.toFrontendGadget msg)
+                                (IR.toOutput config.frontendModelGadget modelValue)
                     in
                     case result of
                         Ok ( model, either ) ->
-                            ( IR.fromInput config.model model
+                            ( IR.fromInput config.frontendModelGadget model
                             , case either of
                                 Cmd cmd ->
-                                    Cmd (Cmd.map (IR.fromInput config.msg) cmd)
+                                    Cmd (Cmd.map (IR.fromInput config.frontendMsgGadget) cmd)
 
                                 ToBackend toBackend ->
-                                    ToBackend (IR.fromInput config.toBackend toBackend)
+                                    ToBackend (IR.fromInput config.toBackendGadget toBackend)
                             )
 
                         Err _ ->
@@ -326,28 +326,28 @@ makeControl config =
                             )
             , view =
                 \id modelValue ->
-                    Result.map (config.view id) (IR.toOutput config.model modelValue)
+                    Result.map (config.view id) (IR.toOutput config.frontendModelGadget modelValue)
                         |> Result.Extra.extract (List.map (.error >> H.text) >> H.div [])
-                        |> H.map (\msg -> IR.fromInput config.msg msg)
+                        |> H.map (\msg -> IR.fromInput config.frontendMsgGadget msg)
             , layout =
                 \ui ->
                     [ ui.label, ui.input, ui.feedback ]
             , subscriptions = \_ -> Sub.none
             , submit =
                 \path modelValue ->
-                    IR.toOutput config.model modelValue
+                    IR.toOutput config.frontendModelGadget modelValue
                         |> Result.andThen
                             (\model ->
                                 config.submit model
                                     |> Result.mapError (\error -> [ { error = error, path = path } ])
-                                    |> Result.map (IR.fromInput config.output)
+                                    |> Result.map (IR.fromInput config.outputGadget)
                             )
             , respond =
                 \toBackend backendModel ->
                     Result.map2 config.respond
-                        (IR.toOutput config.toBackend toBackend)
+                        (IR.toOutput config.toBackendGadget toBackend)
                         (IR.toOutput backendModelGadget backendModel)
-                        |> Result.map (IR.fromInput config.toFrontend)
+                        |> Result.map (IR.fromInput config.toFrontendGadget)
                         |> Result.withDefault IR.UnitValue
             }
 
@@ -642,12 +642,12 @@ respondHelp config modelPath ((Msg msgPath msgValue) as msg) model value =
                     Msg [ "sum no match" ] UnitValue
 
 
-update : (InnerControl -> Value -> Value -> ( Value, Either Value Value )) -> InternalConfig -> Msg -> Model -> ( Model, Either Msg Msg )
+update : (InnerControl -> Value -> Value -> ( Value, CmdType Value Value )) -> InternalConfig -> Msg -> Model -> ( Model, CmdType Msg Msg )
 update updater config msg model =
     updateHelp updater config [] msg model
 
 
-updateHelp : (InnerControl -> Value -> Value -> ( Value, Either Value Value )) -> InternalConfig -> Path -> Msg -> Model -> ( Model, Either Msg Msg )
+updateHelp : (InnerControl -> Value -> Value -> ( Value, CmdType Value Value )) -> InternalConfig -> Path -> Msg -> Model -> ( Model, CmdType Msg Msg )
 updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
     case model of
         Unit ->
@@ -1354,14 +1354,14 @@ loadHelp config value type_ =
 int : Control backendModel Int
 int =
     makeControl
-        { model = Gadget.string
-        , msg = Gadget.string
-        , output = Gadget.int
+        { frontendModelGadget = Gadget.string
+        , frontendMsgGadget = Gadget.string
+        , outputGadget = Gadget.int
         , init = ( "", Cmd.none )
         , placeholder = 0
         , load = String.fromInt
-        , toBackend = Gadget.unit
-        , toFrontend = Gadget.unit
+        , toBackendGadget = Gadget.unit
+        , toFrontendGadget = Gadget.unit
         , respond = \_ _ -> ()
         , update = \msg _ -> ( msg, Cmd Cmd.none )
         , updateFromBackend = \_ model -> ( model, Cmd Cmd.none )
@@ -1386,14 +1386,14 @@ int =
 float : Control backendModel Float
 float =
     makeControl
-        { model = Gadget.string
-        , msg = Gadget.string
-        , output = Gadget.float
+        { frontendModelGadget = Gadget.string
+        , frontendMsgGadget = Gadget.string
+        , outputGadget = Gadget.float
         , init = ( "", Cmd.none )
         , placeholder = 0.0
         , load = String.fromFloat
-        , toBackend = Gadget.unit
-        , toFrontend = Gadget.unit
+        , toBackendGadget = Gadget.unit
+        , toFrontendGadget = Gadget.unit
         , respond = \_ _ -> ()
         , update = \msg _ -> ( msg, Cmd Cmd.none )
         , updateFromBackend = \_ model -> ( model, Cmd Cmd.none )
@@ -1418,14 +1418,14 @@ float =
 string : Control backendModel String
 string =
     makeControl
-        { model = Gadget.string
-        , msg = Gadget.string
-        , output = Gadget.string
+        { frontendModelGadget = Gadget.string
+        , frontendMsgGadget = Gadget.string
+        , outputGadget = Gadget.string
         , init = ( "", Cmd.none )
         , placeholder = ""
         , load = identity
-        , toBackend = Gadget.unit
-        , toFrontend = Gadget.unit
+        , toBackendGadget = Gadget.unit
+        , toFrontendGadget = Gadget.unit
         , respond = \_ _ -> ()
         , update = \msg _ -> ( msg, Cmd Cmd.none )
         , updateFromBackend = \_ model -> ( model, Cmd Cmd.none )
@@ -1446,14 +1446,14 @@ string =
 bool : Control backendModel Bool
 bool =
     makeControl
-        { model = Gadget.bool
-        , msg = Gadget.bool
-        , output = Gadget.bool
+        { frontendModelGadget = Gadget.bool
+        , frontendMsgGadget = Gadget.bool
+        , outputGadget = Gadget.bool
         , init = ( False, Cmd.none )
         , placeholder = False
         , load = identity
-        , toBackend = Gadget.unit
-        , toFrontend = Gadget.unit
+        , toBackendGadget = Gadget.unit
+        , toFrontendGadget = Gadget.unit
         , respond = \_ _ -> ()
         , update = \msg _ -> ( msg, Cmd Cmd.none )
         , updateFromBackend = \_ model -> ( model, Cmd Cmd.none )
@@ -1475,14 +1475,14 @@ bool =
 char : Control backendModel Char
 char =
     makeControl
-        { model = Gadget.string
-        , msg = Gadget.maybe Gadget.char
-        , output = Gadget.char
+        { frontendModelGadget = Gadget.string
+        , frontendMsgGadget = Gadget.maybe Gadget.char
+        , outputGadget = Gadget.char
         , init = ( "", Cmd.none )
         , placeholder = 'a'
         , load = String.fromChar
-        , toBackend = Gadget.unit
-        , toFrontend = Gadget.unit
+        , toBackendGadget = Gadget.unit
+        , toFrontendGadget = Gadget.unit
         , respond = \_ _ -> ()
         , update =
             \msg _ ->

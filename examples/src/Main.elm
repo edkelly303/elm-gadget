@@ -283,11 +283,11 @@ backendModelGadget =
 
 myInt =
     Form.makeControl
-        { toBackend = Gadget.unit
-        , toFrontend = Gadget.int
-        , model = Gadget.int
-        , msg = Gadget.unit
-        , output = Gadget.int
+        { toBackendGadget = Gadget.unit
+        , toFrontendGadget = Gadget.int
+        , frontendModelGadget = Gadget.int
+        , frontendMsgGadget = Gadget.unit
+        , outputGadget = Gadget.int
         , view =
             \id model ->
                 H.div []
@@ -312,11 +312,11 @@ myInt =
 
 myFloat =
     Form.makeControl
-        { toBackend = Gadget.unit
-        , toFrontend = Gadget.float
-        , model = Gadget.float
-        , msg = Gadget.unit
-        , output = Gadget.float
+        { toBackendGadget = Gadget.unit
+        , toFrontendGadget = Gadget.float
+        , frontendModelGadget = Gadget.float
+        , frontendMsgGadget = Gadget.unit
+        , outputGadget = Gadget.float
         , view =
             \id model ->
                 H.div []
