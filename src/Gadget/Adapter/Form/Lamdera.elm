@@ -1,9 +1,9 @@
 module Gadget.Adapter.Form.Lamdera exposing
-    ( InternalConfig
-    , Control
+    ( Control
     , ControlDefinition
     , Either(..)
     , Form
+    , InternalConfig
     , Model
     , Msg
     , customLabels
