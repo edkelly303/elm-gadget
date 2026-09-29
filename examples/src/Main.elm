@@ -224,7 +224,7 @@ update msg model =
 
         SimulateBackend (ToBackend toBackend) ->
             ( model
-            , form.respond "" toBackend backendModelGadget {int = 1}
+            , form.respond "" toBackend backendModelGadget { int = 1 }
             )
 
         SimulateFrontend (ToFrontend toFrontend) ->
@@ -268,15 +268,15 @@ lamdera_sendToFrontend sessionId toFrontend =
     Task.perform (\() -> SimulateFrontend (ToFrontend toFrontend)) (Process.sleep 1000)
 
 
-backendModelGadget = 
-    Gadget.record (\int -> {int = int}) 
-        |> Gadget.field "int" .int Gadget.int 
+backendModelGadget =
+    Gadget.record (\int -> { int = int })
+        |> Gadget.field "int" .int Gadget.int
         |> Gadget.endRecord
 
 
 myInt =
     Form.makeControl
-        { backendModel = backendModelGadget 
+        { backendModel = backendModelGadget
         , toBackend = Gadget.unit
         , toFrontend = Gadget.int
         , model = Gadget.int
@@ -294,13 +294,13 @@ myInt =
                         []
                     ]
         , update = \() model -> ( model, Form.ToBackend () )
-        , updateFromBackend = \int model -> (int, Form.Cmd Cmd.none)
+        , updateFromBackend = \int model -> ( int, Form.Cmd Cmd.none )
         , subscriptions = \model -> Sub.none
         , submit = Ok
         , init = ( 0, Cmd.none )
         , placeholder = 0
         , load = identity
-        , respond = \() {int} -> int
+        , respond = \() { int } -> int
         }
 
 
