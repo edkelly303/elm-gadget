@@ -1,6 +1,6 @@
 module Gadget exposing
     ( Gadget
-    , unit, bool, char, string, int, float, fail
+    , unit, bool, char, string, int, float
     , list, array, dict, set
     , tuple, triple
     , maybe, result
@@ -34,7 +34,7 @@ If you want to make your own adapters, see the [`Gadget.IR`](Gadget-IR) module.
 
 # Primitives
 
-@docs unit, bool, char, string, int, float, fail
+@docs unit, bool, char, string, int, float
 
 
 # Combinators
@@ -160,14 +160,6 @@ unit =
         , irType = UnitType IR.emptyMetadata
         }
 
-
-fail : Gadget a
-fail =
-    Gadget
-        { fromInput = \_ -> UnitValue
-        , toOutput = \path _ -> Err [ { error = "fail toOutput failed", path = path } ]
-        , irType = UnitType IR.emptyMetadata
-        }
 
 
 {-| A Gadget for the `Bool` primitive type.
