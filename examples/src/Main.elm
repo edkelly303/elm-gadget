@@ -19,9 +19,9 @@ import Html.Events as HE
 import Json.Decode as JD
 import Json.Encode as JE
 import Parser
+import Process
 import Random
 import Task
-import Process
 
 
 type alias Person =
@@ -188,11 +188,13 @@ type Msg
     | SimulateFrontend ToFrontend
 
 
-type ToBackend = 
-    ToBackend Form.Msg
+type ToBackend
+    = ToBackend Form.Msg
 
-type ToFrontend = 
-    ToFrontend Form.Msg
+
+type ToFrontend
+    = ToFrontend Form.Msg
+
 
 update msg model =
     case msg of
@@ -219,24 +221,34 @@ update msg model =
             ( { model | form = formModel }
             , formCmd
             )
+
         SimulateBackend (ToBackend toBackend) ->
             ( model
-            , form.respond "" toBackend (Gadget.IR.fromInput gadget.int 1)
+            , form.respond "" toBackend backendModelGadget {int = 1}
             )
+
         SimulateFrontend (ToFrontend toFrontend) ->
-            ( model
+            let
+                ( formModel, formCmd ) =
+                    form.updateFromBackend toFrontend model.form
+            in
+            ( { model | form = formModel }
             , Cmd.none
             )
 
 
 form =
-    let config = Form.defaultConfig in
-    Form.fromGadgetWithConfig 
-        {config | int = myInt} 
-        FormUpdated 
+    let
+        config =
+            Form.defaultConfig
+    in
+    Form.fromGadgetWithConfig
+        { config | int = myInt }
+        FormUpdated
         lamdera_sendToBackend
         lamdera_sendToFrontend
         gadget
+
 
 lamdera_sendToBackend : Form.Msg -> Cmd Msg
 lamdera_sendToBackend toBackend =
@@ -255,28 +267,42 @@ lamdera_sendToFrontend sessionId toFrontend =
     in
     Task.perform (\() -> SimulateFrontend (ToFrontend toFrontend)) (Process.sleep 1000)
 
-myInt = 
-    Form.makeControl 
-        { backendModel = Gadget.int
+
+backendModelGadget = 
+    Gadget.record (\int -> {int = int}) 
+        |> Gadget.field "int" .int Gadget.int 
+        |> Gadget.endRecord
+
+
+myInt =
+    Form.makeControl
+        { backendModel = backendModelGadget 
         , toBackend = Gadget.unit
         , toFrontend = Gadget.int
         , model = Gadget.int
         , msg = Gadget.unit
         , output = Gadget.int
-        , view = \id model -> 
-            H.div [] 
-                [ H.text (String.fromInt model)
-                , H.input [HA.type_ "button", HE.onClick ()
-                , HA.value "click me"] []
-                ]
-        , update = \() model -> (model, Form.ToBackend ())
+        , view =
+            \id model ->
+                H.div []
+                    [ H.text (String.fromInt model)
+                    , H.input
+                        [ HA.type_ "button"
+                        , HE.onClick ()
+                        , HA.value "click me"
+                        ]
+                        []
+                    ]
+        , update = \() model -> ( model, Form.ToBackend () )
+        , updateFromBackend = \int model -> (int, Form.Cmd Cmd.none)
         , subscriptions = \model -> Sub.none
         , submit = Ok
-        , init = (0, Cmd.none)
+        , init = ( 0, Cmd.none )
         , placeholder = 0
         , load = identity
-        , respond = \() backendModel -> backendModel
+        , respond = \() {int} -> int
         }
+
 
 init _ =
     let

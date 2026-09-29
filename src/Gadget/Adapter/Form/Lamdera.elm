@@ -18,7 +18,7 @@ import Dict exposing (Dict)
 import Gadget
 import Gadget.IR as IR exposing (Error, Path, Type(..), Value(..), VariantType(..), VariantValue(..))
 import Html as H
-import Html.Attributes as HA
+import Html.Attributes as HA exposing (value)
 import Html.Events as HE
 import List.Extra
 import Result.Extra
@@ -32,14 +32,15 @@ tools =
 {-| A record of functions that you can plumb into a standard Elm application to
 manage the lifecycle of a form.
 -}
-type alias Form backendMsg msg a =
+type alias Form backendModel backendMsg msg a =
     { init : ( Model, Cmd msg )
     , load : a -> Model
     , update : Msg -> Model -> ( Model, Cmd msg )
+    , updateFromBackend : Msg -> Model -> ( Model, Cmd msg )
     , view : Model -> H.Html msg
     , subscriptions : Model -> Sub msg
     , submit : Model -> Result (List Error) a
-    , respond : String -> Msg -> Value -> Cmd backendMsg
+    , respond : String -> Msg -> IR.Gadget backendModel -> backendModel -> Cmd backendMsg
     }
 
 
@@ -73,7 +74,12 @@ type Msg
 
 {-| Convert a `Gadget` into a `Form`.
 -}
-fromGadget : (Msg -> msg) -> (Msg -> Cmd msg) -> (String -> Msg -> Cmd backendMsg) -> IR.Gadget a -> Form backendMsg msg a
+fromGadget :
+    (Msg -> msg)
+    -> (Msg -> Cmd msg)
+    -> (String -> Msg -> Cmd backendMsg)
+    -> IR.Gadget a
+    -> Form backendModel backendMsg msg a
 fromGadget mkMsg mkToBackend mkToFrontend gadget =
     fromGadgetWithConfig defaultConfig mkMsg mkToBackend mkToFrontend gadget
 
@@ -86,7 +92,7 @@ fromGadgetWithConfig :
     -> (Msg -> Cmd msg)
     -> (String -> Msg -> Cmd backendMsg)
     -> IR.Gadget a
-    -> Form backendMsg msg a
+    -> Form backendModel backendMsg msg a
 fromGadgetWithConfig config mkMsg mkToBackend mkToFrontend gadget =
     { init = init config gadget |> Tuple.mapSecond (Cmd.map mkMsg)
     , load = \output -> load config gadget output
@@ -94,7 +100,21 @@ fromGadgetWithConfig config mkMsg mkToBackend mkToFrontend gadget =
         \msg model ->
             let
                 ( newModel, either ) =
-                    update config msg model
+                    update .update config msg model
+            in
+            ( newModel
+            , case either of
+                Cmd cmd ->
+                    Cmd.map mkMsg cmd
+
+                ToBackend toBackend ->
+                    mkToBackend toBackend
+            )
+    , updateFromBackend =
+        \msg model ->
+            let
+                ( newModel, either ) =
+                    update .updateFromBackend config msg model
             in
             ( newModel
             , case either of
@@ -108,8 +128,8 @@ fromGadgetWithConfig config mkMsg mkToBackend mkToFrontend gadget =
     , subscriptions = \model -> subscriptions config model |> Sub.map mkMsg
     , submit = submit config gadget
     , respond =
-        \sessionId toBackend backendModel ->
-            respond config toBackend backendModel
+        \sessionId toBackend valueGadget value ->
+            respond config toBackend gadget (IR.fromInput valueGadget value)
                 |> mkToFrontend sessionId
     }
 
@@ -171,6 +191,7 @@ type alias InnerControl =
     , load : Value -> Value
     , placeholder : Value
     , update : Value -> Value -> ( Value, Either Value Value )
+    , updateFromBackend : Value -> Value -> ( Value, Either Value Value )
     , view : String -> Value -> H.Html Value
     , subscriptions : Value -> Sub Value
     , layout : { label : H.Html Msg, input : H.Html Msg, feedback : H.Html Msg } -> List (H.Html Msg)
@@ -192,6 +213,7 @@ type alias ControlDefinition toBackend toFrontend backendModel msg model output 
     , placeholder : output
     , load : output -> model
     , update : msg -> model -> ( model, Either msg toBackend )
+    , updateFromBackend : toFrontend -> model -> ( model, Either msg toBackend )
     , view : String -> model -> H.Html msg
     , subscriptions : model -> Sub msg
     , submit : model -> Result String output
@@ -229,6 +251,29 @@ makeControl config =
                     result =
                         Result.map2 config.update
                             (IR.toOutput config.msg msg)
+                            (IR.toOutput config.model modelValue)
+                in
+                case result of
+                    Ok ( model, either ) ->
+                        ( IR.fromInput config.model model
+                        , case either of
+                            Cmd cmd ->
+                                Cmd (Cmd.map (IR.fromInput config.msg) cmd)
+
+                            ToBackend toBackend ->
+                                ToBackend (IR.fromInput config.toBackend toBackend)
+                        )
+
+                    Err _ ->
+                        ( modelValue
+                        , Cmd Cmd.none
+                        )
+        , updateFromBackend =
+            \msg modelValue ->
+                let
+                    result =
+                        Result.map2 config.updateFromBackend
+                            (IR.toOutput config.toFrontend msg)
                             (IR.toOutput config.model modelValue)
                 in
                 case result of
@@ -413,151 +458,165 @@ initHelp config path irType =
             ( Triple m aModel bModel cModel, Cmd.batch [ aCmd, bCmd, cCmd ] )
 
 
-respond : Config -> Msg -> Model -> Msg
-respond config toBackend backendModel =
-    respondHelp config [] toBackend backendModel
+respond : Config -> Msg -> IR.Gadget a -> Value -> Msg
+respond config toBackend gadget value =
+    let
+        ( model, _ ) =
+            init config gadget
+    in
+    respondHelp config [] toBackend model value
 
 
-respondHelp : Config -> Path -> Msg -> Model -> Msg
-respondHelp config modelPath ((Msg msgPath msgValue) as msg) backendModel =
-    case backendModel of
+respondHelp : Config -> Path -> Msg -> Model -> Value -> Msg
+respondHelp config modelPath ((Msg msgPath msgValue) as msg) model value =
+    let
+        _ =
+            Debug.log "msg" msg
+
+        _ =
+            Debug.log "value" value
+
+        _ =
+            Debug.log "modelPath" modelPath
+    in
+    case model of
         Unit ->
-            Msg [] UnitValue
+            Msg msgPath UnitValue
 
-        Primitive primitiveType _ modelValue ->
+        Primitive primitiveType _ _ ->
             if modelPath == msgPath then
                 let
-                    updateFor getType =
+                    respondFor getType =
                         let
                             (Control c) =
                                 getType config
                         in
-                        c.respond msgValue modelValue
+                        c.respond msgValue value
 
                     toFrontend =
                         case primitiveType of
                             PString ->
-                                updateFor .string
+                                respondFor .string
 
                             PChar ->
-                                updateFor .char
+                                respondFor .char
 
                             PInt ->
-                                updateFor .int
+                                respondFor .int
 
                             PFloat ->
-                                updateFor .float
+                                respondFor .float
 
                             PBool ->
-                                updateFor .bool
+                                respondFor .bool
                 in
                 Msg modelPath toFrontend
 
             else
-                Msg [] UnitValue
+                Msg [ "primitiveFailed" ] UnitValue
 
-        Record metadata fields ->
+        Record _ fields ->
             case matchPath msgPath modelPath of
                 FullMatch ->
                     Msg [] UnitValue
 
                 PrefixMatch { next1 } ->
                     case Dict.get next1 fields of
-                        Just ( idx, oldField ) ->
-                            respondHelp config (next1 :: modelPath) msg oldField
+                        Just ( _, oldField ) ->
+                            respondHelp config (next1 :: modelPath) msg oldField value
 
                         Nothing ->
-                            Msg [] UnitValue
+                            Msg [ "record no field" ] UnitValue
 
                 NoMatch ->
-                    Msg [] UnitValue
+                    Msg [ "record no match" ] UnitValue
 
-        Tuple metadata a b ->
+        Tuple _ a b ->
             case matchPath msgPath modelPath of
                 FullMatch ->
-                    Msg [] UnitValue
+                    Msg [ "tuple full match" ] UnitValue
 
                 PrefixMatch { next1 } ->
                     case next1 of
                         "0" ->
-                            respondHelp config ("0" :: modelPath) msg a
+                            respondHelp config ("0" :: modelPath) msg a value
 
                         "1" ->
-                            respondHelp config ("1" :: modelPath) msg b
+                            respondHelp config ("1" :: modelPath) msg b value
 
                         _ ->
-                            Msg [] UnitValue
+                            Msg [ "tuple field doesn't exist" ] UnitValue
 
                 NoMatch ->
-                    Msg [] UnitValue
+                    Msg [ "tuple no match" ] UnitValue
 
         Triple _ a b c ->
             case matchPath msgPath modelPath of
                 FullMatch ->
-                    Msg [] UnitValue
+                    Msg [ "triple full match" ] UnitValue
 
                 PrefixMatch { next1 } ->
                     case next1 of
                         "0" ->
-                            respondHelp config ("0" :: modelPath) msg a
+                            respondHelp config ("0" :: modelPath) msg a value
 
                         "1" ->
-                            respondHelp config ("1" :: modelPath) msg b
+                            respondHelp config ("1" :: modelPath) msg b value
 
                         "2" ->
-                            respondHelp config ("2" :: modelPath) msg c
+                            respondHelp config ("2" :: modelPath) msg c value
 
                         _ ->
-                            Msg [] UnitValue
+                            Msg [ "triple field doesn't exist" ] UnitValue
 
                 NoMatch ->
-                    Msg [] UnitValue
+                    Msg [ "triple no match" ] UnitValue
 
-        Collection _ _ itemModels ->
+        Collection _ itemType _ ->
             case matchPath msgPath modelPath of
                 FullMatch ->
-                    Msg [] UnitValue
+                    Msg [ "collection full match" ] UnitValue
 
                 PrefixMatch { next1 } ->
-                    case Dict.get next1 itemModels of
-                        Just oldItemModel ->
-                            respondHelp config (next1 :: modelPath) msg oldItemModel
-
-                        Nothing ->
-                            Msg [] UnitValue
+                    respondHelp
+                        config
+                        (next1 :: modelPath)
+                        msg
+                        (initHelp config (next1 :: modelPath) itemType |> Tuple.first)
+                        value
 
                 NoMatch ->
-                    Msg [] UnitValue
+                    Msg [ "collection no match" ] UnitValue
 
         Sum _ _ variants ->
             case matchPath msgPath modelPath of
                 FullMatch ->
-                    Msg [] UnitValue
+                    Msg [ "sum full match" ] UnitValue
 
                 PrefixMatch { next1, next2 } ->
                     case Dict.get next1 variants of
                         Just ( _, args ) ->
                             case Dict.get next2 args of
                                 Just arg ->
-                                    respondHelp config (next2 :: next1 :: modelPath) msg arg
+                                    respondHelp config (next2 :: next1 :: modelPath) msg arg value
 
                                 Nothing ->
-                                    Msg [] UnitValue
+                                    Msg [ "sum arg not found" ] UnitValue
 
                         Nothing ->
-                            Msg [] UnitValue
+                            Msg [ "sum variant not found" ] UnitValue
 
                 NoMatch ->
-                    Msg [] UnitValue
+                    Msg [ "sum no match" ] UnitValue
 
 
-update : Config -> Msg -> Model -> ( Model, Either Msg Msg )
-update config msg model =
-    updateHelp config [] msg model
+update : (InnerControl -> Value -> Value -> ( Value, Either Value Value )) -> Config -> Msg -> Model -> ( Model, Either Msg Msg )
+update updater config msg model =
+    updateHelp updater config [] msg model
 
 
-updateHelp : Config -> Path -> Msg -> Model -> ( Model, Either Msg Msg )
-updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
+updateHelp : (InnerControl -> Value -> Value -> ( Value, Either Value Value )) -> Config -> Path -> Msg -> Model -> ( Model, Either Msg Msg )
+updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
     case model of
         Unit ->
             ( model, Cmd Cmd.none )
@@ -570,7 +629,7 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
                             (Control c) =
                                 getType config
                         in
-                        c.update msgValue modelValue
+                        updater c msgValue modelValue
 
                     ( newModel, either ) =
                         case primitiveType of
@@ -611,7 +670,7 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
                         Just ( idx, oldField ) ->
                             let
                                 ( newField, cmd ) =
-                                    updateHelp config (next1 :: modelPath) msg oldField
+                                    updateHelp updater config (next1 :: modelPath) msg oldField
 
                                 newFields =
                                     Dict.insert next1
@@ -636,14 +695,14 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
                         "0" ->
                             let
                                 ( new, cmd ) =
-                                    updateHelp config ("0" :: modelPath) msg a
+                                    updateHelp updater config ("0" :: modelPath) msg a
                             in
                             ( Tuple metadata new b, cmd )
 
                         "1" ->
                             let
                                 ( new, cmd ) =
-                                    updateHelp config ("1" :: modelPath) msg b
+                                    updateHelp updater config ("1" :: modelPath) msg b
                             in
                             ( Tuple metadata a new, cmd )
 
@@ -663,21 +722,21 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
                         "0" ->
                             let
                                 ( new, cmd ) =
-                                    updateHelp config ("0" :: modelPath) msg a
+                                    updateHelp updater config ("0" :: modelPath) msg a
                             in
                             ( Triple metadata new b c, cmd )
 
                         "1" ->
                             let
                                 ( new, cmd ) =
-                                    updateHelp config ("1" :: modelPath) msg b
+                                    updateHelp updater config ("1" :: modelPath) msg b
                             in
                             ( Triple metadata a new c, cmd )
 
                         "2" ->
                             let
                                 ( new, cmd ) =
-                                    updateHelp config ("2" :: modelPath) msg c
+                                    updateHelp updater config ("2" :: modelPath) msg c
                             in
                             ( Triple metadata a b new, cmd )
 
@@ -710,7 +769,7 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
                                 Just oldItemModel ->
                                     let
                                         ( newItemModel, newCmd ) =
-                                            updateHelp config (next1 :: modelPath) msg oldItemModel
+                                            updateHelp updater config (next1 :: modelPath) msg oldItemModel
                                     in
                                     ( Dict.insert next1 newItemModel itemModels
                                     , newCmd
@@ -741,7 +800,7 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
                                 Just arg ->
                                     let
                                         ( newArg, cmd ) =
-                                            updateHelp config (next2 :: next1 :: modelPath) msg arg
+                                            updateHelp updater config (next2 :: next1 :: modelPath) msg arg
 
                                         newVariants =
                                             Dict.insert next1
@@ -1274,6 +1333,7 @@ int =
         , backendModel = Gadget.fail
         , respond = \toBackend backendModel -> ()
         , update = \msg _ -> ( msg, Cmd Cmd.none )
+        , updateFromBackend = \_ model -> ( model, Cmd Cmd.none )
         , view =
             \id model ->
                 H.input
@@ -1306,6 +1366,7 @@ float =
         , backendModel = Gadget.fail
         , respond = \toBackend backendModel -> ()
         , update = \msg _ -> ( msg, Cmd Cmd.none )
+        , updateFromBackend = \_ model -> ( model, Cmd Cmd.none )
         , view =
             \id model ->
                 H.input
@@ -1338,6 +1399,7 @@ string =
         , backendModel = Gadget.fail
         , respond = \toBackend backendModel -> ()
         , update = \msg _ -> ( msg, Cmd Cmd.none )
+        , updateFromBackend = \_ model -> ( model, Cmd Cmd.none )
         , view =
             \id model ->
                 H.input
@@ -1366,6 +1428,7 @@ bool =
         , backendModel = Gadget.fail
         , respond = \toBackend backendModel -> ()
         , update = \msg _ -> ( msg, Cmd Cmd.none )
+        , updateFromBackend = \_ model -> ( model, Cmd Cmd.none )
         , view =
             \id model ->
                 H.input
@@ -1402,6 +1465,7 @@ char =
 
                     Just c ->
                         ( String.fromChar c, Cmd Cmd.none )
+        , updateFromBackend = \_ model -> ( model, Cmd Cmd.none )
         , view =
             \id model ->
                 H.input
