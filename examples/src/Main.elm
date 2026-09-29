@@ -224,7 +224,7 @@ update msg model =
 
         SimulateBackend (ToBackend toBackend) ->
             ( model
-            , form.respond "" toBackend backendModelGadget { int = 1 }
+            , form.respond "" toBackend { int = 1 }
             )
 
         SimulateFrontend (ToFrontend toFrontend) ->
@@ -247,6 +247,7 @@ form =
         { mkMsg = FormUpdated
         , mkToBackend = lamdera_sendToBackend
         , mkToFrontend = lamdera_sendToFrontend
+        , backendModelGadget = backendModelGadget
         }
         gadget
 
@@ -277,8 +278,7 @@ backendModelGadget =
 
 myInt =
     Form.makeControl
-        { backendModel = backendModelGadget
-        , toBackend = Gadget.unit
+        { toBackend = Gadget.unit
         , toFrontend = Gadget.int
         , model = Gadget.int
         , msg = Gadget.unit

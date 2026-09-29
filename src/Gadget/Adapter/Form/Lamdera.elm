@@ -40,7 +40,7 @@ type alias Form backendModel backendMsg msg a =
     , view : Model -> H.Html msg
     , subscriptions : Model -> Sub msg
     , submit : Model -> Result (List Error) a
-    , respond : String -> Msg -> IR.Gadget backendModel -> backendModel -> Cmd backendMsg
+    , respond : String -> Msg -> backendModel -> Cmd backendMsg
     }
 
 
@@ -78,6 +78,7 @@ fromGadget :
     { mkMsg : Msg -> msg
     , mkToBackend : Msg -> Cmd msg
     , mkToFrontend : String -> Msg -> Cmd backendMsg
+    , backendModelGadget : IR.Gadget backendModel
     }
     -> IR.Gadget a
     -> Form backendModel backendMsg msg a
@@ -88,15 +89,28 @@ fromGadget makeMsgs gadget =
 {-| Convert a `Gadget` into a `Form`, supplying a `Config`.
 -}
 fromGadgetWithConfig :
-    Config
+    ConfigExternal backendModel
     ->
         { mkMsg : Msg -> msg
         , mkToBackend : Msg -> Cmd msg
         , mkToFrontend : String -> Msg -> Cmd backendMsg
+        , backendModelGadget : IR.Gadget backendModel
         }
     -> IR.Gadget a
     -> Form backendModel backendMsg msg a
-fromGadgetWithConfig config { mkMsg, mkToBackend, mkToFrontend } gadget =
+fromGadgetWithConfig c { mkMsg, mkToBackend, mkToFrontend, backendModelGadget } gadget =
+    let
+        config : Config backendModel
+        config =
+            { bool = c.bool backendModelGadget
+            , int = c.int backendModelGadget
+            , float = c.float backendModelGadget
+            , char = c.char backendModelGadget
+            , string = c.string backendModelGadget
+            , viewFeedback = c.viewFeedback
+            , viewControl = c.viewControl
+            }
+    in
     { init = init config gadget |> Tuple.mapSecond (Cmd.map mkMsg)
     , load = \output -> load config gadget output
     , update =
@@ -131,8 +145,8 @@ fromGadgetWithConfig config { mkMsg, mkToBackend, mkToFrontend } gadget =
     , subscriptions = \model -> subscriptions config model |> Sub.map mkMsg
     , submit = submit config gadget
     , respond =
-        \sessionId toBackend valueGadget value ->
-            respond config toBackend gadget (IR.fromInput valueGadget value)
+        \sessionId toBackend value ->
+            respond config toBackend gadget (IR.fromInput backendModelGadget value)
                 |> mkToFrontend sessionId
     }
 
@@ -143,12 +157,23 @@ controls you would like to use for each primitive type `(Bool`, `Int`, `Float`,
 `Char`, `String`), you can configure how controls are laid out and how feedback
 is formatted, and so on.
 -}
-type alias Config =
-    { bool : Control Bool
-    , int : Control Int
-    , float : Control Float
-    , char : Control Char
-    , string : Control String
+type alias ConfigExternal backendModel =
+    { bool : IR.Gadget backendModel -> Control backendModel Bool
+    , int : IR.Gadget backendModel -> Control backendModel Int
+    , float : IR.Gadget backendModel -> Control backendModel Float
+    , char : IR.Gadget backendModel -> Control backendModel Char
+    , string : IR.Gadget backendModel -> Control backendModel String
+    , viewFeedback : String -> H.Html Msg
+    , viewControl : Bool -> List (H.Html Msg) -> List (H.Html Msg)
+    }
+
+
+type alias Config backendModel =
+    { bool : Control backendModel Bool
+    , int : Control backendModel Int
+    , float : Control backendModel Float
+    , char : Control backendModel Char
+    , string : Control backendModel String
     , viewFeedback : String -> H.Html Msg
     , viewControl : Bool -> List (H.Html Msg) -> List (H.Html Msg)
     }
@@ -159,7 +184,7 @@ type alias Config =
 `fromGadget == fromGadgetWithConfig defaultConfig`
 
 -}
-defaultConfig : Config
+defaultConfig : ConfigExternal backendModel
 defaultConfig =
     { bool = bool
     , int = int
@@ -185,7 +210,7 @@ defaultConfig =
 
 {-| A custom form control.
 -}
-type Control output
+type Control backendModel output
     = Control InnerControl
 
 
@@ -211,7 +236,6 @@ type alias ControlDefinition toBackend toFrontend backendModel msg model output 
     , output : IR.Gadget output
     , toBackend : IR.Gadget toBackend
     , toFrontend : IR.Gadget toFrontend
-    , backendModel : IR.Gadget backendModel
     , init : ( model, Cmd msg )
     , placeholder : output
     , load : output -> model
@@ -231,8 +255,11 @@ type Either a b
 
 {-| Turn a `ControlDefinition` into a `Control`.
 -}
-makeControl : ControlDefinition toBackend toFrontend backendModel msg model output -> Control output
-makeControl config =
+makeControl :
+    ControlDefinition toBackend toFrontend backendModel msg model output
+    -> IR.Gadget backendModel
+    -> Control backendModel output
+makeControl config backendModelGadget =
     let
         placeholderValue =
             config.placeholder
@@ -316,13 +343,16 @@ makeControl config =
             \toBackend backendModel ->
                 Result.map2 config.respond
                     (IR.toOutput config.toBackend toBackend)
-                    (IR.toOutput config.backendModel backendModel)
+                    (IR.toOutput backendModelGadget backendModel)
                     |> Result.map (IR.fromInput config.toFrontend)
                     |> Result.withDefault IR.UnitValue
         }
 
 
-withLayout : ({ label : H.Html Msg, input : H.Html Msg, feedback : H.Html Msg } -> List (H.Html Msg)) -> Control output -> Control output
+withLayout :
+    ({ label : H.Html Msg, input : H.Html Msg, feedback : H.Html Msg } -> List (H.Html Msg))
+    -> Control backendModel output
+    -> Control backendModel output
 withLayout f (Control c) =
     Control { c | layout = f }
 
@@ -346,12 +376,12 @@ customLabels l ls gadget =
         gadget
 
 
-init : Config -> IR.Gadget a -> ( Model, Cmd Msg )
+init : Config backendModel -> IR.Gadget a -> ( Model, Cmd Msg )
 init config gadget =
     initHelp config [] (IR.irType gadget)
 
 
-initHelp : Config -> Path -> Type -> ( Model, Cmd Msg )
+initHelp : Config backendModel -> Path -> Type -> ( Model, Cmd Msg )
 initHelp config path irType =
     let
         initFor getType primitiveType metadata =
@@ -461,7 +491,7 @@ initHelp config path irType =
             ( Triple m aModel bModel cModel, Cmd.batch [ aCmd, bCmd, cCmd ] )
 
 
-respond : Config -> Msg -> IR.Gadget a -> Value -> Msg
+respond : Config backendModel -> Msg -> IR.Gadget a -> Value -> Msg
 respond config toBackend gadget value =
     let
         ( model, _ ) =
@@ -470,7 +500,7 @@ respond config toBackend gadget value =
     respondHelp config [] toBackend model value
 
 
-respondHelp : Config -> Path -> Msg -> Model -> Value -> Msg
+respondHelp : Config backendModel -> Path -> Msg -> Model -> Value -> Msg
 respondHelp config modelPath ((Msg msgPath msgValue) as msg) model value =
     let
         _ =
@@ -613,12 +643,12 @@ respondHelp config modelPath ((Msg msgPath msgValue) as msg) model value =
                     Msg [ "sum no match" ] UnitValue
 
 
-update : (InnerControl -> Value -> Value -> ( Value, Either Value Value )) -> Config -> Msg -> Model -> ( Model, Either Msg Msg )
+update : (InnerControl -> Value -> Value -> ( Value, Either Value Value )) -> Config backendModel -> Msg -> Model -> ( Model, Either Msg Msg )
 update updater config msg model =
     updateHelp updater config [] msg model
 
 
-updateHelp : (InnerControl -> Value -> Value -> ( Value, Either Value Value )) -> Config -> Path -> Msg -> Model -> ( Model, Either Msg Msg )
+updateHelp : (InnerControl -> Value -> Value -> ( Value, Either Value Value )) -> Config backendModel -> Path -> Msg -> Model -> ( Model, Either Msg Msg )
 updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
     case model of
         Unit ->
@@ -824,7 +854,7 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                     ( model, Cmd Cmd.none )
 
 
-view : Config -> IR.Gadget a -> Model -> H.Html Msg
+view : Config backendModel -> IR.Gadget a -> Model -> H.Html Msg
 view config gadget model =
     let
         errs =
@@ -838,7 +868,7 @@ view config gadget model =
     H.form [] (viewHelp config errs [] model)
 
 
-viewHelp : Config -> List Error -> Path -> Model -> List (H.Html Msg)
+viewHelp : Config backendModel -> List Error -> Path -> Model -> List (H.Html Msg)
 viewHelp config errs modelPath model =
     let
         id =
@@ -1015,12 +1045,12 @@ viewHelp config errs modelPath model =
                         ++ feedback
 
 
-subscriptions : Config -> Model -> Sub Msg
+subscriptions : Config backendModel -> Model -> Sub Msg
 subscriptions config model =
     subscriptionsHelp config [] model
 
 
-subscriptionsHelp : Config -> Path -> Model -> Sub Msg
+subscriptionsHelp : Config backendModel -> Path -> Model -> Sub Msg
 subscriptionsHelp config path model =
     case model of
         Unit ->
@@ -1092,7 +1122,7 @@ subscriptionsHelp config path model =
                 |> Sub.batch
 
 
-submit : Config -> IR.Gadget a -> Model -> Result (List Error) a
+submit : Config backendModel -> IR.Gadget a -> Model -> Result (List Error) a
 submit config gadget model =
     let
         ( parsedValue, parsingErrors ) =
@@ -1134,7 +1164,7 @@ submit config gadget model =
             Err (parsingErrors ++ filteredValidationErrors)
 
 
-parsePrimitiveControls : Config -> Path -> Model -> ( Value, List Error )
+parsePrimitiveControls : Config backendModel -> Path -> Model -> ( Value, List Error )
 parsePrimitiveControls config path model =
     case model of
         Unit ->
@@ -1237,12 +1267,12 @@ parsePrimitiveControls config path model =
                             ( CustomValue idx ( selected, variantValue ), argsErrs )
 
 
-load : Config -> IR.Gadget a -> a -> Model
+load : Config backendModel -> IR.Gadget a -> a -> Model
 load config gadget a =
     loadHelp config (IR.fromInput gadget a) (IR.irType gadget)
 
 
-loadHelp : Config -> Value -> Type -> Model
+loadHelp : Config backendModel -> Value -> Type -> Model
 loadHelp config value type_ =
     let
         loadMe typ metadata getType =
@@ -1322,7 +1352,7 @@ loadHelp config value type_ =
             Unit
 
 
-int : Control Int
+int : IR.Gadget backendModel -> Control backendModel Int
 int =
     makeControl
         { model = Gadget.string
@@ -1333,7 +1363,6 @@ int =
         , load = String.fromInt
         , toBackend = Gadget.unit
         , toFrontend = Gadget.unit
-        , backendModel = Gadget.fail
         , respond = \toBackend backendModel -> ()
         , update = \msg _ -> ( msg, Cmd Cmd.none )
         , updateFromBackend = \_ model -> ( model, Cmd Cmd.none )
@@ -1355,7 +1384,7 @@ int =
         }
 
 
-float : Control Float
+float : IR.Gadget backendModel -> Control backendModel Float
 float =
     makeControl
         { model = Gadget.string
@@ -1366,7 +1395,6 @@ float =
         , load = String.fromFloat
         , toBackend = Gadget.unit
         , toFrontend = Gadget.unit
-        , backendModel = Gadget.fail
         , respond = \toBackend backendModel -> ()
         , update = \msg _ -> ( msg, Cmd Cmd.none )
         , updateFromBackend = \_ model -> ( model, Cmd Cmd.none )
@@ -1388,7 +1416,7 @@ float =
         }
 
 
-string : Control String
+string : IR.Gadget backendModel -> Control backendModel String
 string =
     makeControl
         { model = Gadget.string
@@ -1399,7 +1427,6 @@ string =
         , load = identity
         , toBackend = Gadget.unit
         , toFrontend = Gadget.unit
-        , backendModel = Gadget.fail
         , respond = \toBackend backendModel -> ()
         , update = \msg _ -> ( msg, Cmd Cmd.none )
         , updateFromBackend = \_ model -> ( model, Cmd Cmd.none )
@@ -1417,7 +1444,7 @@ string =
         }
 
 
-bool : Control Bool
+bool : IR.Gadget backendModel -> Control backendModel Bool
 bool =
     makeControl
         { model = Gadget.bool
@@ -1428,7 +1455,6 @@ bool =
         , load = identity
         , toBackend = Gadget.unit
         , toFrontend = Gadget.unit
-        , backendModel = Gadget.fail
         , respond = \toBackend backendModel -> ()
         , update = \msg _ -> ( msg, Cmd Cmd.none )
         , updateFromBackend = \_ model -> ( model, Cmd Cmd.none )
@@ -1444,10 +1470,13 @@ bool =
         , subscriptions = \_ -> Sub.none
         , submit = Ok
         }
-        |> withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
 
 
-char : Control Char
+
+--|> withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
+
+
+char : IR.Gadget backendModel -> Control backendModel Char
 char =
     makeControl
         { model = Gadget.string
@@ -1458,7 +1487,6 @@ char =
         , load = String.fromChar
         , toBackend = Gadget.unit
         , toFrontend = Gadget.unit
-        , backendModel = Gadget.fail
         , respond = \toBackend backendModel -> ()
         , update =
             \msg _ ->
