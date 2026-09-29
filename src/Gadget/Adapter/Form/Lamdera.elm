@@ -1,7 +1,7 @@
 module Gadget.Adapter.Form.Lamdera exposing
-    ( Control
+    ( CmdType(..)
+    , Control
     , ControlDefinition
-    , CmdType(..)
     , Form
     , InternalConfig
     , Model
