@@ -1,5 +1,5 @@
 module Gadget.Adapter.Form.Lamdera exposing
-    ( Config
+    ( InternalConfig
     , Control
     , ControlDefinition
     , Either(..)
@@ -89,7 +89,7 @@ fromGadget makeMsgs gadget =
 {-| Convert a `Gadget` into a `Form`, supplying a `Config`.
 -}
 fromGadgetWithConfig :
-    ConfigExternal backendModel
+    Config backendModel
     ->
         { mkMsg : Msg -> msg
         , mkToBackend : Msg -> Cmd msg
@@ -103,7 +103,7 @@ fromGadgetWithConfig c { mkMsg, mkToBackend, mkToFrontend, backendModelGadget } 
         unwrapControl (Control toControl) =
             toControl backendModelGadget
 
-        config : Config
+        config : InternalConfig
         config =
             { bool = unwrapControl c.bool
             , int = unwrapControl c.int
@@ -160,7 +160,7 @@ controls you would like to use for each primitive type `(Bool`, `Int`, `Float`,
 `Char`, `String`), you can configure how controls are laid out and how feedback
 is formatted, and so on.
 -}
-type alias ConfigExternal backendModel =
+type alias Config backendModel =
     { bool : Control backendModel Bool
     , int : Control backendModel Int
     , float : Control backendModel Float
@@ -171,7 +171,7 @@ type alias ConfigExternal backendModel =
     }
 
 
-type alias Config =
+type alias InternalConfig =
     { bool : InnerControl
     , int : InnerControl
     , float : InnerControl
@@ -187,7 +187,7 @@ type alias Config =
 `fromGadget == fromGadgetWithConfig defaultConfig`
 
 -}
-defaultConfig : ConfigExternal backendModel
+defaultConfig : Config backendModel
 defaultConfig =
     { bool = bool
     , int = int
@@ -385,12 +385,12 @@ customLabels l ls gadget =
         gadget
 
 
-init : Config -> IR.Gadget a -> ( Model, Cmd Msg )
+init : InternalConfig -> IR.Gadget a -> ( Model, Cmd Msg )
 init config gadget =
     initHelp config [] (IR.irType gadget)
 
 
-initHelp : Config -> Path -> Type -> ( Model, Cmd Msg )
+initHelp : InternalConfig -> Path -> Type -> ( Model, Cmd Msg )
 initHelp config path irType =
     let
         initFor getType primitiveType metadata =
@@ -500,7 +500,7 @@ initHelp config path irType =
             ( Triple m aModel bModel cModel, Cmd.batch [ aCmd, bCmd, cCmd ] )
 
 
-respond : Config -> Msg -> IR.Gadget a -> Value -> Msg
+respond : InternalConfig -> Msg -> IR.Gadget a -> Value -> Msg
 respond config toBackend gadget value =
     let
         ( model, _ ) =
@@ -509,7 +509,7 @@ respond config toBackend gadget value =
     respondHelp config [] toBackend model value
 
 
-respondHelp : Config -> Path -> Msg -> Model -> Value -> Msg
+respondHelp : InternalConfig -> Path -> Msg -> Model -> Value -> Msg
 respondHelp config modelPath ((Msg msgPath msgValue) as msg) model value =
     case model of
         Unit ->
@@ -642,12 +642,12 @@ respondHelp config modelPath ((Msg msgPath msgValue) as msg) model value =
                     Msg [ "sum no match" ] UnitValue
 
 
-update : (InnerControl -> Value -> Value -> ( Value, Either Value Value )) -> Config -> Msg -> Model -> ( Model, Either Msg Msg )
+update : (InnerControl -> Value -> Value -> ( Value, Either Value Value )) -> InternalConfig -> Msg -> Model -> ( Model, Either Msg Msg )
 update updater config msg model =
     updateHelp updater config [] msg model
 
 
-updateHelp : (InnerControl -> Value -> Value -> ( Value, Either Value Value )) -> Config -> Path -> Msg -> Model -> ( Model, Either Msg Msg )
+updateHelp : (InnerControl -> Value -> Value -> ( Value, Either Value Value )) -> InternalConfig -> Path -> Msg -> Model -> ( Model, Either Msg Msg )
 updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
     case model of
         Unit ->
@@ -853,7 +853,7 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                     ( model, Cmd Cmd.none )
 
 
-view : Config -> IR.Gadget a -> Model -> H.Html Msg
+view : InternalConfig -> IR.Gadget a -> Model -> H.Html Msg
 view config gadget model =
     let
         errs =
@@ -867,7 +867,7 @@ view config gadget model =
     H.form [] (viewHelp config errs [] model)
 
 
-viewHelp : Config -> List Error -> Path -> Model -> List (H.Html Msg)
+viewHelp : InternalConfig -> List Error -> Path -> Model -> List (H.Html Msg)
 viewHelp config errs modelPath model =
     let
         id =
@@ -1044,12 +1044,12 @@ viewHelp config errs modelPath model =
                         ++ feedback
 
 
-subscriptions : Config -> Model -> Sub Msg
+subscriptions : InternalConfig -> Model -> Sub Msg
 subscriptions config model =
     subscriptionsHelp config [] model
 
 
-subscriptionsHelp : Config -> Path -> Model -> Sub Msg
+subscriptionsHelp : InternalConfig -> Path -> Model -> Sub Msg
 subscriptionsHelp config path model =
     case model of
         Unit ->
@@ -1121,7 +1121,7 @@ subscriptionsHelp config path model =
                 |> Sub.batch
 
 
-submit : Config -> IR.Gadget a -> Model -> Result (List Error) a
+submit : InternalConfig -> IR.Gadget a -> Model -> Result (List Error) a
 submit config gadget model =
     let
         ( parsedValue, parsingErrors ) =
@@ -1163,7 +1163,7 @@ submit config gadget model =
             Err (parsingErrors ++ filteredValidationErrors)
 
 
-parsePrimitiveControls : Config -> Path -> Model -> ( Value, List Error )
+parsePrimitiveControls : InternalConfig -> Path -> Model -> ( Value, List Error )
 parsePrimitiveControls config path model =
     case model of
         Unit ->
@@ -1266,12 +1266,12 @@ parsePrimitiveControls config path model =
                             ( CustomValue idx ( selected, variantValue ), argsErrs )
 
 
-load : Config -> IR.Gadget a -> a -> Model
+load : InternalConfig -> IR.Gadget a -> a -> Model
 load config gadget a =
     loadHelp config (IR.fromInput gadget a) (IR.irType gadget)
 
 
-loadHelp : Config -> Value -> Type -> Model
+loadHelp : InternalConfig -> Value -> Type -> Model
 loadHelp config value type_ =
     let
         loadMe typ metadata getType =
@@ -1469,7 +1469,7 @@ bool =
         , subscriptions = \_ -> Sub.none
         , submit = Ok
         }
-    |> withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
+        |> withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
 
 
 char : Control backendModel Char
