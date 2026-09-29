@@ -243,7 +243,7 @@ form =
         config =
             Form.defaultConfig
                 |> Form.addOverride "heightInCentimetres" myFloat
-                |> \c -> { c | int = myInt }
+                |> (\c -> { c | int = myInt })
     in
     Form.fromGadgetWithConfig
         config
