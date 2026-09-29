@@ -483,7 +483,7 @@ initHelp config path irType =
                     in
                     ( Sum firstName metadata namedVariantModels, Cmd.batch variantCmds )
 
-                RecordType m namedFieldTypes ->
+                RecordType _ namedFieldTypes ->
                     let
                         ( namedFieldModels, fieldCmds ) =
                             namedFieldTypes
@@ -559,7 +559,7 @@ respondHelp config modelPath ((Msg msgPath msgValue) as msg) model value =
         Unit ->
             Msg msgPath UnitValue
 
-        Primitive primitiveType metadata _ ->
+        Primitive primitiveType _ _ ->
             if modelPath == msgPath then
                 let
                     respondFor getType =
