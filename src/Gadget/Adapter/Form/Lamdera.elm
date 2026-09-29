@@ -100,13 +100,16 @@ fromGadgetWithConfig :
     -> Form backendModel backendMsg msg a
 fromGadgetWithConfig c { mkMsg, mkToBackend, mkToFrontend, backendModelGadget } gadget =
     let
-        config : Config backendModel
+        unwrapControl (Control toControl) =
+            toControl backendModelGadget
+
+        config : Config
         config =
-            { bool = c.bool backendModelGadget
-            , int = c.int backendModelGadget
-            , float = c.float backendModelGadget
-            , char = c.char backendModelGadget
-            , string = c.string backendModelGadget
+            { bool = unwrapControl c.bool
+            , int = unwrapControl c.int
+            , float = unwrapControl c.float
+            , char = unwrapControl c.char
+            , string = unwrapControl c.string
             , viewFeedback = c.viewFeedback
             , viewControl = c.viewControl
             }
@@ -158,22 +161,22 @@ controls you would like to use for each primitive type `(Bool`, `Int`, `Float`,
 is formatted, and so on.
 -}
 type alias ConfigExternal backendModel =
-    { bool : IR.Gadget backendModel -> Control backendModel Bool
-    , int : IR.Gadget backendModel -> Control backendModel Int
-    , float : IR.Gadget backendModel -> Control backendModel Float
-    , char : IR.Gadget backendModel -> Control backendModel Char
-    , string : IR.Gadget backendModel -> Control backendModel String
-    , viewFeedback : String -> H.Html Msg
-    , viewControl : Bool -> List (H.Html Msg) -> List (H.Html Msg)
-    }
-
-
-type alias Config backendModel =
     { bool : Control backendModel Bool
     , int : Control backendModel Int
     , float : Control backendModel Float
     , char : Control backendModel Char
     , string : Control backendModel String
+    , viewFeedback : String -> H.Html Msg
+    , viewControl : Bool -> List (H.Html Msg) -> List (H.Html Msg)
+    }
+
+
+type alias Config =
+    { bool : InnerControl
+    , int : InnerControl
+    , float : InnerControl
+    , char : InnerControl
+    , string : InnerControl
     , viewFeedback : String -> H.Html Msg
     , viewControl : Bool -> List (H.Html Msg) -> List (H.Html Msg)
     }
@@ -211,7 +214,7 @@ defaultConfig =
 {-| A custom form control.
 -}
 type Control backendModel output
-    = Control InnerControl
+    = Control (IR.Gadget backendModel -> InnerControl)
 
 
 type alias InnerControl =
@@ -257,104 +260,110 @@ type Either a b
 -}
 makeControl :
     ControlDefinition toBackend toFrontend backendModel msg model output
-    -> IR.Gadget backendModel
     -> Control backendModel output
-makeControl config backendModelGadget =
+makeControl config =
     let
         placeholderValue =
             config.placeholder
                 |> config.load
                 |> IR.fromInput config.model
     in
-    Control
-        { init = config.init |> Tuple.mapBoth (IR.fromInput config.model) (Cmd.map (IR.fromInput config.msg))
-        , load =
-            \outputValue ->
-                IR.toOutput config.output outputValue
-                    |> Result.map (\output -> config.load output)
-                    |> Result.map (IR.fromInput config.model)
-                    |> Result.withDefault placeholderValue
-        , placeholder = IR.fromInput config.output config.placeholder
-        , update =
-            \msg modelValue ->
-                let
-                    result =
-                        Result.map2 config.update
-                            (IR.toOutput config.msg msg)
-                            (IR.toOutput config.model modelValue)
-                in
-                case result of
-                    Ok ( model, either ) ->
-                        ( IR.fromInput config.model model
-                        , case either of
-                            Cmd cmd ->
-                                Cmd (Cmd.map (IR.fromInput config.msg) cmd)
+    Control <|
+        \backendModelGadget ->
+            { init = config.init |> Tuple.mapBoth (IR.fromInput config.model) (Cmd.map (IR.fromInput config.msg))
+            , load =
+                \outputValue ->
+                    IR.toOutput config.output outputValue
+                        |> Result.map (\output -> config.load output)
+                        |> Result.map (IR.fromInput config.model)
+                        |> Result.withDefault placeholderValue
+            , placeholder = IR.fromInput config.output config.placeholder
+            , update =
+                \msg modelValue ->
+                    let
+                        result =
+                            Result.map2 config.update
+                                (IR.toOutput config.msg msg)
+                                (IR.toOutput config.model modelValue)
+                    in
+                    case result of
+                        Ok ( model, either ) ->
+                            ( IR.fromInput config.model model
+                            , case either of
+                                Cmd cmd ->
+                                    Cmd (Cmd.map (IR.fromInput config.msg) cmd)
 
-                            ToBackend toBackend ->
-                                ToBackend (IR.fromInput config.toBackend toBackend)
-                        )
+                                ToBackend toBackend ->
+                                    ToBackend (IR.fromInput config.toBackend toBackend)
+                            )
 
-                    Err _ ->
-                        ( modelValue
-                        , Cmd Cmd.none
-                        )
-        , updateFromBackend =
-            \msg modelValue ->
-                let
-                    result =
-                        Result.map2 config.updateFromBackend
-                            (IR.toOutput config.toFrontend msg)
-                            (IR.toOutput config.model modelValue)
-                in
-                case result of
-                    Ok ( model, either ) ->
-                        ( IR.fromInput config.model model
-                        , case either of
-                            Cmd cmd ->
-                                Cmd (Cmd.map (IR.fromInput config.msg) cmd)
+                        Err _ ->
+                            ( modelValue
+                            , Cmd Cmd.none
+                            )
+            , updateFromBackend =
+                \msg modelValue ->
+                    let
+                        result =
+                            Result.map2 config.updateFromBackend
+                                (IR.toOutput config.toFrontend msg)
+                                (IR.toOutput config.model modelValue)
+                    in
+                    case result of
+                        Ok ( model, either ) ->
+                            ( IR.fromInput config.model model
+                            , case either of
+                                Cmd cmd ->
+                                    Cmd (Cmd.map (IR.fromInput config.msg) cmd)
 
-                            ToBackend toBackend ->
-                                ToBackend (IR.fromInput config.toBackend toBackend)
-                        )
+                                ToBackend toBackend ->
+                                    ToBackend (IR.fromInput config.toBackend toBackend)
+                            )
 
-                    Err _ ->
-                        ( modelValue
-                        , Cmd Cmd.none
-                        )
-        , view =
-            \id modelValue ->
-                Result.map (config.view id) (IR.toOutput config.model modelValue)
-                    |> Result.Extra.extract (List.map (.error >> H.text) >> H.div [])
-                    |> H.map (\msg -> IR.fromInput config.msg msg)
-        , layout =
-            \ui ->
-                [ ui.label, ui.input, ui.feedback ]
-        , subscriptions = \_ -> Sub.none
-        , submit =
-            \path modelValue ->
-                IR.toOutput config.model modelValue
-                    |> Result.andThen
-                        (\model ->
-                            config.submit model
-                                |> Result.mapError (\error -> [ { error = error, path = path } ])
-                                |> Result.map (IR.fromInput config.output)
-                        )
-        , respond =
-            \toBackend backendModel ->
-                Result.map2 config.respond
-                    (IR.toOutput config.toBackend toBackend)
-                    (IR.toOutput backendModelGadget backendModel)
-                    |> Result.map (IR.fromInput config.toFrontend)
-                    |> Result.withDefault IR.UnitValue
-        }
+                        Err _ ->
+                            ( modelValue
+                            , Cmd Cmd.none
+                            )
+            , view =
+                \id modelValue ->
+                    Result.map (config.view id) (IR.toOutput config.model modelValue)
+                        |> Result.Extra.extract (List.map (.error >> H.text) >> H.div [])
+                        |> H.map (\msg -> IR.fromInput config.msg msg)
+            , layout =
+                \ui ->
+                    [ ui.label, ui.input, ui.feedback ]
+            , subscriptions = \_ -> Sub.none
+            , submit =
+                \path modelValue ->
+                    IR.toOutput config.model modelValue
+                        |> Result.andThen
+                            (\model ->
+                                config.submit model
+                                    |> Result.mapError (\error -> [ { error = error, path = path } ])
+                                    |> Result.map (IR.fromInput config.output)
+                            )
+            , respond =
+                \toBackend backendModel ->
+                    Result.map2 config.respond
+                        (IR.toOutput config.toBackend toBackend)
+                        (IR.toOutput backendModelGadget backendModel)
+                        |> Result.map (IR.fromInput config.toFrontend)
+                        |> Result.withDefault IR.UnitValue
+            }
 
 
 withLayout :
     ({ label : H.Html Msg, input : H.Html Msg, feedback : H.Html Msg } -> List (H.Html Msg))
     -> Control backendModel output
     -> Control backendModel output
-withLayout f (Control c) =
-    Control { c | layout = f }
+withLayout f (Control toControl) =
+    Control <|
+        \backendModelGadget ->
+            let
+                c =
+                    toControl backendModelGadget
+            in
+            { c | layout = f }
 
 
 {-| Add a label to a `Gadget` - this will be displayed as an HTML `<label>` element
@@ -376,17 +385,17 @@ customLabels l ls gadget =
         gadget
 
 
-init : Config backendModel -> IR.Gadget a -> ( Model, Cmd Msg )
+init : Config -> IR.Gadget a -> ( Model, Cmd Msg )
 init config gadget =
     initHelp config [] (IR.irType gadget)
 
 
-initHelp : Config backendModel -> Path -> Type -> ( Model, Cmd Msg )
+initHelp : Config -> Path -> Type -> ( Model, Cmd Msg )
 initHelp config path irType =
     let
         initFor getType primitiveType metadata =
             let
-                (Control c) =
+                c =
                     getType config
             in
             c.init
@@ -491,7 +500,7 @@ initHelp config path irType =
             ( Triple m aModel bModel cModel, Cmd.batch [ aCmd, bCmd, cCmd ] )
 
 
-respond : Config backendModel -> Msg -> IR.Gadget a -> Value -> Msg
+respond : Config -> Msg -> IR.Gadget a -> Value -> Msg
 respond config toBackend gadget value =
     let
         ( model, _ ) =
@@ -500,18 +509,8 @@ respond config toBackend gadget value =
     respondHelp config [] toBackend model value
 
 
-respondHelp : Config backendModel -> Path -> Msg -> Model -> Value -> Msg
+respondHelp : Config -> Path -> Msg -> Model -> Value -> Msg
 respondHelp config modelPath ((Msg msgPath msgValue) as msg) model value =
-    let
-        _ =
-            Debug.log "msg" msg
-
-        _ =
-            Debug.log "value" value
-
-        _ =
-            Debug.log "modelPath" modelPath
-    in
     case model of
         Unit ->
             Msg msgPath UnitValue
@@ -521,7 +520,7 @@ respondHelp config modelPath ((Msg msgPath msgValue) as msg) model value =
                 let
                     respondFor getType =
                         let
-                            (Control c) =
+                            c =
                                 getType config
                         in
                         c.respond msgValue value
@@ -643,12 +642,12 @@ respondHelp config modelPath ((Msg msgPath msgValue) as msg) model value =
                     Msg [ "sum no match" ] UnitValue
 
 
-update : (InnerControl -> Value -> Value -> ( Value, Either Value Value )) -> Config backendModel -> Msg -> Model -> ( Model, Either Msg Msg )
+update : (InnerControl -> Value -> Value -> ( Value, Either Value Value )) -> Config -> Msg -> Model -> ( Model, Either Msg Msg )
 update updater config msg model =
     updateHelp updater config [] msg model
 
 
-updateHelp : (InnerControl -> Value -> Value -> ( Value, Either Value Value )) -> Config backendModel -> Path -> Msg -> Model -> ( Model, Either Msg Msg )
+updateHelp : (InnerControl -> Value -> Value -> ( Value, Either Value Value )) -> Config -> Path -> Msg -> Model -> ( Model, Either Msg Msg )
 updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
     case model of
         Unit ->
@@ -659,7 +658,7 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                 let
                     updateFor getType =
                         let
-                            (Control c) =
+                            c =
                                 getType config
                         in
                         updater c msgValue modelValue
@@ -854,7 +853,7 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                     ( model, Cmd Cmd.none )
 
 
-view : Config backendModel -> IR.Gadget a -> Model -> H.Html Msg
+view : Config -> IR.Gadget a -> Model -> H.Html Msg
 view config gadget model =
     let
         errs =
@@ -868,7 +867,7 @@ view config gadget model =
     H.form [] (viewHelp config errs [] model)
 
 
-viewHelp : Config backendModel -> List Error -> Path -> Model -> List (H.Html Msg)
+viewHelp : Config -> List Error -> Path -> Model -> List (H.Html Msg)
 viewHelp config errs modelPath model =
     let
         id =
@@ -899,7 +898,7 @@ viewHelp config errs modelPath model =
             let
                 viewMe getType =
                     let
-                        (Control c) =
+                        c =
                             getType config
                     in
                     config.viewControl isValid <|
@@ -1045,12 +1044,12 @@ viewHelp config errs modelPath model =
                         ++ feedback
 
 
-subscriptions : Config backendModel -> Model -> Sub Msg
+subscriptions : Config -> Model -> Sub Msg
 subscriptions config model =
     subscriptionsHelp config [] model
 
 
-subscriptionsHelp : Config backendModel -> Path -> Model -> Sub Msg
+subscriptionsHelp : Config -> Path -> Model -> Sub Msg
 subscriptionsHelp config path model =
     case model of
         Unit ->
@@ -1060,7 +1059,7 @@ subscriptionsHelp config path model =
             let
                 subMe getType =
                     let
-                        (Control c) =
+                        c =
                             getType config
                     in
                     c.subscriptions modelValue
@@ -1122,7 +1121,7 @@ subscriptionsHelp config path model =
                 |> Sub.batch
 
 
-submit : Config backendModel -> IR.Gadget a -> Model -> Result (List Error) a
+submit : Config -> IR.Gadget a -> Model -> Result (List Error) a
 submit config gadget model =
     let
         ( parsedValue, parsingErrors ) =
@@ -1164,7 +1163,7 @@ submit config gadget model =
             Err (parsingErrors ++ filteredValidationErrors)
 
 
-parsePrimitiveControls : Config backendModel -> Path -> Model -> ( Value, List Error )
+parsePrimitiveControls : Config -> Path -> Model -> ( Value, List Error )
 parsePrimitiveControls config path model =
     case model of
         Unit ->
@@ -1174,7 +1173,7 @@ parsePrimitiveControls config path model =
             let
                 submit_ getter =
                     let
-                        (Control c) =
+                        c =
                             getter config
                     in
                     case c.submit path modelValue of
@@ -1267,17 +1266,17 @@ parsePrimitiveControls config path model =
                             ( CustomValue idx ( selected, variantValue ), argsErrs )
 
 
-load : Config backendModel -> IR.Gadget a -> a -> Model
+load : Config -> IR.Gadget a -> a -> Model
 load config gadget a =
     loadHelp config (IR.fromInput gadget a) (IR.irType gadget)
 
 
-loadHelp : Config backendModel -> Value -> Type -> Model
+loadHelp : Config -> Value -> Type -> Model
 loadHelp config value type_ =
     let
         loadMe typ metadata getType =
             let
-                (Control c) =
+                c =
                     getType config
             in
             Primitive typ metadata (c.load value)
@@ -1352,7 +1351,7 @@ loadHelp config value type_ =
             Unit
 
 
-int : IR.Gadget backendModel -> Control backendModel Int
+int : Control backendModel Int
 int =
     makeControl
         { model = Gadget.string
@@ -1363,7 +1362,7 @@ int =
         , load = String.fromInt
         , toBackend = Gadget.unit
         , toFrontend = Gadget.unit
-        , respond = \toBackend backendModel -> ()
+        , respond = \_ _ -> ()
         , update = \msg _ -> ( msg, Cmd Cmd.none )
         , updateFromBackend = \_ model -> ( model, Cmd Cmd.none )
         , view =
@@ -1384,7 +1383,7 @@ int =
         }
 
 
-float : IR.Gadget backendModel -> Control backendModel Float
+float : Control backendModel Float
 float =
     makeControl
         { model = Gadget.string
@@ -1395,7 +1394,7 @@ float =
         , load = String.fromFloat
         , toBackend = Gadget.unit
         , toFrontend = Gadget.unit
-        , respond = \toBackend backendModel -> ()
+        , respond = \_ _ -> ()
         , update = \msg _ -> ( msg, Cmd Cmd.none )
         , updateFromBackend = \_ model -> ( model, Cmd Cmd.none )
         , view =
@@ -1416,7 +1415,7 @@ float =
         }
 
 
-string : IR.Gadget backendModel -> Control backendModel String
+string : Control backendModel String
 string =
     makeControl
         { model = Gadget.string
@@ -1427,7 +1426,7 @@ string =
         , load = identity
         , toBackend = Gadget.unit
         , toFrontend = Gadget.unit
-        , respond = \toBackend backendModel -> ()
+        , respond = \_ _ -> ()
         , update = \msg _ -> ( msg, Cmd Cmd.none )
         , updateFromBackend = \_ model -> ( model, Cmd Cmd.none )
         , view =
@@ -1444,7 +1443,7 @@ string =
         }
 
 
-bool : IR.Gadget backendModel -> Control backendModel Bool
+bool : Control backendModel Bool
 bool =
     makeControl
         { model = Gadget.bool
@@ -1455,7 +1454,7 @@ bool =
         , load = identity
         , toBackend = Gadget.unit
         , toFrontend = Gadget.unit
-        , respond = \toBackend backendModel -> ()
+        , respond = \_ _ -> ()
         , update = \msg _ -> ( msg, Cmd Cmd.none )
         , updateFromBackend = \_ model -> ( model, Cmd Cmd.none )
         , view =
@@ -1470,13 +1469,10 @@ bool =
         , subscriptions = \_ -> Sub.none
         , submit = Ok
         }
+    |> withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
 
 
-
---|> withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
-
-
-char : IR.Gadget backendModel -> Control backendModel Char
+char : Control backendModel Char
 char =
     makeControl
         { model = Gadget.string
@@ -1487,7 +1483,7 @@ char =
         , load = String.fromChar
         , toBackend = Gadget.unit
         , toFrontend = Gadget.unit
-        , respond = \toBackend backendModel -> ()
+        , respond = \_ _ -> ()
         , update =
             \msg _ ->
                 case msg of

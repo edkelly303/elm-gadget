@@ -224,7 +224,7 @@ update msg model =
 
         SimulateBackend (ToBackend toBackend) ->
             ( model
-            , form.respond "" toBackend { int = 1 }
+            , form.respond "" toBackend { int = 1, float = 1.2 }
             )
 
         SimulateFrontend (ToFrontend toFrontend) ->
@@ -243,7 +243,7 @@ form =
             Form.defaultConfig
     in
     Form.fromGadgetWithConfig
-        { config | int = myInt }
+        { config | int = myInt, float = myFloat }
         { mkMsg = FormUpdated
         , mkToBackend = lamdera_sendToBackend
         , mkToFrontend = lamdera_sendToFrontend
@@ -258,21 +258,26 @@ lamdera_sendToBackend toBackend =
         _ =
             Debug.log "sendToBackend" toBackend
     in
-    Task.perform (\() -> SimulateBackend (ToBackend toBackend)) (Process.sleep 1000)
+    Task.perform (\() -> SimulateBackend (ToBackend toBackend)) (Process.sleep 0)
 
 
 lamdera_sendToFrontend : sessionId -> Form.Msg -> Cmd Msg
 lamdera_sendToFrontend sessionId toFrontend =
-    let
-        _ =
-            Debug.log "sendToFrontend" toFrontend
-    in
-    Task.perform (\() -> SimulateFrontend (ToFrontend toFrontend)) (Process.sleep 1000)
+    Task.perform 
+            (\() ->     
+                let
+                    _ =
+                        Debug.log "sendToFrontend" toFrontend
+                in
+                SimulateFrontend (ToFrontend toFrontend)
+            ) 
+            (Process.sleep 1000)
 
 
 backendModelGadget =
-    Gadget.record (\int -> { int = int })
+    Gadget.record (\int float-> { int = int, float = float })
         |> Gadget.field "int" .int Gadget.int
+        |> Gadget.field "float" .float Gadget.float
         |> Gadget.endRecord
 
 
@@ -304,6 +309,33 @@ myInt =
         , respond = \() { int } -> int
         }
 
+myFloat =     
+    Form.makeControl
+        { toBackend = Gadget.unit
+        , toFrontend = Gadget.float
+        , model = Gadget.float
+        , msg = Gadget.unit
+        , output = Gadget.float
+        , view =
+            \id model ->
+                H.div []
+                    [ H.text (String.fromFloat model)
+                    , H.input
+                        [ HA.type_ "button"
+                        , HE.onClick ()
+                        , HA.value "click me"
+                        ]
+                        []
+                    ]
+        , update = \() model -> ( model, Form.ToBackend () )
+        , updateFromBackend = \float model -> ( float, Form.Cmd Cmd.none )
+        , subscriptions = \model -> Sub.none
+        , submit = Ok
+        , init = ( 0.5, Cmd.none )
+        , placeholder = 0.0
+        , load = identity
+        , respond = \() { float } -> float
+        }
 
 init _ =
     let
