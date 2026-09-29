@@ -11,6 +11,11 @@
       let
         releases = [
           {
+            version = "0.19.3";
+            name = "elm-0.19.3-linux-x64";
+            sha = "sha256-3X+el2FzvcQIyDnzzlBj+I6Q6R5zXcHepaVJBrqDLYs=";
+          }
+          {
             version = "0.19.2";
             name = "elm-0.19.2-linux-x64";
             sha = "sha256-ZjINJ3AWVPoRvQ6NhL35gpaU1XcMjc7i3t5hYPrVhzc=";
