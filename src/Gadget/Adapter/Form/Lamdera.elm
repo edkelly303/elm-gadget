@@ -18,7 +18,7 @@ import Dict exposing (Dict)
 import Gadget
 import Gadget.IR as IR exposing (Error, Path, Type(..), Value(..), VariantType(..), VariantValue(..))
 import Html as H
-import Html.Attributes as HA exposing (value)
+import Html.Attributes as HA
 import Html.Events as HE
 import List.Extra
 import Result.Extra
@@ -75,25 +75,28 @@ type Msg
 {-| Convert a `Gadget` into a `Form`.
 -}
 fromGadget :
-    (Msg -> msg)
-    -> (Msg -> Cmd msg)
-    -> (String -> Msg -> Cmd backendMsg)
+    { mkMsg : Msg -> msg
+    , mkToBackend : Msg -> Cmd msg
+    , mkToFrontend : String -> Msg -> Cmd backendMsg
+    }
     -> IR.Gadget a
     -> Form backendModel backendMsg msg a
-fromGadget mkMsg mkToBackend mkToFrontend gadget =
-    fromGadgetWithConfig defaultConfig mkMsg mkToBackend mkToFrontend gadget
+fromGadget makeMsgs gadget =
+    fromGadgetWithConfig defaultConfig makeMsgs gadget
 
 
 {-| Convert a `Gadget` into a `Form`, supplying a `Config`.
 -}
 fromGadgetWithConfig :
     Config
-    -> (Msg -> msg)
-    -> (Msg -> Cmd msg)
-    -> (String -> Msg -> Cmd backendMsg)
+    ->
+        { mkMsg : Msg -> msg
+        , mkToBackend : Msg -> Cmd msg
+        , mkToFrontend : String -> Msg -> Cmd backendMsg
+        }
     -> IR.Gadget a
     -> Form backendModel backendMsg msg a
-fromGadgetWithConfig config mkMsg mkToBackend mkToFrontend gadget =
+fromGadgetWithConfig config { mkMsg, mkToBackend, mkToFrontend } gadget =
     { init = init config gadget |> Tuple.mapSecond (Cmd.map mkMsg)
     , load = \output -> load config gadget output
     , update =

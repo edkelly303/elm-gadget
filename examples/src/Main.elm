@@ -244,9 +244,10 @@ form =
     in
     Form.fromGadgetWithConfig
         { config | int = myInt }
-        FormUpdated
-        lamdera_sendToBackend
-        lamdera_sendToFrontend
+        { mkMsg = FormUpdated
+        , mkToBackend = lamdera_sendToBackend
+        , mkToFrontend = lamdera_sendToFrontend
+        }
         gadget
 
 
