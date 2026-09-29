@@ -263,19 +263,19 @@ lamdera_sendToBackend toBackend =
 
 lamdera_sendToFrontend : sessionId -> Form.Msg -> Cmd Msg
 lamdera_sendToFrontend sessionId toFrontend =
-    Task.perform 
-            (\() ->     
-                let
-                    _ =
-                        Debug.log "sendToFrontend" toFrontend
-                in
-                SimulateFrontend (ToFrontend toFrontend)
-            ) 
-            (Process.sleep 1000)
+    Task.perform
+        (\() ->
+            let
+                _ =
+                    Debug.log "sendToFrontend" toFrontend
+            in
+            SimulateFrontend (ToFrontend toFrontend)
+        )
+        (Process.sleep 1000)
 
 
 backendModelGadget =
-    Gadget.record (\int float-> { int = int, float = float })
+    Gadget.record (\int float -> { int = int, float = float })
         |> Gadget.field "int" .int Gadget.int
         |> Gadget.field "float" .float Gadget.float
         |> Gadget.endRecord
@@ -309,7 +309,8 @@ myInt =
         , respond = \() { int } -> int
         }
 
-myFloat =     
+
+myFloat =
     Form.makeControl
         { toBackend = Gadget.unit
         , toFrontend = Gadget.float
@@ -336,6 +337,7 @@ myFloat =
         , load = identity
         , respond = \() { float } -> float
         }
+
 
 init _ =
     let
