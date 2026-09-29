@@ -1,11 +1,12 @@
 module Gadget.Adapter.Form.Lamdera exposing
     ( CmdType(..)
+    , Config
     , Control
     , ControlDefinition
     , Form
-    , InternalConfig
     , Model
     , Msg
+    , addOverride
     , customLabels
     , defaultConfig
     , fromGadget
@@ -103,6 +104,9 @@ fromGadgetWithConfig c { mkMsg, mkToBackend, mkToFrontend, backendModelGadget } 
         unwrapControl (Control toControl) =
             toControl backendModelGadget
 
+        unwrapOverrides (Overrides overrides) =
+            Dict.map (\_ toControl -> toControl backendModelGadget) overrides
+
         config : InternalConfig
         config =
             { bool = unwrapControl c.bool
@@ -112,6 +116,7 @@ fromGadgetWithConfig c { mkMsg, mkToBackend, mkToFrontend, backendModelGadget } 
             , string = unwrapControl c.string
             , viewFeedback = c.viewFeedback
             , viewControl = c.viewControl
+            , overrides = unwrapOverrides c.overrides
             }
     in
     { init = init config gadget |> Tuple.mapSecond (Cmd.map mkMsg)
@@ -168,7 +173,21 @@ type alias Config backendModel =
     , string : Control backendModel String
     , viewFeedback : String -> H.Html Msg
     , viewControl : Bool -> List (H.Html Msg) -> List (H.Html Msg)
+    , overrides : Overrides backendModel
     }
+
+
+type Overrides backendModel
+    = Overrides (Dict String (IR.Gadget backendModel -> InnerControl))
+
+
+addOverride : String -> Control backendModel output -> Config backendModel -> Config backendModel
+addOverride id (Control toControl) config =
+    let
+        (Overrides overrides) =
+            config.overrides
+    in
+    { config | overrides = Overrides (Dict.insert id toControl overrides) }
 
 
 type alias InternalConfig =
@@ -179,6 +198,7 @@ type alias InternalConfig =
     , string : InnerControl
     , viewFeedback : String -> H.Html Msg
     , viewControl : Bool -> List (H.Html Msg) -> List (H.Html Msg)
+    , overrides : Dict String InnerControl
     }
 
 
@@ -208,6 +228,7 @@ defaultConfig =
                 ]
                 inner
             ]
+    , overrides = Overrides Dict.empty
     }
 
 
