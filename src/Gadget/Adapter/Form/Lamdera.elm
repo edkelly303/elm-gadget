@@ -13,6 +13,7 @@ module Gadget.Adapter.Form.Lamdera exposing
     , fromGadgetWithConfig
     , label
     , makeControl
+    , override
     )
 
 import Dict exposing (Dict)
@@ -27,7 +28,12 @@ import Result.Extra
 
 tools : IR.MetadataTools meta a
 tools =
-    IR.makeMetadataTools "Gadget.Adapter.Form"
+    IR.makeMetadataTools "Gadget.Adapter.Form.Lamdera"
+
+
+override : String -> IR.Gadget a -> IR.Gadget a
+override overrideName gadget =
+    tools.attach "override" Gadget.string overrideName gadget
 
 
 {-| A record of functions that you can plumb into a standard Elm application to
@@ -64,6 +70,7 @@ type PrimitiveType
     | PInt
     | PFloat
     | PBool
+    | POverride String
 
 
 {-| The internal messages used to update the form - as a user of this module,
@@ -414,111 +421,127 @@ init config gadget =
 initHelp : InternalConfig -> Path -> Type -> ( Model, Cmd Msg )
 initHelp config path irType =
     let
-        initFor getType primitiveType metadata =
-            let
-                c =
-                    getType config
-            in
-            c.init
+        metadata =
+            tools.extract irType
+
+        initFor getType primitiveType =
+            config
+                |> getType
+                |> .init
                 |> Tuple.mapBoth
                     (Primitive primitiveType metadata)
                     (Cmd.map (Msg path))
+
+        noOverride =
+            case irType of
+                UnitType _ ->
+                    ( Unit, Cmd.none )
+
+                BoolType _ ->
+                    initFor .bool PBool
+
+                CharType _ ->
+                    initFor .char PChar
+
+                StringType _ ->
+                    initFor .string PString
+
+                IntType _ ->
+                    initFor .int PInt
+
+                FloatType _ ->
+                    initFor .float PFloat
+
+                CustomType _ ( firstName, firstVariantType ) restNamesAndVariantTypes ->
+                    let
+                        variantTypes =
+                            ( firstName, firstVariantType ) :: restNamesAndVariantTypes
+
+                        ( namedVariantModels, variantCmds ) =
+                            variantTypes
+                                |> List.indexedMap
+                                    (\idx ( variantName, variantType ) ->
+                                        variantType
+                                            |> variantTypeToArgsList
+                                            |> List.map
+                                                (\( argName, argType ) ->
+                                                    let
+                                                        argPath =
+                                                            argName :: variantName :: path
+
+                                                        ( argModel, argCmd ) =
+                                                            initHelp config argPath argType
+                                                    in
+                                                    ( ( argName, argModel ), argCmd )
+                                                )
+                                            |> List.unzip
+                                            |> Tuple.mapFirst
+                                                (\list -> ( variantName, ( idx, Dict.fromList list ) ))
+                                    )
+                                |> List.unzip
+                                |> Tuple.mapBoth Dict.fromList List.concat
+                    in
+                    ( Sum firstName metadata namedVariantModels, Cmd.batch variantCmds )
+
+                RecordType m namedFieldTypes ->
+                    let
+                        ( namedFieldModels, fieldCmds ) =
+                            namedFieldTypes
+                                |> List.indexedMap
+                                    (\idx ( fieldName, fieldType ) ->
+                                        let
+                                            ( fieldModel, fieldCmd ) =
+                                                initHelp config (fieldName :: path) fieldType
+                                        in
+                                        ( ( fieldName, ( idx, fieldModel ) ), fieldCmd )
+                                    )
+                                |> List.unzip
+                                |> Tuple.mapFirst Dict.fromList
+                    in
+                    ( Record metadata namedFieldModels, Cmd.batch fieldCmds )
+
+                ListType _ innerType ->
+                    ( Collection metadata innerType Dict.empty, Cmd.none )
+
+                LazyType _ innerType ->
+                    initHelp config path (innerType ())
+
+                TupleType _ a b ->
+                    let
+                        ( aModel, aCmd ) =
+                            initHelp config ("0" :: path) a
+
+                        ( bModel, bCmd ) =
+                            initHelp config ("1" :: path) b
+                    in
+                    ( Tuple metadata aModel bModel, Cmd.batch [ aCmd, bCmd ] )
+
+                TripleType _ a b c ->
+                    let
+                        ( aModel, aCmd ) =
+                            initHelp config ("0" :: path) a
+
+                        ( bModel, bCmd ) =
+                            initHelp config ("1" :: path) b
+
+                        ( cModel, cCmd ) =
+                            initHelp config ("2" :: path) c
+                    in
+                    ( Triple metadata aModel bModel cModel, Cmd.batch [ aCmd, bCmd, cCmd ] )
     in
-    case irType of
-        UnitType _ ->
-            ( Unit, Cmd.none )
-
-        BoolType m ->
-            initFor .bool PBool m
-
-        CharType m ->
-            initFor .char PChar m
-
-        StringType m ->
-            initFor .string PString m
-
-        IntType m ->
-            initFor .int PInt m
-
-        FloatType m ->
-            initFor .float PFloat m
-
-        CustomType m ( firstName, firstVariantType ) restNamesAndVariantTypes ->
-            let
-                variantTypes =
-                    ( firstName, firstVariantType ) :: restNamesAndVariantTypes
-
-                ( namedVariantModels, variantCmds ) =
-                    variantTypes
-                        |> List.indexedMap
-                            (\idx ( variantName, variantType ) ->
-                                variantType
-                                    |> variantTypeToArgsList
-                                    |> List.map
-                                        (\( argName, argType ) ->
-                                            let
-                                                argPath =
-                                                    argName :: variantName :: path
-
-                                                ( argModel, argCmd ) =
-                                                    initHelp config argPath argType
-                                            in
-                                            ( ( argName, argModel ), argCmd )
-                                        )
-                                    |> List.unzip
-                                    |> Tuple.mapFirst
-                                        (\list -> ( variantName, ( idx, Dict.fromList list ) ))
-                            )
-                        |> List.unzip
-                        |> Tuple.mapBoth Dict.fromList List.concat
-            in
-            ( Sum firstName m namedVariantModels, Cmd.batch variantCmds )
-
-        RecordType m namedFieldTypes ->
-            let
-                ( namedFieldModels, fieldCmds ) =
-                    namedFieldTypes
-                        |> List.indexedMap
-                            (\idx ( fieldName, fieldType ) ->
-                                let
-                                    ( fieldModel, fieldCmd ) =
-                                        initHelp config (fieldName :: path) fieldType
-                                in
-                                ( ( fieldName, ( idx, fieldModel ) ), fieldCmd )
-                            )
-                        |> List.unzip
-                        |> Tuple.mapFirst Dict.fromList
-            in
-            ( Record m namedFieldModels, Cmd.batch fieldCmds )
-
-        ListType m innerType ->
-            ( Collection m innerType Dict.empty, Cmd.none )
-
-        LazyType _ innerType ->
-            initHelp config path (innerType ())
-
-        TupleType m a b ->
-            let
-                ( aModel, aCmd ) =
-                    initHelp config ("0" :: path) a
-
-                ( bModel, bCmd ) =
-                    initHelp config ("1" :: path) b
-            in
-            ( Tuple m aModel bModel, Cmd.batch [ aCmd, bCmd ] )
-
-        TripleType m a b c ->
-            let
-                ( aModel, aCmd ) =
-                    initHelp config ("0" :: path) a
-
-                ( bModel, bCmd ) =
-                    initHelp config ("1" :: path) b
-
-                ( cModel, cCmd ) =
-                    initHelp config ("2" :: path) c
-            in
-            ( Triple m aModel bModel cModel, Cmd.batch [ aCmd, bCmd, cCmd ] )
+    tools.decode "override" Gadget.string metadata
+        |> Maybe.andThen
+            (\overrideName ->
+                Dict.get overrideName config.overrides
+                    |> Maybe.map
+                        (\overrideControl ->
+                            overrideControl.init
+                                |> Tuple.mapBoth
+                                    (Primitive (POverride overrideName) metadata)
+                                    (Cmd.map (Msg path))
+                        )
+            )
+        |> Maybe.withDefault noOverride
 
 
 respond : InternalConfig -> Msg -> IR.Gadget a -> Value -> Msg
@@ -536,15 +559,11 @@ respondHelp config modelPath ((Msg msgPath msgValue) as msg) model value =
         Unit ->
             Msg msgPath UnitValue
 
-        Primitive primitiveType _ _ ->
+        Primitive primitiveType metadata _ ->
             if modelPath == msgPath then
                 let
                     respondFor getType =
-                        let
-                            c =
-                                getType config
-                        in
-                        c.respond msgValue value
+                        (getType config).respond msgValue value
 
                     toFrontend =
                         case primitiveType of
@@ -562,6 +581,14 @@ respondHelp config modelPath ((Msg msgPath msgValue) as msg) model value =
 
                             PBool ->
                                 respondFor .bool
+
+                            POverride name ->
+                                case Dict.get name config.overrides of
+                                    Nothing ->
+                                        UnitValue
+
+                                    Just o ->
+                                        o.respond msgValue value
                 in
                 Msg modelPath toFrontend
 
@@ -684,7 +711,7 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                         in
                         updater c msgValue modelValue
 
-                    ( newModel, either ) =
+                    ( newModelValue, either ) =
                         case primitiveType of
                             PString ->
                                 updateFor .string
@@ -700,8 +727,16 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
 
                             PBool ->
                                 updateFor .bool
+
+                            POverride overrideName ->
+                                case Dict.get overrideName config.overrides of
+                                    Just overrideControl ->
+                                        updater overrideControl msgValue modelValue
+
+                                    Nothing ->
+                                        ( modelValue, Cmd Cmd.none )
                 in
-                ( Primitive primitiveType metadata newModel
+                ( Primitive primitiveType metadata newModelValue
                 , case either of
                     Cmd cmd ->
                         Cmd (Cmd.map (Msg modelPath) cmd)
@@ -948,6 +983,22 @@ viewHelp config errs modelPath model =
                 PBool ->
                     viewMe .bool
 
+                POverride overrideName ->
+                    case Dict.get overrideName config.overrides of
+                        Just overrideControl ->
+                            config.viewControl isValid <|
+                                overrideControl.layout
+                                    { label =
+                                        H.label [ HA.for id ] [ H.text (maybeLabel metadata |> Maybe.withDefault id) ]
+                                    , input =
+                                        overrideControl.view id modelValue |> H.map (Msg modelPath)
+                                    , feedback =
+                                        H.output [] feedback
+                                    }
+
+                        Nothing ->
+                            [ H.text ("Override " ++ overrideName ++ "is missing!") ]
+
         Record metadata fields ->
             let
                 inner =
@@ -1102,6 +1153,14 @@ subscriptionsHelp config path model =
                 PString ->
                     subMe .string
 
+                POverride overrideName ->
+                    case Dict.get overrideName config.overrides of
+                        Just overrideControl ->
+                            overrideControl.subscriptions modelValue |> Sub.map (Msg path)
+
+                        Nothing ->
+                            Sub.none
+
         Tuple _ a b ->
             Sub.batch
                 [ subscriptionsHelp config ("0" :: path) a
@@ -1220,6 +1279,19 @@ parsePrimitiveControls config path model =
                 PBool ->
                     submit_ .bool
 
+                POverride overrideName ->
+                    case Dict.get overrideName config.overrides of
+                        Just overrideControl ->
+                            case overrideControl.submit path modelValue of
+                                Ok v ->
+                                    ( v, [] )
+
+                                Err errs ->
+                                    ( overrideControl.placeholder, errs )
+
+                        Nothing ->
+                            ( UnitValue, [ { path = path, error = "override '" ++ overrideName ++ "' is missing" } ] )
+
         Record _ fields ->
             fields
                 |> Dict.toList
@@ -1295,81 +1367,100 @@ load config gadget a =
 loadHelp : InternalConfig -> Value -> Type -> Model
 loadHelp config value type_ =
     let
-        loadMe typ metadata getType =
-            let
-                c =
-                    getType config
-            in
-            Primitive typ metadata (c.load value)
+        metadata =
+            tools.extract type_
     in
-    case ( value, type_ ) of
-        ( UnitValue, UnitType _ ) ->
-            Unit
+    case
+        tools.decode "override" Gadget.string metadata
+            |> Maybe.andThen
+                (\overrideName ->
+                    Dict.get overrideName config.overrides
+                        |> Maybe.map
+                            (\overrideControl ->
+                                Primitive (POverride overrideName) metadata (overrideControl.load value)
+                            )
+                )
+    of
+        Just model ->
+            model
 
-        ( BoolValue _, BoolType metadata ) ->
-            loadMe PBool metadata .bool
-
-        ( CharValue _, CharType metadata ) ->
-            loadMe PChar metadata .char
-
-        ( StringValue _, StringType metadata ) ->
-            loadMe PString metadata .string
-
-        ( IntValue _, IntType metadata ) ->
-            loadMe PInt metadata .int
-
-        ( FloatValue _, FloatType metadata ) ->
-            loadMe PFloat metadata .float
-
-        ( RecordValue namedFieldValues, RecordType metadata namedFieldTypes ) ->
-            List.Extra.zip namedFieldValues namedFieldTypes
-                |> List.indexedMap (\idx ( ( name, fieldValue ), ( _, fieldType ) ) -> ( name, ( idx, loadHelp config fieldValue fieldType ) ))
-                |> Dict.fromList
-                |> Record metadata
-
-        ( CustomValue selected ( name, variantValue ), CustomType metadata firstNameAndVariantType restNamesAndVariantTypes ) ->
+        Nothing ->
             let
-                blank =
-                    initHelp config [] type_
-                        |> Tuple.first
-            in
-            case blank of
-                Sum _ _ variantModels ->
+                loadMe typ getType =
                     let
-                        argValues =
-                            variantValueToArgsList variantValue
-
-                        argTypes =
-                            List.Extra.getAt selected (firstNameAndVariantType :: restNamesAndVariantTypes)
-                                |> Maybe.map Tuple.second
-                                |> Maybe.withDefault Variant0Type
-                                |> variantTypeToArgsList
-
-                        newArgsDict =
-                            List.map2
-                                (\( argName, argValue ) ( _, argType ) -> ( argName, loadHelp config argValue argType ))
-                                argValues
-                                argTypes
-                                |> Dict.fromList
+                        c =
+                            getType config
                     in
-                    Sum name metadata (Dict.insert name ( selected, newArgsDict ) variantModels)
+                    Primitive typ metadata (c.load value)
+            in
+            case ( value, type_ ) of
+                ( UnitValue, UnitType _ ) ->
+                    Unit
+
+                ( BoolValue _, BoolType _ ) ->
+                    loadMe PBool .bool
+
+                ( CharValue _, CharType _ ) ->
+                    loadMe PChar .char
+
+                ( StringValue _, StringType _ ) ->
+                    loadMe PString .string
+
+                ( IntValue _, IntType _ ) ->
+                    loadMe PInt .int
+
+                ( FloatValue _, FloatType _ ) ->
+                    loadMe PFloat .float
+
+                ( RecordValue namedFieldValues, RecordType _ namedFieldTypes ) ->
+                    List.Extra.zip namedFieldValues namedFieldTypes
+                        |> List.indexedMap (\idx ( ( name, fieldValue ), ( _, fieldType ) ) -> ( name, ( idx, loadHelp config fieldValue fieldType ) ))
+                        |> Dict.fromList
+                        |> Record metadata
+
+                ( CustomValue selected ( name, variantValue ), CustomType _ firstNameAndVariantType restNamesAndVariantTypes ) ->
+                    let
+                        blank =
+                            initHelp config [] type_
+                                |> Tuple.first
+                    in
+                    case blank of
+                        Sum _ _ variantModels ->
+                            let
+                                argValues =
+                                    variantValueToArgsList variantValue
+
+                                argTypes =
+                                    List.Extra.getAt selected (firstNameAndVariantType :: restNamesAndVariantTypes)
+                                        |> Maybe.map Tuple.second
+                                        |> Maybe.withDefault Variant0Type
+                                        |> variantTypeToArgsList
+
+                                newArgsDict =
+                                    List.map2
+                                        (\( argName, argValue ) ( _, argType ) -> ( argName, loadHelp config argValue argType ))
+                                        argValues
+                                        argTypes
+                                        |> Dict.fromList
+                            in
+                            Sum name metadata (Dict.insert name ( selected, newArgsDict ) variantModels)
+
+                        _ ->
+                            blank
+
+                ( ListValue itemValues, ListType _ itemType ) ->
+                    List.indexedMap (\idx itemValue -> ( String.fromInt idx, loadHelp config itemValue itemType )) itemValues
+                        |> Dict.fromList
+                        |> Collection metadata itemType
+
+                ( TupleValue aValue bValue, TupleType _ aType bType ) ->
+                    Tuple metadata (loadHelp config aValue aType) (loadHelp config bValue bType)
+
+                ( TripleValue aValue bValue cValue, TripleType _ aType bType cType ) ->
+                    Triple metadata (loadHelp config aValue aType) (loadHelp config bValue bType) (loadHelp config cValue cType)
 
                 _ ->
-                    blank
-
-        ( ListValue itemValues, ListType metadata itemType ) ->
-            List.indexedMap (\idx itemValue -> ( String.fromInt idx, loadHelp config itemValue itemType )) itemValues
-                |> Dict.fromList
-                |> Collection metadata itemType
-
-        ( TupleValue aValue bValue, TupleType metadata aType bType ) ->
-            Tuple metadata (loadHelp config aValue aType) (loadHelp config bValue bType)
-
-        ( TripleValue aValue bValue cValue, TripleType metadata aType bType cType ) ->
-            Triple metadata (loadHelp config aValue aType) (loadHelp config bValue bType) (loadHelp config cValue cType)
-
-        _ ->
-            Unit
+                    Unit
 
 
 int : Control backendModel Int

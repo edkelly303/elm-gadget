@@ -75,6 +75,7 @@ personGadget =
             (Gadget.float
                 |> Gadget.Adapter.Random.range 100 180
                 |> Form.label "What is your height (in centimetres)?"
+                |> Form.override "heightInCentimetres"
                 |> Gadget.filterMap
                     (\f ->
                         if f < 50 then
@@ -241,9 +242,11 @@ form =
     let
         config =
             Form.defaultConfig
+                |> Form.addOverride "heightInCentimetres" myFloat
+                |> \c -> { c | int = myInt }
     in
     Form.fromGadgetWithConfig
-        { config | int = myInt, float = myFloat }
+        config
         { mkMsg = FormUpdated
         , mkToBackend = lamdera_sendToBackend
         , mkToFrontend = lamdera_sendToFrontend
