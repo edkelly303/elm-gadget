@@ -4,7 +4,7 @@ import Browser
 import Fuzz
 import Gadget
 import Gadget.Adapter.Diff
-import Gadget.Adapter.Form
+import Gadget.Adapter.Form.Lamdera as Form
 import Gadget.Adapter.Fuzz
 import Gadget.Adapter.Html
 import Gadget.Adapter.Json
@@ -20,6 +20,8 @@ import Json.Decode as JD
 import Json.Encode as JE
 import Parser
 import Random
+import Task
+import Process
 
 
 type alias Person =
@@ -66,13 +68,13 @@ personGadget =
                     )
                     identity
                 |> Gadget.Adapter.Random.choose "Ed" [ "Leonardo", "Wolfgang", "Rupert", "Mario", "Martin" ]
-                |> Gadget.Adapter.Form.label "What is your name?"
+                |> Form.label "What is your name?"
             )
         |> Gadget.field "heightInCentimetres"
             .heightInCentimetres
             (Gadget.float
                 |> Gadget.Adapter.Random.range 100 180
-                |> Gadget.Adapter.Form.label "What is your height (in centimetres)?"
+                |> Form.label "What is your height (in centimetres)?"
                 |> Gadget.filterMap
                     (\f ->
                         if f < 50 then
@@ -87,22 +89,22 @@ personGadget =
             .pets
             (Gadget.list petGadget
                 |> Gadget.Adapter.Random.listLength 0 3
-                |> Gadget.Adapter.Form.label "Do you have any pets?"
+                |> Form.label "Do you have any pets?"
             )
         |> Gadget.field "tuple"
             .tuple
             (Gadget.tuple
-                (Gadget.bool |> Gadget.Adapter.Form.label "one")
-                (Gadget.bool |> Gadget.Adapter.Form.label "two")
-                |> Gadget.Adapter.Form.label "What's your favourite pair of booleans?"
+                (Gadget.bool |> Form.label "one")
+                (Gadget.bool |> Form.label "two")
+                |> Form.label "What's your favourite pair of booleans?"
             )
         |> Gadget.field "triple"
             .triple
             (Gadget.triple
-                (Gadget.bool |> Gadget.Adapter.Form.label "one")
-                (Gadget.bool |> Gadget.Adapter.Form.label "two")
-                (Gadget.bool |> Gadget.Adapter.Form.label "three")
-                |> Gadget.Adapter.Form.label "And what about your favourite triple?"
+                (Gadget.bool |> Form.label "one")
+                (Gadget.bool |> Form.label "two")
+                (Gadget.bool |> Form.label "three")
+                |> Form.label "And what about your favourite triple?"
             )
         |> Gadget.endRecord
 
@@ -127,7 +129,7 @@ petGadget =
                     (Gadget.string
                         |> Gadget.Adapter.Fuzz.useOverride "dogName"
                         |> Gadget.Adapter.Random.choose "Rex" [ "Fido", "Kevin", "Rover", "Fifi", "George", "Winnie" ]
-                        |> Gadget.Adapter.Form.label "What is your dog's name?"
+                        |> Form.label "What is your dog's name?"
                         |> Gadget.filterMap
                             (\s ->
                                 if String.isEmpty s then
@@ -146,18 +148,18 @@ petGadget =
             (Gadget.char
                 |> Gadget.Adapter.Fuzz.useOverride "series"
                 |> Gadget.Adapter.Random.choose 'A' (List.range 66 90 |> List.map Char.fromCode)
-                |> Gadget.Adapter.Form.label "What is your robot's model series?"
+                |> Form.label "What is your robot's model series?"
             )
             (Gadget.maybe
                 (Gadget.int
                     |> Gadget.Adapter.Fuzz.useOverride "model"
                     |> Gadget.Adapter.Random.range 1000 5000
-                    |> Gadget.Adapter.Form.label "What is your robot's model number?"
+                    |> Form.label "What is your robot's model number?"
                 )
-                |> Gadget.Adapter.Form.customLabels "Does your robot have a model number?" [ "Yes", "No" ]
+                |> Form.customLabels "Does your robot have a model number?" [ "Yes", "No" ]
             )
         |> Gadget.endCustom
-        |> Gadget.Adapter.Form.customLabels "What type of pet do you have?" [ "Dog", "Robot" ]
+        |> Form.customLabels "What type of pet do you have?" [ "Dog", "Robot" ]
 
 
 main : Program () Model Msg
@@ -173,7 +175,7 @@ main =
 type alias Model =
     { seed : Int
     , prettyWidth : Int
-    , form : Gadget.Adapter.Form.Model
+    , form : Form.Model
     }
 
 
@@ -181,8 +183,16 @@ type Msg
     = UserClickedRegenerate
     | UserChangedPrettyWidth String
     | NewSeed Int
-    | FormUpdated Gadget.Adapter.Form.Msg
+    | FormUpdated Form.Msg
+    | SimulateBackend ToBackend
+    | SimulateFrontend ToFrontend
 
+
+type ToBackend = 
+    ToBackend Form.Msg
+
+type ToFrontend = 
+    ToFrontend Form.Msg
 
 update msg model =
     case msg of
@@ -209,11 +219,64 @@ update msg model =
             ( { model | form = formModel }
             , formCmd
             )
+        SimulateBackend (ToBackend toBackend) ->
+            ( model
+            , form.respond "" toBackend (Gadget.IR.fromInput gadget.int 1)
+            )
+        SimulateFrontend (ToFrontend toFrontend) ->
+            ( model
+            , Cmd.none
+            )
 
 
 form =
-    Gadget.Adapter.Form.fromGadget FormUpdated gadget
+    let config = Form.defaultConfig in
+    Form.fromGadgetWithConfig 
+        {config | int = myInt} 
+        FormUpdated 
+        lamdera_sendToBackend
+        lamdera_sendToFrontend
+        gadget
 
+lamdera_sendToBackend : Form.Msg -> Cmd Msg
+lamdera_sendToBackend toBackend =
+    let
+        _ =
+            Debug.log "sendToBackend" toBackend
+    in
+    Task.perform (\() -> SimulateBackend (ToBackend toBackend)) (Process.sleep 1000)
+
+
+lamdera_sendToFrontend : sessionId -> Form.Msg -> Cmd Msg
+lamdera_sendToFrontend sessionId toFrontend =
+    let
+        _ =
+            Debug.log "sendToFrontend" toFrontend
+    in
+    Task.perform (\() -> SimulateFrontend (ToFrontend toFrontend)) (Process.sleep 1000)
+
+myInt = 
+    Form.makeControl 
+        { backendModel = Gadget.int
+        , toBackend = Gadget.unit
+        , toFrontend = Gadget.int
+        , model = Gadget.int
+        , msg = Gadget.unit
+        , output = Gadget.int
+        , view = \id model -> 
+            H.div [] 
+                [ H.text (String.fromInt model)
+                , H.input [HA.type_ "button", HE.onClick ()
+                , HA.value "click me"] []
+                ]
+        , update = \() model -> (model, Form.ToBackend ())
+        , subscriptions = \model -> Sub.none
+        , submit = Ok
+        , init = (0, Cmd.none)
+        , placeholder = 0
+        , load = identity
+        , respond = \() backendModel -> backendModel
+        }
 
 init _ =
     let
@@ -245,18 +308,18 @@ gadget =
 -- Gadget.maybe Gadget.int
 -- Gadget.result
 --     (Gadget.result
---         (Gadget.int |> Gadget.Adapter.Form.label "hello")
---         (Gadget.int |> Gadget.Adapter.Form.label "world")
+--         (Gadget.int |> Form.label "hello")
+--         (Gadget.int |> Form.label "world")
 --     )
 --     (Gadget.result Gadget.int Gadget.int)
 -- petGadget
 -- Gadget.record (\x y -> { x = x, y = y })
---     |> Gadget.field "x" .x (Gadget.int |> Gadget.Adapter.Form.label "How much is x?")
+--     |> Gadget.field "x" .x (Gadget.int |> Form.label "How much is x?")
 --     |> Gadget.field "y"
 --         .y
 --         (Gadget.string
---             |> Gadget.Adapter.Form.label "What is y?"
---             |> Gadget.Adapter.Form.validate
+--             |> Form.label "What is y?"
+--             |> Form.validate
 --                 (\s ->
 --                     if String.isEmpty s then
 --                         Err "This must not be blank"
@@ -265,7 +328,7 @@ gadget =
 --                 )
 --         )
 --     |> Gadget.endRecord
---     |> Gadget.Adapter.Form.validate (\_ -> Err "filterMap failed")
+--     |> Form.validate (\_ -> Err "filterMap failed")
 
 
 view : Model -> H.Html Msg
