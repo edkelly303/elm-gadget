@@ -911,10 +911,12 @@ viewHelp config errs modelPath model =
                         ++ feedback
 
 
+subscriptions : Config -> Model -> Sub Msg
 subscriptions config model =
     subscriptionsHelp config [] model
 
 
+subscriptionsHelp : Config -> Path -> Model -> Sub Msg
 subscriptionsHelp config path model =
     case model of
         Unit ->
