@@ -240,7 +240,7 @@ update msg model =
 
 form =
     Form.newForm FormUpdated
-        |> Form.withBackend 
+        |> Form.withBackend
             { sendToBackend = lamdera_sendToBackend
             , sendToFrontend = lamdera_sendToFrontend
             , backendModelGadget = backendModelGadget
