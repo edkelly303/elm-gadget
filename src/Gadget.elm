@@ -8,6 +8,7 @@ module Gadget exposing
     , CustomGadgetBuilder, custom, variant0, variant1, variant2, variant3
     , variant4, variant5, endCustom
     , map, filterMap, lazy
+    , fail
     )
 
 {-| This module is for application developers who want to create Gadgets and use
@@ -157,6 +158,17 @@ unit =
 
                     _ ->
                         Err [ { error = "unit toOutput failed", path = path } ]
+        , irType = UnitType IR.emptyMetadata
+        }
+
+
+fail : Gadget a
+fail =
+    Gadget
+        { fromInput = \_ -> UnitValue
+        , toOutput =
+            \path value ->
+                Err [ { error = "unit toOutput failed", path = path } ]
         , irType = UnitType IR.emptyMetadata
         }
 
