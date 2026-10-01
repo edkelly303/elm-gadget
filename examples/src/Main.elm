@@ -239,20 +239,14 @@ update msg model =
 
 
 form =
-    let
-        config =
-            Form.defaultConfig
-                |> Form.addOverride "heightInCentimetres" myFloat
-                |> (\c -> { c | int = myInt })
-    in
-    Form.fromGadgetWithConfig
-        config
-        { toFrontendMsg = FormUpdated
-        , sendToBackend = lamdera_sendToBackend
-        , sendToFrontend = lamdera_sendToFrontend
-        , backendModelGadget = backendModelGadget
-        }
-        gadget
+    Form.newForm FormUpdated
+        |> Form.withBackend 
+            { sendToBackend = lamdera_sendToBackend
+            , sendToFrontend = lamdera_sendToFrontend
+            , backendModelGadget = backendModelGadget
+            }
+        |> Form.withOverride "heightInCentimetres" myFloat
+        |> Form.endForm gadget
 
 
 lamdera_sendToBackend : Form.Msg -> Cmd Msg

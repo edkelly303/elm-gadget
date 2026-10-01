@@ -1,19 +1,18 @@
 module Gadget.Adapter.Form.Lamdera exposing
     ( CmdType(..)
-    , Config
     , Control
     , ControlDefinition
     , Form
     , Model
     , Msg
-    , addOverride
     , customLabels
-    , defaultConfig
-    , fromGadget
-    , fromGadgetWithConfig
+    , endForm
     , label
     , makeControl
+    , newForm
     , override
+    , withBackend
+    , withOverride
     )
 
 import Dict exposing (Dict)
@@ -80,53 +79,99 @@ type Msg
     = Msg Path Value
 
 
-{-| Convert a `Gadget` into a `Form`.
--}
-fromGadget :
-    { toFrontendMsg : Msg -> frontendMsg
-    , sendToBackend : Msg -> Cmd frontendMsg
-    , sendToFrontend : String -> Msg -> Cmd backendMsg
-    , backendModelGadget : IR.Gadget backendModel
-    }
-    -> IR.Gadget a
-    -> Form backendModel backendMsg frontendMsg a
-fromGadget makeMsgs gadget =
-    fromGadgetWithConfig defaultConfig makeMsgs gadget
-
-
-{-| Convert a `Gadget` into a `Form`, supplying a `Config`.
--}
-fromGadgetWithConfig :
-    Config backendModel
-    ->
-        { toFrontendMsg : Msg -> frontendMsg
+type FormBuilder backendModel backendMsg frontendMsg
+    = FormBuilder
+        { bool : Control backendModel Bool
+        , int : Control backendModel Int
+        , float : Control backendModel Float
+        , char : Control backendModel Char
+        , string : Control backendModel String
+        , viewFeedback : String -> H.Html Msg
+        , viewControl : Bool -> List (H.Html Msg) -> List (H.Html Msg)
+        , overrides : Dict String (IR.Gadget backendModel -> InnerControl)
+        , toFrontendMsg : Msg -> frontendMsg
         , sendToBackend : Msg -> Cmd frontendMsg
         , sendToFrontend : String -> Msg -> Cmd backendMsg
         , backendModelGadget : IR.Gadget backendModel
         }
-    -> IR.Gadget a
-    -> Form backendModel backendMsg frontendMsg a
-fromGadgetWithConfig c { toFrontendMsg, sendToBackend, sendToFrontend, backendModelGadget } gadget =
+
+
+newForm : (Msg -> frontendMsg) -> FormBuilder backendModel backendMsg frontendMsg
+newForm toFrontendMsg =
+    FormBuilder
+        { bool = bool
+        , int = int
+        , float = float
+        , char = char
+        , string = string
+        , viewFeedback = \error -> H.span [] [ H.text error ]
+        , viewControl =
+            \validity inner ->
+                [ H.node "form-control"
+                    [ HA.class
+                        (if validity then
+                            "valid"
+
+                         else
+                            "invalid"
+                        )
+                    ]
+                    inner
+                ]
+        , overrides = Dict.empty
+        , toFrontendMsg = toFrontendMsg
+        , sendToBackend = \_ -> Cmd.none
+        , sendToFrontend = \_ _ -> Cmd.none
+        , backendModelGadget = Gadget.fail
+        }
+
+
+withBackend :
+    { sendToBackend : Msg -> Cmd frontendMsg
+    , sendToFrontend : String -> Msg -> Cmd backendMsg1
+    , backendModelGadget : IR.Gadget backendModel
+    }
+    -> FormBuilder backendModel backendMsg frontendMsg
+    -> FormBuilder backendModel backendMsg1 frontendMsg
+withBackend args (FormBuilder builder) =
+    FormBuilder
+        { bool = builder.bool
+        , int = builder.int
+        , float = builder.float
+        , char = builder.char
+        , string = builder.string
+        , viewFeedback = builder.viewFeedback
+        , viewControl = builder.viewControl
+        , overrides = builder.overrides
+        , toFrontendMsg = builder.toFrontendMsg
+        , sendToBackend = args.sendToBackend
+        , sendToFrontend = args.sendToFrontend
+        , backendModelGadget = args.backendModelGadget
+        }
+
+
+endForm : IR.Gadget a -> FormBuilder backendModel backendMsg frontendMsg -> Form backendModel backendMsg frontendMsg a
+endForm gadget (FormBuilder builder) =
     let
         unwrapControl (Control toControl) =
-            toControl backendModelGadget
+            toControl builder.backendModelGadget
 
-        unwrapOverrides (Overrides overrides) =
-            Dict.map (\_ toControl -> toControl backendModelGadget) overrides
+        unwrappedOverrides =
+            Dict.map (\_ toControl -> toControl builder.backendModelGadget) builder.overrides
 
         config : InternalConfig
         config =
-            { bool = unwrapControl c.bool
-            , int = unwrapControl c.int
-            , float = unwrapControl c.float
-            , char = unwrapControl c.char
-            , string = unwrapControl c.string
-            , viewFeedback = c.viewFeedback
-            , viewControl = c.viewControl
-            , overrides = unwrapOverrides c.overrides
+            { bool = unwrapControl builder.bool
+            , int = unwrapControl builder.int
+            , float = unwrapControl builder.float
+            , char = unwrapControl builder.char
+            , string = unwrapControl builder.string
+            , viewFeedback = builder.viewFeedback
+            , viewControl = builder.viewControl
+            , overrides = unwrappedOverrides
             }
     in
-    { init = init config gadget |> Tuple.mapSecond (Cmd.map toFrontendMsg)
+    { init = init config gadget |> Tuple.mapSecond (Cmd.map builder.toFrontendMsg)
     , load = \output -> load config gadget output
     , update =
         \msg model ->
@@ -137,10 +182,10 @@ fromGadgetWithConfig c { toFrontendMsg, sendToBackend, sendToFrontend, backendMo
             ( newModel
             , case either of
                 Cmd cmd ->
-                    Cmd.map toFrontendMsg cmd
+                    Cmd.map builder.toFrontendMsg cmd
 
                 ToBackend toBackend ->
-                    sendToBackend toBackend
+                    builder.sendToBackend toBackend
             )
     , updateFromBackend =
         \msg model ->
@@ -151,50 +196,24 @@ fromGadgetWithConfig c { toFrontendMsg, sendToBackend, sendToFrontend, backendMo
             ( newModel
             , case either of
                 Cmd cmd ->
-                    Cmd.map toFrontendMsg cmd
+                    Cmd.map builder.toFrontendMsg cmd
 
                 ToBackend toBackend ->
-                    sendToBackend toBackend
+                    builder.sendToBackend toBackend
             )
-    , view = \model -> view config gadget model |> H.map toFrontendMsg
-    , subscriptions = \model -> subscriptions config model |> Sub.map toFrontendMsg
+    , view = \model -> view config gadget model |> H.map builder.toFrontendMsg
+    , subscriptions = \model -> subscriptions config model |> Sub.map builder.toFrontendMsg
     , submit = submit config gadget
     , respond =
         \sessionId toBackend value ->
-            respond config toBackend gadget (IR.fromInput backendModelGadget value)
-                |> sendToFrontend sessionId
+            respond config toBackend gadget (IR.fromInput builder.backendModelGadget value)
+                |> builder.sendToFrontend sessionId
     }
 
 
-{-| A configuration record that you can use to tweak various details of how to
-convert a `Gadget` into a `Form`. For example, you can specify the types of form
-controls you would like to use for each primitive type `(Bool`, `Int`, `Float`,
-`Char`, `String`), you can configure how controls are laid out and how feedback
-is formatted, and so on.
--}
-type alias Config backendModel =
-    { bool : Control backendModel Bool
-    , int : Control backendModel Int
-    , float : Control backendModel Float
-    , char : Control backendModel Char
-    , string : Control backendModel String
-    , viewFeedback : String -> H.Html Msg
-    , viewControl : Bool -> List (H.Html Msg) -> List (H.Html Msg)
-    , overrides : Overrides backendModel
-    }
-
-
-type Overrides backendModel
-    = Overrides (Dict String (IR.Gadget backendModel -> InnerControl))
-
-
-addOverride : String -> Control backendModel output -> Config backendModel -> Config backendModel
-addOverride id (Control toControl) config =
-    let
-        (Overrides overrides) =
-            config.overrides
-    in
-    { config | overrides = Overrides (Dict.insert id toControl overrides) }
+withOverride : String -> Control backendModel output -> FormBuilder backendModel backendMsg frontendMsg -> FormBuilder backendModel backendMsg frontendMsg
+withOverride id (Control toControl) (FormBuilder builder) =
+    FormBuilder { builder | overrides = Dict.insert id toControl builder.overrides }
 
 
 type alias InternalConfig =
@@ -206,36 +225,6 @@ type alias InternalConfig =
     , viewFeedback : String -> H.Html Msg
     , viewControl : Bool -> List (H.Html Msg) -> List (H.Html Msg)
     , overrides : Dict String InnerControl
-    }
-
-
-{-| The default configuration record for forms.
-
-`fromGadget == fromGadgetWithConfig defaultConfig`
-
--}
-defaultConfig : Config backendModel
-defaultConfig =
-    { bool = bool
-    , int = int
-    , float = float
-    , char = char
-    , string = string
-    , viewFeedback = \error -> H.span [] [ H.text error ]
-    , viewControl =
-        \validity inner ->
-            [ H.node "form-control"
-                [ HA.class
-                    (if validity then
-                        "valid"
-
-                     else
-                        "invalid"
-                    )
-                ]
-                inner
-            ]
-    , overrides = Overrides Dict.empty
     }
 
 
