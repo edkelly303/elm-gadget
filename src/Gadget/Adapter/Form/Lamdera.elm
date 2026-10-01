@@ -83,9 +83,9 @@ type Msg
 {-| Convert a `Gadget` into a `Form`.
 -}
 fromGadget :
-    { mkMsg : Msg -> frontendMsg
-    , mkToBackend : Msg -> Cmd frontendMsg
-    , mkToFrontend : String -> Msg -> Cmd backendMsg
+    { toFrontendMsg : Msg -> frontendMsg
+    , sendToBackend : Msg -> Cmd frontendMsg
+    , sendToFrontend : String -> Msg -> Cmd backendMsg
     , backendModelGadget : IR.Gadget backendModel
     }
     -> IR.Gadget a
@@ -99,14 +99,14 @@ fromGadget makeMsgs gadget =
 fromGadgetWithConfig :
     Config backendModel
     ->
-        { mkMsg : Msg -> frontendMsg
-        , mkToBackend : Msg -> Cmd frontendMsg
-        , mkToFrontend : String -> Msg -> Cmd backendMsg
+        { toFrontendMsg : Msg -> frontendMsg
+        , sendToBackend : Msg -> Cmd frontendMsg
+        , sendToFrontend : String -> Msg -> Cmd backendMsg
         , backendModelGadget : IR.Gadget backendModel
         }
     -> IR.Gadget a
     -> Form backendModel backendMsg frontendMsg a
-fromGadgetWithConfig c { mkMsg, mkToBackend, mkToFrontend, backendModelGadget } gadget =
+fromGadgetWithConfig c { toFrontendMsg, sendToBackend, sendToFrontend, backendModelGadget } gadget =
     let
         unwrapControl (Control toControl) =
             toControl backendModelGadget
@@ -126,7 +126,7 @@ fromGadgetWithConfig c { mkMsg, mkToBackend, mkToFrontend, backendModelGadget } 
             , overrides = unwrapOverrides c.overrides
             }
     in
-    { init = init config gadget |> Tuple.mapSecond (Cmd.map mkMsg)
+    { init = init config gadget |> Tuple.mapSecond (Cmd.map toFrontendMsg)
     , load = \output -> load config gadget output
     , update =
         \msg model ->
@@ -137,10 +137,10 @@ fromGadgetWithConfig c { mkMsg, mkToBackend, mkToFrontend, backendModelGadget } 
             ( newModel
             , case either of
                 Cmd cmd ->
-                    Cmd.map mkMsg cmd
+                    Cmd.map toFrontendMsg cmd
 
                 ToBackend toBackend ->
-                    mkToBackend toBackend
+                    sendToBackend toBackend
             )
     , updateFromBackend =
         \msg model ->
@@ -151,18 +151,18 @@ fromGadgetWithConfig c { mkMsg, mkToBackend, mkToFrontend, backendModelGadget } 
             ( newModel
             , case either of
                 Cmd cmd ->
-                    Cmd.map mkMsg cmd
+                    Cmd.map toFrontendMsg cmd
 
                 ToBackend toBackend ->
-                    mkToBackend toBackend
+                    sendToBackend toBackend
             )
-    , view = \model -> view config gadget model |> H.map mkMsg
-    , subscriptions = \model -> subscriptions config model |> Sub.map mkMsg
+    , view = \model -> view config gadget model |> H.map toFrontendMsg
+    , subscriptions = \model -> subscriptions config model |> Sub.map toFrontendMsg
     , submit = submit config gadget
     , respond =
         \sessionId toBackend value ->
             respond config toBackend gadget (IR.fromInput backendModelGadget value)
-                |> mkToFrontend sessionId
+                |> sendToFrontend sessionId
     }
 
 

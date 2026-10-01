@@ -247,9 +247,9 @@ form =
     in
     Form.fromGadgetWithConfig
         config
-        { mkMsg = FormUpdated
-        , mkToBackend = lamdera_sendToBackend
-        , mkToFrontend = lamdera_sendToFrontend
+        { toFrontendMsg = FormUpdated
+        , sendToBackend = lamdera_sendToBackend
+        , sendToFrontend = lamdera_sendToFrontend
         , backendModelGadget = backendModelGadget
         }
         gadget
