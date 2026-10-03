@@ -198,7 +198,14 @@ endForm gadget (FormBuilder builder) =
                 cmdTypes
                 |> Cmd.batch
     in
-    { init = init config gadget |> Tuple.mapSecond (Cmd.map builder.toFrontendMsg)
+    { init =
+        let
+            ( newModel, cmdType ) =
+                init config gadget
+        in
+        ( newModel
+        , processCmd cmdType
+        )
     , load = \output -> load config gadget output
     , update =
         \msg model ->
@@ -252,7 +259,7 @@ type Control backendModel output
 
 
 type alias InnerControl =
-    { init : ( Value, Cmd Value )
+    { init : ( Value, CmdType Value Value )
     , load : Value -> Value
     , placeholder : Value
     , update : Value -> Value -> ( Value, CmdType Value Value )
@@ -273,7 +280,7 @@ type alias ControlDefinition toBackend toFrontend backendModel frontendMsg front
     , outputGadget : IR.Gadget output
     , toBackendGadget : IR.Gadget toBackend
     , toFrontendGadget : IR.Gadget toFrontend
-    , init : ( frontendModel, Cmd frontendMsg )
+    , init : ( frontendModel, CmdType frontendMsg toBackend )
     , placeholder : output
     , load : output -> frontendModel
     , update : frontendMsg -> frontendModel -> ( frontendModel, CmdType frontendMsg toBackend )
@@ -309,6 +316,16 @@ sendCmd toBackend =
     CmdType [ ToBackend toBackend ]
 
 
+batchCmds : List (CmdType msg toBackend) -> CmdType msg toBackend
+batchCmds cmdTypes =
+    List.foldl concatCmds noCmd cmdTypes
+
+
+concatCmds : CmdType msg toBackend -> CmdType msg toBackend -> CmdType msg toBackend
+concatCmds (CmdType cmdType1) (CmdType cmdType2) =
+    CmdType (cmdType1 ++ cmdType2)
+
+
 {-| Turn a `ControlDefinition` into a `Control`.
 -}
 makeControl :
@@ -336,7 +353,14 @@ makeControl config =
     in
     Control <|
         \backendModelGadget ->
-            { init = config.init |> Tuple.mapBoth (IR.fromInput config.frontendModelGadget) (Cmd.map (IR.fromInput config.frontendMsgGadget))
+            { init =
+                let
+                    ( model, cmdType ) =
+                        config.init
+                in
+                ( IR.fromInput config.frontendModelGadget model
+                , mapCmdType cmdType
+                )
             , load =
                 \outputValue ->
                     IR.toOutput config.outputGadget outputValue
@@ -441,16 +465,29 @@ customLabels l ls gadget =
         gadget
 
 
-init : InternalConfig -> IR.Gadget a -> ( Model, Cmd Msg )
+init : InternalConfig -> IR.Gadget a -> ( Model, CmdType Msg Msg )
 init config gadget =
     initHelp config [] (IR.irType gadget)
 
 
-initHelp : InternalConfig -> Path -> Type -> ( Model, Cmd Msg )
+initHelp : InternalConfig -> Path -> Type -> ( Model, CmdType Msg Msg )
 initHelp config path irType =
     let
         metadata =
             tools.extract irType
+
+        mapCmdType (CmdType cmdTypes) =
+            List.map
+                (\cmdType ->
+                    case cmdType of
+                        Cmd cmd ->
+                            Cmd (Cmd.map (Msg path) cmd)
+
+                        ToBackend toBackend ->
+                            ToBackend (Msg path toBackend)
+                )
+                cmdTypes
+                |> CmdType
 
         initFor getType primitiveType =
             config
@@ -458,12 +495,12 @@ initHelp config path irType =
                 |> .init
                 |> Tuple.mapBoth
                     (Primitive primitiveType metadata)
-                    (Cmd.map (Msg path))
+                    mapCmdType
 
         noOverride =
             case irType of
                 UnitType _ ->
-                    ( Unit, Cmd.none )
+                    ( Unit, noCmd )
 
                 BoolType _ ->
                     initFor .bool PBool
@@ -509,7 +546,9 @@ initHelp config path irType =
                                 |> List.unzip
                                 |> Tuple.mapBoth Dict.fromList List.concat
                     in
-                    ( Sum firstName metadata namedVariantModels, Cmd.batch variantCmds )
+                    ( Sum firstName metadata namedVariantModels
+                    , batchCmds variantCmds
+                    )
 
                 RecordType _ namedFieldTypes ->
                     let
@@ -526,10 +565,14 @@ initHelp config path irType =
                                 |> List.unzip
                                 |> Tuple.mapFirst Dict.fromList
                     in
-                    ( Record metadata namedFieldModels, Cmd.batch fieldCmds )
+                    ( Record metadata namedFieldModels
+                    , batchCmds fieldCmds
+                    )
 
                 ListType _ innerType ->
-                    ( Collection metadata innerType Dict.empty, Cmd.none )
+                    ( Collection metadata innerType Dict.empty
+                    , noCmd
+                    )
 
                 LazyType _ innerType ->
                     initHelp config path (innerType ())
@@ -542,7 +585,9 @@ initHelp config path irType =
                         ( bModel, bCmd ) =
                             initHelp config ("1" :: path) b
                     in
-                    ( Tuple metadata aModel bModel, Cmd.batch [ aCmd, bCmd ] )
+                    ( Tuple metadata aModel bModel
+                    , concatCmds aCmd bCmd
+                    )
 
                 TripleType _ a b c ->
                     let
@@ -555,7 +600,9 @@ initHelp config path irType =
                         ( cModel, cCmd ) =
                             initHelp config ("2" :: path) c
                     in
-                    ( Triple metadata aModel bModel cModel, Cmd.batch [ aCmd, bCmd, cCmd ] )
+                    ( Triple metadata aModel bModel cModel
+                    , batchCmds [ aCmd, bCmd, cCmd ]
+                    )
     in
     tools.decode "override" Gadget.string metadata
         |> Maybe.andThen
@@ -566,7 +613,7 @@ initHelp config path irType =
                             overrideControl.init
                                 |> Tuple.mapBoth
                                     (Primitive (POverride overrideName) metadata)
-                                    (Cmd.map (Msg path))
+                                    mapCmdType
                         )
             )
         |> Maybe.withDefault noOverride
@@ -882,7 +929,7 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                                             initHelp config modelPath innerType
                                     in
                                     ( Dict.insert (String.fromInt (Dict.size itemModels)) newItemModel itemModels
-                                    , fromCmd newCmd
+                                    , newCmd
                                     )
 
                                 _ ->
@@ -1505,7 +1552,7 @@ int =
         { frontendModelGadget = Gadget.string
         , frontendMsgGadget = Gadget.string
         , outputGadget = Gadget.int
-        , init = ( "", Cmd.none )
+        , init = ( "", noCmd )
         , placeholder = 0
         , load = String.fromInt
         , toBackendGadget = Gadget.unit
@@ -1537,7 +1584,7 @@ float =
         { frontendModelGadget = Gadget.string
         , frontendMsgGadget = Gadget.string
         , outputGadget = Gadget.float
-        , init = ( "", Cmd.none )
+        , init = ( "", noCmd )
         , placeholder = 0.0
         , load = String.fromFloat
         , toBackendGadget = Gadget.unit
@@ -1569,7 +1616,7 @@ string =
         { frontendModelGadget = Gadget.string
         , frontendMsgGadget = Gadget.string
         , outputGadget = Gadget.string
-        , init = ( "", Cmd.none )
+        , init = ( "", noCmd )
         , placeholder = ""
         , load = identity
         , toBackendGadget = Gadget.unit
@@ -1597,7 +1644,7 @@ bool =
         { frontendModelGadget = Gadget.bool
         , frontendMsgGadget = Gadget.bool
         , outputGadget = Gadget.bool
-        , init = ( False, Cmd.none )
+        , init = ( False, noCmd )
         , placeholder = False
         , load = identity
         , toBackendGadget = Gadget.unit
@@ -1626,7 +1673,7 @@ char =
         { frontendModelGadget = Gadget.string
         , frontendMsgGadget = Gadget.maybe Gadget.char
         , outputGadget = Gadget.char
-        , init = ( "", Cmd.none )
+        , init = ( "", noCmd )
         , placeholder = 'a'
         , load = String.fromChar
         , toBackendGadget = Gadget.unit
