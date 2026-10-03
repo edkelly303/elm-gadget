@@ -204,6 +204,18 @@ form {
     flex-direction: column;
     gap: 20px;
     
+    & .counter { 
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        & * {flex-grow: 1;}
+        & span {
+            display: flex; 
+            justify-content: center;
+            align-items: center;
+        }
+    }
+
     & input {
         min-width: none;
     }

@@ -4,8 +4,8 @@ import Browser
 import Fuzz
 import Gadget
 import Gadget.Adapter.Diff
+import Gadget.Adapter.Form as Form
 import Gadget.Adapter.Form.Control as Control
-import Gadget.Adapter.Form.Lamdera as Form
 import Gadget.Adapter.Fuzz
 import Gadget.Adapter.Html
 import Gadget.Adapter.Json
@@ -247,6 +247,7 @@ form =
             , backendModelGadget = backendModelGadget
             }
         |> Form.withOverride "heightInCentimetres" myFloat
+        |> Form.withIntControl counter
         |> Form.endForm gadget
 
 
@@ -279,42 +280,80 @@ backendModelGadget =
         |> Gadget.endRecord
 
 
-myInt =
-    Control.define
-        { toBackendGadget = Gadget.unit
-        , toFrontendGadget = Gadget.int
-        , frontendModelGadget = Gadget.int
-        , frontendMsgGadget = Gadget.unit
+type CounterMsg
+    = Inc
+    | Dec
+
+
+counterMsgGadget =
+    Gadget.map
+        (\bool ->
+            if bool then
+                Inc
+
+            else
+                Dec
+        )
+        (\msg ->
+            case msg of
+                Inc ->
+                    True
+
+                Dec ->
+                    False
+        )
+        Gadget.bool
+
+
+counter =
+    Control.sandbox
+        { modelGadget = Gadget.int
+        , msgGadget = counterMsgGadget
         , outputGadget = Gadget.int
+        , placeholder = 0
+        , init = 0
+        , load = identity
+        , update =
+            \msg model ->
+                case msg of
+                    Inc ->
+                        model + 1
+
+                    Dec ->
+                        model - 1
         , view =
             \id model ->
-                H.div []
-                    [ H.text (String.fromInt model)
+                H.fieldset [ HA.class "counter" ]
+                    [ H.input
+                        [ HA.type_ "button"
+                        , HE.onClick Dec
+                        , HA.value "-"
+                        ]
+                        []
+                    , H.span [] [ H.text (String.fromInt model) ]
                     , H.input
                         [ HA.type_ "button"
-                        , HE.onClick ()
-                        , HA.value "click me"
+                        , HE.onClick Inc
+                        , HA.value "+"
                         ]
                         []
                     ]
-        , update = \() model -> ( model, Control.sendCommand () )
-        , updateFromBackend = \int model -> ( int, Control.noCommand )
-        , subscriptions = \model -> Sub.none
         , submit = Ok
-        , init = ( 0, Control.noCommand )
-        , placeholder = 0
-        , load = identity
-        , respond = \() { int } -> int
         }
 
 
 myFloat =
     Control.define
-        { toBackendGadget = Gadget.unit
-        , toFrontendGadget = Gadget.float
-        , frontendModelGadget = Gadget.float
+        { frontendModelGadget = Gadget.float
         , frontendMsgGadget = Gadget.unit
         , outputGadget = Gadget.float
+        , toBackendGadget = Gadget.unit
+        , toFrontendGadget = Gadget.float
+        , init = ( 0.5, Control.noCommand )
+        , load = identity
+        , placeholder = 0.0
+        , update = \() model -> ( model, Control.sendCommand () )
+        , updateFromBackend = \float model -> ( float, Control.noCommand )
         , view =
             \id model ->
                 H.div []
@@ -326,13 +365,8 @@ myFloat =
                         ]
                         []
                     ]
-        , update = \() model -> ( model, Control.sendCommand () )
-        , updateFromBackend = \float model -> ( float, Control.noCommand )
         , subscriptions = \model -> Sub.none
         , submit = Ok
-        , init = ( 0.5, Control.noCommand )
-        , placeholder = 0.0
-        , load = identity
         , respond = \() { float } -> float
         }
 
