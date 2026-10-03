@@ -99,11 +99,11 @@ type FormBuilder backendModel backendMsg frontendMsg
 newForm : (Msg -> frontendMsg) -> FormBuilder backendModel backendMsg frontendMsg
 newForm toFrontendMsg =
     FormBuilder
-        { bool = Control.bool
-        , int = Control.int
-        , float = Control.float
-        , char = Control.char
-        , string = Control.string
+        { bool = boolControl
+        , int = intControl
+        , float = floatControl
+        , char = charControl
+        , string = stringControl
         , viewFeedback = \error -> H.span [] [ H.text error ]
         , viewControl =
             \validity inner ->
@@ -1496,3 +1496,138 @@ type Match
     = FullMatch
     | PrefixMatch { next1 : String, next2 : String }
     | NoMatch
+
+
+intControl : Control backendModel Int
+intControl =
+    Control.sandbox
+        { modelGadget = Gadget.string
+        , msgGadget = Gadget.string
+        , outputGadget = Gadget.int
+        , init = ""
+        , placeholder = 0
+        , load = String.fromInt
+        , update = \msg _ -> msg
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "number"
+                    , HA.attribute "inputmode" "numeric"
+                    , HE.onInput identity
+                    , HA.id id
+                    , HA.value model
+                    ]
+                    []
+        , submit =
+            \model ->
+                String.toInt model
+                    |> Result.fromMaybe "This must be an integer"
+        }
+
+
+floatControl : Control backendModel Float
+floatControl =
+    Control.sandbox
+        { modelGadget = Gadget.string
+        , msgGadget = Gadget.string
+        , outputGadget = Gadget.float
+        , init = ""
+        , placeholder = 0.0
+        , load = String.fromFloat
+        , update = \msg _ -> msg
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "number"
+                    , HA.attribute "inputmode" "decimal"
+                    , HE.onInput identity
+                    , HA.id id
+                    , HA.value model
+                    ]
+                    []
+        , submit =
+            \model ->
+                String.toFloat model
+                    |> Result.fromMaybe "This must be a decimal number"
+        }
+
+
+stringControl : Control backendModel String
+stringControl =
+    Control.sandbox
+        { modelGadget = Gadget.string
+        , msgGadget = Gadget.string
+        , outputGadget = Gadget.string
+        , init = ""
+        , placeholder = ""
+        , load = identity
+        , update = \msg _ -> msg
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "text"
+                    , HE.onInput identity
+                    , HA.id id
+                    , HA.value model
+                    ]
+                    []
+        , submit = Ok
+        }
+
+
+boolControl : Control backendModel Bool
+boolControl =
+    Control.sandbox
+        { modelGadget = Gadget.bool
+        , msgGadget = Gadget.bool
+        , outputGadget = Gadget.bool
+        , init = False
+        , placeholder = False
+        , load = identity
+        , update = \msg _ -> msg
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "checkbox"
+                    , HE.onCheck identity
+                    , HA.checked model
+                    , HA.id id
+                    ]
+                    []
+        , submit = Ok
+        }
+        |> Control.withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
+
+
+charControl : Control backendModel Char
+charControl =
+    Control.sandbox
+        { modelGadget = Gadget.string
+        , msgGadget = Gadget.maybe Gadget.char
+        , outputGadget = Gadget.char
+        , init = ""
+        , placeholder = 'a'
+        , load = String.fromChar
+        , update =
+            \msg _ ->
+                case msg of
+                    Nothing ->
+                        ""
+
+                    Just c ->
+                        String.fromChar c
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "text"
+                    , HE.onInput (\str -> String.uncons str |> Maybe.map Tuple.first)
+                    , HA.id id
+                    , HA.value model
+                    ]
+                    []
+        , submit =
+            \model ->
+                String.uncons model
+                    |> Maybe.map Tuple.first
+                    |> Result.fromMaybe "This must not be blank"
+        }

@@ -4,8 +4,8 @@ import Browser
 import Fuzz
 import Gadget
 import Gadget.Adapter.Diff
-import Gadget.Adapter.Form.Lamdera as Form
 import Gadget.Adapter.Form.Control as Control
+import Gadget.Adapter.Form.Lamdera as Form
 import Gadget.Adapter.Fuzz
 import Gadget.Adapter.Html
 import Gadget.Adapter.Json

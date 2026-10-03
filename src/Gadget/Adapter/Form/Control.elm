@@ -1,24 +1,19 @@
 module Gadget.Adapter.Form.Control exposing
-    ( Command
-    , Control(..)
-    , Definition
-    , bool
-    , char
-    , define
-    , float
-    , int
-    , noCommand
-    , sendCommand
-    , string
-    , toCommand
+    ( Control(..), sandbox, element, define, withLayout
+    , Command, noCommand, toCommand, sendCommand
     )
+
+{-|
+
+@docs Control, sandbox, element, define, withLayout
+@docs Command, noCommand, toCommand, sendCommand
+
+-}
 
 import Gadget
 import Gadget.Adapter.Form.Internal as Internal
 import Gadget.IR as IR
 import Html as H
-import Html.Attributes as HA
-import Html.Events as HE
 import List.Extra
 import Result.Extra
 
@@ -52,16 +47,79 @@ type Control backendModel output
     = Control (IR.Gadget backendModel -> Internal.InnerControl)
 
 
-{-| A definition for a custom form control.
+sandbox :
+    { modelGadget : IR.Gadget model
+    , msgGadget : IR.Gadget msg
+    , outputGadget : IR.Gadget output
+    , placeholder : output
+    , init : model
+    , load : output -> model
+    , update : msg -> model -> model
+    , view : String -> model -> H.Html msg
+    , submit : model -> Result String output
+    }
+    -> Control backendModel output
+sandbox { placeholder, init, load, update, view, submit, modelGadget, msgGadget, outputGadget } =
+    define
+        { placeholder = placeholder
+        , init = ( init, noCommand )
+        , load = load
+        , update = \msg model -> ( update msg model, noCommand )
+        , view = view
+        , subscriptions = \_ -> Sub.none
+        , submit = submit
+        , frontendModelGadget = modelGadget
+        , frontendMsgGadget = msgGadget
+        , outputGadget = outputGadget
+        , toBackendGadget = Gadget.unit
+        , toFrontendGadget = Gadget.unit
+        , respond = \_ _ -> ()
+        , updateFromBackend = \_ model -> ( model, noCommand )
+        }
+
+
+element :
+    { modelGadget : IR.Gadget model
+    , msgGadget : IR.Gadget msg
+    , outputGadget : IR.Gadget output
+    , placeholder : output
+    , init : ( model, Cmd msg )
+    , load : output -> model
+    , update : msg -> model -> ( model, Cmd msg )
+    , view : String -> model -> H.Html msg
+    , subscriptions : model -> Sub msg
+    , submit : model -> Result String output
+    }
+    -> Control backendModel output
+element { placeholder, init, load, update, view, subscriptions, submit, modelGadget, msgGadget, outputGadget } =
+    define
+        { placeholder = placeholder
+        , init = init |> Tuple.mapSecond toCommand
+        , load = load
+        , update = \msg model -> update msg model |> Tuple.mapSecond toCommand
+        , view = view
+        , subscriptions = subscriptions
+        , submit = submit
+        , frontendModelGadget = modelGadget
+        , frontendMsgGadget = msgGadget
+        , outputGadget = outputGadget
+        , toBackendGadget = Gadget.unit
+        , toFrontendGadget = Gadget.unit
+        , respond = \_ _ -> ()
+        , updateFromBackend = \_ model -> ( model, noCommand )
+        }
+
+
+{-| Turn a `Definition` into a `Control`.
 -}
-type alias Definition toBackend toFrontend backendModel frontendMsg frontendModel output =
+define :
     { frontendMsgGadget : IR.Gadget frontendMsg
     , frontendModelGadget : IR.Gadget frontendModel
     , outputGadget : IR.Gadget output
     , toBackendGadget : IR.Gadget toBackend
     , toFrontendGadget : IR.Gadget toFrontend
-    , init : ( frontendModel, Command frontendMsg toBackend )
     , placeholder : output
+    , init : ( frontendModel, Command frontendMsg toBackend )
     , load : output -> frontendModel
     , update : frontendMsg -> frontendModel -> ( frontendModel, Command frontendMsg toBackend )
     , updateFromBackend : toFrontend -> frontendModel -> ( frontendModel, Command frontendMsg toBackend )
@@ -70,12 +128,6 @@ type alias Definition toBackend toFrontend backendModel frontendMsg frontendMode
     , submit : frontendModel -> Result String output
     , respond : toBackend -> backendModel -> toFrontend
     }
-
-
-{-| Turn a `Definition` into a `Control`.
--}
-define :
-    Definition toBackend toFrontend backendModel frontendMsg frontendModel output
     -> Control backendModel output
 define config =
     let
@@ -167,166 +219,6 @@ define config =
                         |> Result.map (IR.fromInput config.toFrontendGadget)
                         |> Result.withDefault IR.UnitValue
             }
-
-
-int : Control backendModel Int
-int =
-    define
-        { frontendModelGadget = Gadget.string
-        , frontendMsgGadget = Gadget.string
-        , outputGadget = Gadget.int
-        , init = ( "", noCommand )
-        , placeholder = 0
-        , load = String.fromInt
-        , toBackendGadget = Gadget.unit
-        , toFrontendGadget = Gadget.unit
-        , respond = \_ _ -> ()
-        , update = \msg _ -> ( msg, noCommand )
-        , updateFromBackend = \_ model -> ( model, noCommand )
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "number"
-                    , HA.attribute "inputmode" "numeric"
-                    , HE.onInput identity
-                    , HA.id id
-                    , HA.value model
-                    ]
-                    []
-        , subscriptions = \_ -> Sub.none
-        , submit =
-            \model ->
-                String.toInt model
-                    |> Result.fromMaybe "This must be an integer"
-        }
-
-
-float : Control backendModel Float
-float =
-    define
-        { frontendModelGadget = Gadget.string
-        , frontendMsgGadget = Gadget.string
-        , outputGadget = Gadget.float
-        , init = ( "", noCommand )
-        , placeholder = 0.0
-        , load = String.fromFloat
-        , toBackendGadget = Gadget.unit
-        , toFrontendGadget = Gadget.unit
-        , respond = \_ _ -> ()
-        , update = \msg _ -> ( msg, noCommand )
-        , updateFromBackend = \_ model -> ( model, noCommand )
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "number"
-                    , HA.attribute "inputmode" "decimal"
-                    , HE.onInput identity
-                    , HA.id id
-                    , HA.value model
-                    ]
-                    []
-        , subscriptions = \_ -> Sub.none
-        , submit =
-            \model ->
-                String.toFloat model
-                    |> Result.fromMaybe "This must be a decimal number"
-        }
-
-
-string : Control backendModel String
-string =
-    define
-        { frontendModelGadget = Gadget.string
-        , frontendMsgGadget = Gadget.string
-        , outputGadget = Gadget.string
-        , init = ( "", noCommand )
-        , placeholder = ""
-        , load = identity
-        , toBackendGadget = Gadget.unit
-        , toFrontendGadget = Gadget.unit
-        , respond = \_ _ -> ()
-        , update = \msg _ -> ( msg, noCommand )
-        , updateFromBackend = \_ model -> ( model, noCommand )
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "text"
-                    , HE.onInput identity
-                    , HA.id id
-                    , HA.value model
-                    ]
-                    []
-        , subscriptions = \_ -> Sub.none
-        , submit = Ok
-        }
-
-
-bool : Control backendModel Bool
-bool =
-    define
-        { frontendModelGadget = Gadget.bool
-        , frontendMsgGadget = Gadget.bool
-        , outputGadget = Gadget.bool
-        , init = ( False, noCommand )
-        , placeholder = False
-        , load = identity
-        , toBackendGadget = Gadget.unit
-        , toFrontendGadget = Gadget.unit
-        , respond = \_ _ -> ()
-        , update = \msg _ -> ( msg, noCommand )
-        , updateFromBackend = \_ model -> ( model, noCommand )
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "checkbox"
-                    , HE.onCheck identity
-                    , HA.checked model
-                    , HA.id id
-                    ]
-                    []
-        , subscriptions = \_ -> Sub.none
-        , submit = Ok
-        }
-        |> withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
-
-
-char : Control backendModel Char
-char =
-    define
-        { frontendModelGadget = Gadget.string
-        , frontendMsgGadget = Gadget.maybe Gadget.char
-        , outputGadget = Gadget.char
-        , init = ( "", noCommand )
-        , placeholder = 'a'
-        , load = String.fromChar
-        , toBackendGadget = Gadget.unit
-        , toFrontendGadget = Gadget.unit
-        , respond = \_ _ -> ()
-        , update =
-            \msg _ ->
-                case msg of
-                    Nothing ->
-                        ( "", noCommand )
-
-                    Just c ->
-                        ( String.fromChar c, noCommand )
-        , updateFromBackend = \_ model -> ( model, noCommand )
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "text"
-                    , HE.onInput (\str -> String.uncons str |> Maybe.map Tuple.first)
-                    , HA.id id
-                    , HA.value model
-                    ]
-                    []
-        , subscriptions = \_ -> Sub.none
-        , submit =
-            \model ->
-                String.uncons model
-                    |> Maybe.map Tuple.first
-                    |> Result.fromMaybe "This must not be blank"
-        }
 
 
 withLayout :
