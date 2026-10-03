@@ -122,7 +122,18 @@ newForm toFrontendMsg =
         , toFrontendMsg = toFrontendMsg
         , sendToBackend = \_ -> Cmd.none
         , sendToFrontend = \_ _ -> Cmd.none
-        , backendModelGadget = Gadget.fail
+        , backendModelGadget = fail
+        }
+
+
+fail : IR.Gadget a
+fail =
+    IR.Gadget
+        { fromInput = \_ -> UnitValue
+        , toOutput =
+            \path _ ->
+                Err [ { error = "unit toOutput failed", path = path } ]
+        , irType = UnitType IR.emptyMetadata
         }
 
 
