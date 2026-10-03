@@ -230,28 +230,28 @@ withOverride id (Control toControl) (FormBuilder builder) =
 
 
 withIntControl : Control backendModel Int -> FormBuilder backendModel backendMsg frontendMsg -> FormBuilder backendModel backendMsg frontendMsg
-withIntControl c (FormBuilder builder) =
-    FormBuilder { builder | int = c }
+withIntControl control (FormBuilder builder) =
+    FormBuilder { builder | int = control }
 
 
 withFloatControl : Control backendModel Float -> FormBuilder backendModel backendMsg frontendMsg -> FormBuilder backendModel backendMsg frontendMsg
-withFloatControl c (FormBuilder builder) =
-    FormBuilder { builder | float = c }
+withFloatControl control (FormBuilder builder) =
+    FormBuilder { builder | float = control }
 
 
 withStringControl : Control backendModel String -> FormBuilder backendModel backendMsg frontendMsg -> FormBuilder backendModel backendMsg frontendMsg
-withStringControl c (FormBuilder builder) =
-    FormBuilder { builder | string = c }
+withStringControl control (FormBuilder builder) =
+    FormBuilder { builder | string = control }
 
 
 withCharControl : Control backendModel Char -> FormBuilder backendModel backendMsg frontendMsg -> FormBuilder backendModel backendMsg frontendMsg
-withCharControl c (FormBuilder builder) =
-    FormBuilder { builder | char = c }
+withCharControl control (FormBuilder builder) =
+    FormBuilder { builder | char = control }
 
 
 withBoolControl : Control backendModel Bool -> FormBuilder backendModel backendMsg frontendMsg -> FormBuilder backendModel backendMsg frontendMsg
-withBoolControl c (FormBuilder builder) =
-    FormBuilder { builder | bool = c }
+withBoolControl control (FormBuilder builder) =
+    FormBuilder { builder | bool = control }
 
 
 type alias InternalConfig =
