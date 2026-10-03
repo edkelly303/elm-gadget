@@ -113,8 +113,8 @@ element { placeholder, init, load, update, view, subscriptions, submit, modelGad
 {-| Turn a `Definition` into a `Control`.
 -}
 define :
-    { frontendMsgGadget : IR.Gadget frontendMsg
-    , frontendModelGadget : IR.Gadget frontendModel
+    { frontendModelGadget : IR.Gadget frontendModel
+    , frontendMsgGadget : IR.Gadget frontendMsg
     , outputGadget : IR.Gadget output
     , toBackendGadget : IR.Gadget toBackend
     , toFrontendGadget : IR.Gadget toFrontend
