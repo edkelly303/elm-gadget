@@ -1,31 +1,35 @@
 module Gadget.Adapter.Form.Lamdera exposing
-    ( CmdType
-    , Control
-    , ControlDefinition
-    , Form
+    ( Form
     , Model
     , Msg
     , customLabels
     , endForm
-    , fromCmd
     , label
-    , makeControl
     , newForm
-    , noCmd
     , override
-    , sendCmd
     , withBackend
     , withOverride
     )
 
 import Dict exposing (Dict)
 import Gadget
+import Gadget.Adapter.Form.Control as Control exposing (Command, Control(..), noCommand)
+import Gadget.Adapter.Form.Internal as Internal exposing (InnerControl, batchCommands, concatCommands, mapCommand, toCmd)
 import Gadget.IR as IR exposing (Error, Path, Type(..), Value(..), VariantType(..), VariantValue(..))
 import Html as H
 import Html.Attributes as HA
 import Html.Events as HE
 import List.Extra
-import Result.Extra
+
+
+type Msg
+    = Msg Path Value
+
+
+{-| A type used within `Error` to specify _where_ something went wrong.
+-}
+type alias Path =
+    List String
 
 
 tools : IR.MetadataTools meta a
@@ -75,13 +79,6 @@ type PrimitiveType
     | POverride String
 
 
-{-| The internal messages used to update the form - as a user of this module,
-you don't need to worry about the details, so this is an opaque type.
--}
-type Msg
-    = Msg Path Value
-
-
 type FormBuilder backendModel backendMsg frontendMsg
     = FormBuilder
         { bool : Control backendModel Bool
@@ -91,7 +88,7 @@ type FormBuilder backendModel backendMsg frontendMsg
         , string : Control backendModel String
         , viewFeedback : String -> H.Html Msg
         , viewControl : Bool -> List (H.Html Msg) -> List (H.Html Msg)
-        , overrides : Dict String (IR.Gadget backendModel -> InnerControl)
+        , overrides : Dict String (IR.Gadget backendModel -> Internal.InnerControl)
         , toFrontendMsg : Msg -> frontendMsg
         , sendToBackend : Msg -> Cmd frontendMsg
         , sendToFrontend : String -> Msg -> Cmd backendMsg
@@ -102,11 +99,11 @@ type FormBuilder backendModel backendMsg frontendMsg
 newForm : (Msg -> frontendMsg) -> FormBuilder backendModel backendMsg frontendMsg
 newForm toFrontendMsg =
     FormBuilder
-        { bool = bool
-        , int = int
-        , float = float
-        , char = char
-        , string = string
+        { bool = Control.bool
+        , int = Control.int
+        , float = Control.float
+        , char = Control.char
+        , string = Control.string
         , viewFeedback = \error -> H.span [] [ H.text error ]
         , viewControl =
             \validity inner ->
@@ -184,19 +181,6 @@ endForm gadget (FormBuilder builder) =
             , viewControl = builder.viewControl
             , overrides = unwrappedOverrides
             }
-
-        processCmd (CmdType cmdTypes) =
-            List.map
-                (\cmdType ->
-                    case cmdType of
-                        Cmd cmd ->
-                            Cmd.map builder.toFrontendMsg cmd
-
-                        ToBackend toBackend ->
-                            builder.sendToBackend toBackend
-                )
-                cmdTypes
-                |> Cmd.batch
     in
     { init =
         let
@@ -204,7 +188,7 @@ endForm gadget (FormBuilder builder) =
                 init config gadget
         in
         ( newModel
-        , processCmd cmdType
+        , toCmd builder.toFrontendMsg builder.sendToBackend cmdType
         )
     , load = \output -> load config gadget output
     , update =
@@ -214,7 +198,7 @@ endForm gadget (FormBuilder builder) =
                     update .update config msg model
             in
             ( newModel
-            , processCmd cmdType
+            , toCmd builder.toFrontendMsg builder.sendToBackend cmdType
             )
     , updateFromBackend =
         \msg model ->
@@ -223,7 +207,7 @@ endForm gadget (FormBuilder builder) =
                     update .updateFromBackend config msg model
             in
             ( newModel
-            , processCmd cmdType
+            , toCmd builder.toFrontendMsg builder.sendToBackend cmdType
             )
     , view = \model -> view config gadget model |> H.map builder.toFrontendMsg
     , subscriptions = \model -> subscriptions config model |> Sub.map builder.toFrontendMsg
@@ -241,209 +225,15 @@ withOverride id (Control toControl) (FormBuilder builder) =
 
 
 type alias InternalConfig =
-    { bool : InnerControl
-    , int : InnerControl
-    , float : InnerControl
-    , char : InnerControl
-    , string : InnerControl
+    { bool : Internal.InnerControl
+    , int : Internal.InnerControl
+    , float : Internal.InnerControl
+    , char : Internal.InnerControl
+    , string : Internal.InnerControl
+    , overrides : Dict String Internal.InnerControl
     , viewFeedback : String -> H.Html Msg
     , viewControl : Bool -> List (H.Html Msg) -> List (H.Html Msg)
-    , overrides : Dict String InnerControl
     }
-
-
-{-| A custom form control.
--}
-type Control backendModel output
-    = Control (IR.Gadget backendModel -> InnerControl)
-
-
-type alias InnerControl =
-    { init : ( Value, CmdType Value Value )
-    , load : Value -> Value
-    , placeholder : Value
-    , update : Value -> Value -> ( Value, CmdType Value Value )
-    , updateFromBackend : Value -> Value -> ( Value, CmdType Value Value )
-    , view : String -> Value -> H.Html Value
-    , subscriptions : Value -> Sub Value
-    , layout : { label : H.Html Msg, input : H.Html Msg, feedback : H.Html Msg } -> List (H.Html Msg)
-    , submit : Path -> Value -> Result (List Error) Value
-    , respond : Value -> Value -> Value
-    }
-
-
-{-| A definition for a custom form control.
--}
-type alias ControlDefinition toBackend toFrontend backendModel frontendMsg frontendModel output =
-    { frontendMsgGadget : IR.Gadget frontendMsg
-    , frontendModelGadget : IR.Gadget frontendModel
-    , outputGadget : IR.Gadget output
-    , toBackendGadget : IR.Gadget toBackend
-    , toFrontendGadget : IR.Gadget toFrontend
-    , init : ( frontendModel, CmdType frontendMsg toBackend )
-    , placeholder : output
-    , load : output -> frontendModel
-    , update : frontendMsg -> frontendModel -> ( frontendModel, CmdType frontendMsg toBackend )
-    , updateFromBackend : toFrontend -> frontendModel -> ( frontendModel, CmdType frontendMsg toBackend )
-    , view : String -> frontendModel -> H.Html frontendMsg
-    , subscriptions : frontendModel -> Sub frontendMsg
-    , submit : frontendModel -> Result String output
-    , respond : toBackend -> backendModel -> toFrontend
-    }
-
-
-type CmdType frontendMsg toBackend
-    = CmdType (List (Eff frontendMsg toBackend))
-
-
-type Eff frontendMsg toBackend
-    = Cmd (Cmd frontendMsg)
-    | ToBackend toBackend
-
-
-noCmd : CmdType msg toBackend
-noCmd =
-    CmdType []
-
-
-fromCmd : Cmd msg -> CmdType msg toBackend
-fromCmd cmd =
-    CmdType [ Cmd cmd ]
-
-
-sendCmd : toBackend -> CmdType msg toBackend
-sendCmd toBackend =
-    CmdType [ ToBackend toBackend ]
-
-
-batchCmds : List (CmdType msg toBackend) -> CmdType msg toBackend
-batchCmds cmdTypes =
-    List.foldl concatCmds noCmd cmdTypes
-
-
-concatCmds : CmdType msg toBackend -> CmdType msg toBackend -> CmdType msg toBackend
-concatCmds (CmdType cmdType1) (CmdType cmdType2) =
-    CmdType (cmdType1 ++ cmdType2)
-
-
-{-| Turn a `ControlDefinition` into a `Control`.
--}
-makeControl :
-    ControlDefinition toBackend toFrontend backendModel frontendMsg frontendModel output
-    -> Control backendModel output
-makeControl config =
-    let
-        placeholderValue =
-            config.placeholder
-                |> config.load
-                |> IR.fromInput config.frontendModelGadget
-
-        mapCmdType (CmdType cmdTypes) =
-            List.map
-                (\cmdType ->
-                    case cmdType of
-                        Cmd cmd ->
-                            Cmd (Cmd.map (IR.fromInput config.frontendMsgGadget) cmd)
-
-                        ToBackend toBackend ->
-                            ToBackend (IR.fromInput config.toBackendGadget toBackend)
-                )
-                cmdTypes
-                |> CmdType
-    in
-    Control <|
-        \backendModelGadget ->
-            { init =
-                let
-                    ( model, cmdType ) =
-                        config.init
-                in
-                ( IR.fromInput config.frontendModelGadget model
-                , mapCmdType cmdType
-                )
-            , load =
-                \outputValue ->
-                    IR.toOutput config.outputGadget outputValue
-                        |> Result.map (\output -> config.load output)
-                        |> Result.map (IR.fromInput config.frontendModelGadget)
-                        |> Result.withDefault placeholderValue
-            , placeholder = IR.fromInput config.outputGadget config.placeholder
-            , update =
-                \msg modelValue ->
-                    let
-                        result =
-                            Result.map2 config.update
-                                (IR.toOutput config.frontendMsgGadget msg)
-                                (IR.toOutput config.frontendModelGadget modelValue)
-                    in
-                    case result of
-                        Ok ( model, either ) ->
-                            ( IR.fromInput config.frontendModelGadget model
-                            , mapCmdType either
-                            )
-
-                        Err _ ->
-                            ( modelValue
-                            , noCmd
-                            )
-            , updateFromBackend =
-                \msg modelValue ->
-                    let
-                        result =
-                            Result.map2 config.updateFromBackend
-                                (IR.toOutput config.toFrontendGadget msg)
-                                (IR.toOutput config.frontendModelGadget modelValue)
-                    in
-                    case result of
-                        Ok ( model, either ) ->
-                            ( IR.fromInput config.frontendModelGadget model
-                            , mapCmdType either
-                            )
-
-                        Err _ ->
-                            ( modelValue
-                            , noCmd
-                            )
-            , view =
-                \id modelValue ->
-                    Result.map (config.view id) (IR.toOutput config.frontendModelGadget modelValue)
-                        |> Result.Extra.extract (List.map (.error >> H.text) >> H.div [])
-                        |> H.map (\msg -> IR.fromInput config.frontendMsgGadget msg)
-            , layout =
-                \ui ->
-                    [ ui.label, ui.input, ui.feedback ]
-            , subscriptions = \_ -> Sub.none
-            , submit =
-                \path modelValue ->
-                    IR.toOutput config.frontendModelGadget modelValue
-                        |> Result.andThen
-                            (\model ->
-                                config.submit model
-                                    |> Result.mapError (\error -> [ { error = error, path = path } ])
-                                    |> Result.map (IR.fromInput config.outputGadget)
-                            )
-            , respond =
-                \toBackend backendModel ->
-                    Result.map2 config.respond
-                        (IR.toOutput config.toBackendGadget toBackend)
-                        (IR.toOutput backendModelGadget backendModel)
-                        |> Result.map (IR.fromInput config.toFrontendGadget)
-                        |> Result.withDefault IR.UnitValue
-            }
-
-
-withLayout :
-    ({ label : H.Html Msg, input : H.Html Msg, feedback : H.Html Msg } -> List (H.Html Msg))
-    -> Control backendModel output
-    -> Control backendModel output
-withLayout f (Control toControl) =
-    Control <|
-        \backendModelGadget ->
-            let
-                c =
-                    toControl backendModelGadget
-            in
-            { c | layout = f }
 
 
 {-| Add a label to a `Gadget` - this will be displayed as an HTML `<label>` element
@@ -465,29 +255,16 @@ customLabels l ls gadget =
         gadget
 
 
-init : InternalConfig -> IR.Gadget a -> ( Model, CmdType Msg Msg )
+init : InternalConfig -> IR.Gadget a -> ( Model, Command Msg Msg )
 init config gadget =
     initHelp config [] (IR.irType gadget)
 
 
-initHelp : InternalConfig -> Path -> Type -> ( Model, CmdType Msg Msg )
+initHelp : InternalConfig -> Path -> Type -> ( Model, Command Msg Msg )
 initHelp config path irType =
     let
         metadata =
             tools.extract irType
-
-        mapCmdType (CmdType cmdTypes) =
-            List.map
-                (\cmdType ->
-                    case cmdType of
-                        Cmd cmd ->
-                            Cmd (Cmd.map (Msg path) cmd)
-
-                        ToBackend toBackend ->
-                            ToBackend (Msg path toBackend)
-                )
-                cmdTypes
-                |> CmdType
 
         initFor getType primitiveType =
             config
@@ -495,12 +272,12 @@ initHelp config path irType =
                 |> .init
                 |> Tuple.mapBoth
                     (Primitive primitiveType metadata)
-                    mapCmdType
+                    (mapCommand (Msg path) (Msg path))
 
         noOverride =
             case irType of
                 UnitType _ ->
-                    ( Unit, noCmd )
+                    ( Unit, noCommand )
 
                 BoolType _ ->
                     initFor .bool PBool
@@ -547,7 +324,7 @@ initHelp config path irType =
                                 |> Tuple.mapBoth Dict.fromList List.concat
                     in
                     ( Sum firstName metadata namedVariantModels
-                    , batchCmds variantCmds
+                    , batchCommands variantCmds
                     )
 
                 RecordType _ namedFieldTypes ->
@@ -566,12 +343,12 @@ initHelp config path irType =
                                 |> Tuple.mapFirst Dict.fromList
                     in
                     ( Record metadata namedFieldModels
-                    , batchCmds fieldCmds
+                    , batchCommands fieldCmds
                     )
 
                 ListType _ innerType ->
                     ( Collection metadata innerType Dict.empty
-                    , noCmd
+                    , noCommand
                     )
 
                 LazyType _ innerType ->
@@ -586,7 +363,7 @@ initHelp config path irType =
                             initHelp config ("1" :: path) b
                     in
                     ( Tuple metadata aModel bModel
-                    , concatCmds aCmd bCmd
+                    , concatCommands aCmd bCmd
                     )
 
                 TripleType _ a b c ->
@@ -601,7 +378,7 @@ initHelp config path irType =
                             initHelp config ("2" :: path) c
                     in
                     ( Triple metadata aModel bModel cModel
-                    , batchCmds [ aCmd, bCmd, cCmd ]
+                    , batchCommands [ aCmd, bCmd, cCmd ]
                     )
     in
     tools.decode "override" Gadget.string metadata
@@ -613,7 +390,7 @@ initHelp config path irType =
                             overrideControl.init
                                 |> Tuple.mapBoth
                                     (Primitive (POverride overrideName) metadata)
-                                    mapCmdType
+                                    (mapCommand (Msg path) (Msg path))
                         )
             )
         |> Maybe.withDefault noOverride
@@ -765,16 +542,16 @@ respondHelp config modelPath ((Msg msgPath msgValue) as msg) model value =
                     Msg [ "sum no match" ] UnitValue
 
 
-update : (InnerControl -> Value -> Value -> ( Value, CmdType Value Value )) -> InternalConfig -> Msg -> Model -> ( Model, CmdType Msg Msg )
+update : (InnerControl -> Value -> Value -> ( Value, Command Value Value )) -> InternalConfig -> Msg -> Model -> ( Model, Command Msg Msg )
 update updater config msg model =
     updateHelp updater config [] msg model
 
 
-updateHelp : (InnerControl -> Value -> Value -> ( Value, CmdType Value Value )) -> InternalConfig -> Path -> Msg -> Model -> ( Model, CmdType Msg Msg )
+updateHelp : (InnerControl -> Value -> Value -> ( Value, Command Value Value )) -> InternalConfig -> Path -> Msg -> Model -> ( Model, Command Msg Msg )
 updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
     case model of
         Unit ->
-            ( model, noCmd )
+            ( model, noCommand )
 
         Primitive primitiveType metadata modelValue ->
             if modelPath == msgPath then
@@ -785,19 +562,6 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                                 getType config
                         in
                         updater c msgValue modelValue
-
-                    mapCmdType (CmdType cmdTypes) =
-                        List.map
-                            (\cmdType_ ->
-                                case cmdType_ of
-                                    Cmd cmd ->
-                                        Cmd (Cmd.map (Msg modelPath) cmd)
-
-                                    ToBackend toBackend ->
-                                        ToBackend (Msg modelPath toBackend)
-                            )
-                            cmdTypes
-                            |> CmdType
 
                     ( newModelValue, cmdType ) =
                         case primitiveType of
@@ -822,19 +586,19 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                                         updater overrideControl msgValue modelValue
 
                                     Nothing ->
-                                        ( modelValue, noCmd )
+                                        ( modelValue, noCommand )
                 in
                 ( Primitive primitiveType metadata newModelValue
-                , mapCmdType cmdType
+                , mapCommand (Msg modelPath) (Msg modelPath) cmdType
                 )
 
             else
-                ( model, noCmd )
+                ( model, noCommand )
 
         Record metadata fields ->
             case matchPath msgPath modelPath of
                 FullMatch ->
-                    ( model, noCmd )
+                    ( model, noCommand )
 
                 PrefixMatch { next1 } ->
                     case Dict.get next1 fields of
@@ -851,15 +615,15 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                             ( Record metadata newFields, cmd )
 
                         Nothing ->
-                            ( model, noCmd )
+                            ( model, noCommand )
 
                 NoMatch ->
-                    ( model, noCmd )
+                    ( model, noCommand )
 
         Tuple metadata a b ->
             case matchPath msgPath modelPath of
                 FullMatch ->
-                    ( model, noCmd )
+                    ( model, noCommand )
 
                 PrefixMatch { next1 } ->
                     case next1 of
@@ -878,15 +642,15 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                             ( Tuple metadata a new, cmd )
 
                         _ ->
-                            ( model, noCmd )
+                            ( model, noCommand )
 
                 NoMatch ->
-                    ( model, noCmd )
+                    ( model, noCommand )
 
         Triple metadata a b c ->
             case matchPath msgPath modelPath of
                 FullMatch ->
-                    ( model, noCmd )
+                    ( model, noCommand )
 
                 PrefixMatch { next1 } ->
                     case next1 of
@@ -912,10 +676,10 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                             ( Triple metadata a b new, cmd )
 
                         _ ->
-                            ( model, noCmd )
+                            ( model, noCommand )
 
                 NoMatch ->
-                    ( model, noCmd )
+                    ( model, noCommand )
 
         Collection metadata innerType itemModels ->
             let
@@ -933,7 +697,7 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                                     )
 
                                 _ ->
-                                    ( itemModels, noCmd )
+                                    ( itemModels, noCommand )
 
                         PrefixMatch { next1 } ->
                             case Dict.get next1 itemModels of
@@ -947,10 +711,10 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                                     )
 
                                 Nothing ->
-                                    ( itemModels, noCmd )
+                                    ( itemModels, noCommand )
 
                         NoMatch ->
-                            ( itemModels, noCmd )
+                            ( itemModels, noCommand )
             in
             ( Collection metadata innerType newItemModels, itemCmd )
 
@@ -959,10 +723,10 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                 FullMatch ->
                     case msgValue of
                         StringValue newSelected ->
-                            ( Sum newSelected metadata variants, noCmd )
+                            ( Sum newSelected metadata variants, noCommand )
 
                         _ ->
-                            ( model, noCmd )
+                            ( model, noCommand )
 
                 PrefixMatch { next1, next2 } ->
                     case Dict.get next1 variants of
@@ -983,13 +747,13 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                                     )
 
                                 Nothing ->
-                                    ( model, noCmd )
+                                    ( model, noCommand )
 
                         Nothing ->
-                            ( model, noCmd )
+                            ( model, noCommand )
 
                 NoMatch ->
-                    ( model, noCmd )
+                    ( model, noCommand )
 
 
 view : InternalConfig -> IR.Gadget a -> Model -> H.Html Msg
@@ -1041,14 +805,19 @@ viewHelp config errs modelPath model =
                             getType config
                     in
                     config.viewControl isValid <|
-                        c.layout
-                            { label =
-                                H.label [ HA.for id ] [ H.text (maybeLabel metadata |> Maybe.withDefault id) ]
-                            , input =
-                                c.view id modelValue |> H.map (Msg modelPath)
-                            , feedback =
-                                H.output [] feedback
-                            }
+                        List.map
+                            (\ui ->
+                                case ui of
+                                    Internal.Label ->
+                                        H.label [ HA.for id ] [ H.text (maybeLabel metadata |> Maybe.withDefault id) ]
+
+                                    Internal.Input ->
+                                        c.view id modelValue |> H.map (Msg modelPath)
+
+                                    Internal.Feedback ->
+                                        H.output [] feedback
+                            )
+                            c.layout
             in
             case primitiveType of
                 PString ->
@@ -1070,14 +839,19 @@ viewHelp config errs modelPath model =
                     case Dict.get overrideName config.overrides of
                         Just overrideControl ->
                             config.viewControl isValid <|
-                                overrideControl.layout
-                                    { label =
-                                        H.label [ HA.for id ] [ H.text (maybeLabel metadata |> Maybe.withDefault id) ]
-                                    , input =
-                                        overrideControl.view id modelValue |> H.map (Msg modelPath)
-                                    , feedback =
-                                        H.output [] feedback
-                                    }
+                                List.map
+                                    (\ui ->
+                                        case ui of
+                                            Internal.Label ->
+                                                H.label [ HA.for id ] [ H.text (maybeLabel metadata |> Maybe.withDefault id) ]
+
+                                            Internal.Input ->
+                                                overrideControl.view id modelValue |> H.map (Msg modelPath)
+
+                                            Internal.Feedback ->
+                                                H.output [] feedback
+                                    )
+                                    overrideControl.layout
 
                         Nothing ->
                             [ H.text ("Override " ++ overrideName ++ "is missing!") ]
@@ -1544,166 +1318,6 @@ loadHelp config value type_ =
 
                 _ ->
                     Unit
-
-
-int : Control backendModel Int
-int =
-    makeControl
-        { frontendModelGadget = Gadget.string
-        , frontendMsgGadget = Gadget.string
-        , outputGadget = Gadget.int
-        , init = ( "", noCmd )
-        , placeholder = 0
-        , load = String.fromInt
-        , toBackendGadget = Gadget.unit
-        , toFrontendGadget = Gadget.unit
-        , respond = \_ _ -> ()
-        , update = \msg _ -> ( msg, noCmd )
-        , updateFromBackend = \_ model -> ( model, noCmd )
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "number"
-                    , HA.attribute "inputmode" "numeric"
-                    , HE.onInput identity
-                    , HA.id id
-                    , HA.value model
-                    ]
-                    []
-        , subscriptions = \_ -> Sub.none
-        , submit =
-            \model ->
-                String.toInt model
-                    |> Result.fromMaybe "This must be an integer"
-        }
-
-
-float : Control backendModel Float
-float =
-    makeControl
-        { frontendModelGadget = Gadget.string
-        , frontendMsgGadget = Gadget.string
-        , outputGadget = Gadget.float
-        , init = ( "", noCmd )
-        , placeholder = 0.0
-        , load = String.fromFloat
-        , toBackendGadget = Gadget.unit
-        , toFrontendGadget = Gadget.unit
-        , respond = \_ _ -> ()
-        , update = \msg _ -> ( msg, noCmd )
-        , updateFromBackend = \_ model -> ( model, noCmd )
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "number"
-                    , HA.attribute "inputmode" "decimal"
-                    , HE.onInput identity
-                    , HA.id id
-                    , HA.value model
-                    ]
-                    []
-        , subscriptions = \_ -> Sub.none
-        , submit =
-            \model ->
-                String.toFloat model
-                    |> Result.fromMaybe "This must be a decimal number"
-        }
-
-
-string : Control backendModel String
-string =
-    makeControl
-        { frontendModelGadget = Gadget.string
-        , frontendMsgGadget = Gadget.string
-        , outputGadget = Gadget.string
-        , init = ( "", noCmd )
-        , placeholder = ""
-        , load = identity
-        , toBackendGadget = Gadget.unit
-        , toFrontendGadget = Gadget.unit
-        , respond = \_ _ -> ()
-        , update = \msg _ -> ( msg, noCmd )
-        , updateFromBackend = \_ model -> ( model, noCmd )
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "text"
-                    , HE.onInput identity
-                    , HA.id id
-                    , HA.value model
-                    ]
-                    []
-        , subscriptions = \_ -> Sub.none
-        , submit = Ok
-        }
-
-
-bool : Control backendModel Bool
-bool =
-    makeControl
-        { frontendModelGadget = Gadget.bool
-        , frontendMsgGadget = Gadget.bool
-        , outputGadget = Gadget.bool
-        , init = ( False, noCmd )
-        , placeholder = False
-        , load = identity
-        , toBackendGadget = Gadget.unit
-        , toFrontendGadget = Gadget.unit
-        , respond = \_ _ -> ()
-        , update = \msg _ -> ( msg, noCmd )
-        , updateFromBackend = \_ model -> ( model, noCmd )
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "checkbox"
-                    , HE.onCheck identity
-                    , HA.checked model
-                    , HA.id id
-                    ]
-                    []
-        , subscriptions = \_ -> Sub.none
-        , submit = Ok
-        }
-        |> withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
-
-
-char : Control backendModel Char
-char =
-    makeControl
-        { frontendModelGadget = Gadget.string
-        , frontendMsgGadget = Gadget.maybe Gadget.char
-        , outputGadget = Gadget.char
-        , init = ( "", noCmd )
-        , placeholder = 'a'
-        , load = String.fromChar
-        , toBackendGadget = Gadget.unit
-        , toFrontendGadget = Gadget.unit
-        , respond = \_ _ -> ()
-        , update =
-            \msg _ ->
-                case msg of
-                    Nothing ->
-                        ( "", noCmd )
-
-                    Just c ->
-                        ( String.fromChar c, noCmd )
-        , updateFromBackend = \_ model -> ( model, noCmd )
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "text"
-                    , HE.onInput (\str -> String.uncons str |> Maybe.map Tuple.first)
-                    , HA.id id
-                    , HA.value model
-                    ]
-                    []
-        , subscriptions = \_ -> Sub.none
-        , submit =
-            \model ->
-                String.uncons model
-                    |> Maybe.map Tuple.first
-                    |> Result.fromMaybe "This must not be blank"
-        }
 
 
 argsListToVariantValue : List Value -> Result String IR.VariantValue

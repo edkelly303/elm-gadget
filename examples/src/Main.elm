@@ -5,6 +5,7 @@ import Fuzz
 import Gadget
 import Gadget.Adapter.Diff
 import Gadget.Adapter.Form.Lamdera as Form
+import Gadget.Adapter.Form.Control as Control
 import Gadget.Adapter.Fuzz
 import Gadget.Adapter.Html
 import Gadget.Adapter.Json
@@ -279,7 +280,7 @@ backendModelGadget =
 
 
 myInt =
-    Form.makeControl
+    Control.define
         { toBackendGadget = Gadget.unit
         , toFrontendGadget = Gadget.int
         , frontendModelGadget = Gadget.int
@@ -296,11 +297,11 @@ myInt =
                         ]
                         []
                     ]
-        , update = \() model -> ( model, Form.sendCmd () )
-        , updateFromBackend = \int model -> ( int, Form.noCmd )
+        , update = \() model -> ( model, Control.sendCommand () )
+        , updateFromBackend = \int model -> ( int, Control.noCommand )
         , subscriptions = \model -> Sub.none
         , submit = Ok
-        , init = ( 0, Form.noCmd )
+        , init = ( 0, Control.noCommand )
         , placeholder = 0
         , load = identity
         , respond = \() { int } -> int
@@ -308,7 +309,7 @@ myInt =
 
 
 myFloat =
-    Form.makeControl
+    Control.define
         { toBackendGadget = Gadget.unit
         , toFrontendGadget = Gadget.float
         , frontendModelGadget = Gadget.float
@@ -325,11 +326,11 @@ myFloat =
                         ]
                         []
                     ]
-        , update = \() model -> ( model, Form.sendCmd () )
-        , updateFromBackend = \float model -> ( float, Form.noCmd )
+        , update = \() model -> ( model, Control.sendCommand () )
+        , updateFromBackend = \float model -> ( float, Control.noCommand )
         , subscriptions = \model -> Sub.none
         , submit = Ok
-        , init = ( 0.5, Form.noCmd )
+        , init = ( 0.5, Control.noCommand )
         , placeholder = 0.0
         , load = identity
         , respond = \() { float } -> float
