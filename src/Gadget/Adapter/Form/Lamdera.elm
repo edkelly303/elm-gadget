@@ -1,5 +1,5 @@
 module Gadget.Adapter.Form.Lamdera exposing
-    ( CmdType(..)
+    ( CmdType
     , Control
     , ControlDefinition
     , Form
@@ -7,10 +7,13 @@ module Gadget.Adapter.Form.Lamdera exposing
     , Msg
     , customLabels
     , endForm
+    , fromCmd
     , label
     , makeControl
     , newForm
+    , noCmd
     , override
+    , sendCmd
     , withBackend
     , withOverride
     )
@@ -181,36 +184,39 @@ endForm gadget (FormBuilder builder) =
             , viewControl = builder.viewControl
             , overrides = unwrappedOverrides
             }
+
+        processCmd (CmdType cmdTypes) =
+            List.map
+                (\cmdType ->
+                    case cmdType of
+                        Cmd cmd ->
+                            Cmd.map builder.toFrontendMsg cmd
+
+                        ToBackend toBackend ->
+                            builder.sendToBackend toBackend
+                )
+                cmdTypes
+                |> Cmd.batch
     in
     { init = init config gadget |> Tuple.mapSecond (Cmd.map builder.toFrontendMsg)
     , load = \output -> load config gadget output
     , update =
         \msg model ->
             let
-                ( newModel, either ) =
+                ( newModel, cmdType ) =
                     update .update config msg model
             in
             ( newModel
-            , case either of
-                Cmd cmd ->
-                    Cmd.map builder.toFrontendMsg cmd
-
-                ToBackend toBackend ->
-                    builder.sendToBackend toBackend
+            , processCmd cmdType
             )
     , updateFromBackend =
         \msg model ->
             let
-                ( newModel, either ) =
+                ( newModel, cmdType ) =
                     update .updateFromBackend config msg model
             in
             ( newModel
-            , case either of
-                Cmd cmd ->
-                    Cmd.map builder.toFrontendMsg cmd
-
-                ToBackend toBackend ->
-                    builder.sendToBackend toBackend
+            , processCmd cmdType
             )
     , view = \model -> view config gadget model |> H.map builder.toFrontendMsg
     , subscriptions = \model -> subscriptions config model |> Sub.map builder.toFrontendMsg
@@ -280,8 +286,27 @@ type alias ControlDefinition toBackend toFrontend backendModel frontendMsg front
 
 
 type CmdType frontendMsg toBackend
+    = CmdType (List (Eff frontendMsg toBackend))
+
+
+type Eff frontendMsg toBackend
     = Cmd (Cmd frontendMsg)
     | ToBackend toBackend
+
+
+noCmd : CmdType msg toBackend
+noCmd =
+    CmdType []
+
+
+fromCmd : Cmd msg -> CmdType msg toBackend
+fromCmd cmd =
+    CmdType [ Cmd cmd ]
+
+
+sendCmd : toBackend -> CmdType msg toBackend
+sendCmd toBackend =
+    CmdType [ ToBackend toBackend ]
 
 
 {-| Turn a `ControlDefinition` into a `Control`.
@@ -295,6 +320,19 @@ makeControl config =
             config.placeholder
                 |> config.load
                 |> IR.fromInput config.frontendModelGadget
+
+        mapCmdType (CmdType cmdTypes) =
+            List.map
+                (\cmdType ->
+                    case cmdType of
+                        Cmd cmd ->
+                            Cmd (Cmd.map (IR.fromInput config.frontendMsgGadget) cmd)
+
+                        ToBackend toBackend ->
+                            ToBackend (IR.fromInput config.toBackendGadget toBackend)
+                )
+                cmdTypes
+                |> CmdType
     in
     Control <|
         \backendModelGadget ->
@@ -317,17 +355,12 @@ makeControl config =
                     case result of
                         Ok ( model, either ) ->
                             ( IR.fromInput config.frontendModelGadget model
-                            , case either of
-                                Cmd cmd ->
-                                    Cmd (Cmd.map (IR.fromInput config.frontendMsgGadget) cmd)
-
-                                ToBackend toBackend ->
-                                    ToBackend (IR.fromInput config.toBackendGadget toBackend)
+                            , mapCmdType either
                             )
 
                         Err _ ->
                             ( modelValue
-                            , Cmd Cmd.none
+                            , noCmd
                             )
             , updateFromBackend =
                 \msg modelValue ->
@@ -340,17 +373,12 @@ makeControl config =
                     case result of
                         Ok ( model, either ) ->
                             ( IR.fromInput config.frontendModelGadget model
-                            , case either of
-                                Cmd cmd ->
-                                    Cmd (Cmd.map (IR.fromInput config.frontendMsgGadget) cmd)
-
-                                ToBackend toBackend ->
-                                    ToBackend (IR.fromInput config.toBackendGadget toBackend)
+                            , mapCmdType either
                             )
 
                         Err _ ->
                             ( modelValue
-                            , Cmd Cmd.none
+                            , noCmd
                             )
             , view =
                 \id modelValue ->
@@ -699,7 +727,7 @@ updateHelp : (InnerControl -> Value -> Value -> ( Value, CmdType Value Value )) 
 updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
     case model of
         Unit ->
-            ( model, Cmd Cmd.none )
+            ( model, noCmd )
 
         Primitive primitiveType metadata modelValue ->
             if modelPath == msgPath then
@@ -711,7 +739,20 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                         in
                         updater c msgValue modelValue
 
-                    ( newModelValue, either ) =
+                    mapCmdType (CmdType cmdTypes) =
+                        List.map
+                            (\cmdType_ ->
+                                case cmdType_ of
+                                    Cmd cmd ->
+                                        Cmd (Cmd.map (Msg modelPath) cmd)
+
+                                    ToBackend toBackend ->
+                                        ToBackend (Msg modelPath toBackend)
+                            )
+                            cmdTypes
+                            |> CmdType
+
+                    ( newModelValue, cmdType ) =
                         case primitiveType of
                             PString ->
                                 updateFor .string
@@ -734,24 +775,19 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                                         updater overrideControl msgValue modelValue
 
                                     Nothing ->
-                                        ( modelValue, Cmd Cmd.none )
+                                        ( modelValue, noCmd )
                 in
                 ( Primitive primitiveType metadata newModelValue
-                , case either of
-                    Cmd cmd ->
-                        Cmd (Cmd.map (Msg modelPath) cmd)
-
-                    ToBackend toBackend ->
-                        ToBackend (Msg modelPath toBackend)
+                , mapCmdType cmdType
                 )
 
             else
-                ( model, Cmd Cmd.none )
+                ( model, noCmd )
 
         Record metadata fields ->
             case matchPath msgPath modelPath of
                 FullMatch ->
-                    ( model, Cmd Cmd.none )
+                    ( model, noCmd )
 
                 PrefixMatch { next1 } ->
                     case Dict.get next1 fields of
@@ -768,15 +804,15 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                             ( Record metadata newFields, cmd )
 
                         Nothing ->
-                            ( model, Cmd Cmd.none )
+                            ( model, noCmd )
 
                 NoMatch ->
-                    ( model, Cmd Cmd.none )
+                    ( model, noCmd )
 
         Tuple metadata a b ->
             case matchPath msgPath modelPath of
                 FullMatch ->
-                    ( model, Cmd Cmd.none )
+                    ( model, noCmd )
 
                 PrefixMatch { next1 } ->
                     case next1 of
@@ -795,15 +831,15 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                             ( Tuple metadata a new, cmd )
 
                         _ ->
-                            ( model, Cmd Cmd.none )
+                            ( model, noCmd )
 
                 NoMatch ->
-                    ( model, Cmd Cmd.none )
+                    ( model, noCmd )
 
         Triple metadata a b c ->
             case matchPath msgPath modelPath of
                 FullMatch ->
-                    ( model, Cmd Cmd.none )
+                    ( model, noCmd )
 
                 PrefixMatch { next1 } ->
                     case next1 of
@@ -829,10 +865,10 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                             ( Triple metadata a b new, cmd )
 
                         _ ->
-                            ( model, Cmd Cmd.none )
+                            ( model, noCmd )
 
                 NoMatch ->
-                    ( model, Cmd Cmd.none )
+                    ( model, noCmd )
 
         Collection metadata innerType itemModels ->
             let
@@ -846,11 +882,11 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                                             initHelp config modelPath innerType
                                     in
                                     ( Dict.insert (String.fromInt (Dict.size itemModels)) newItemModel itemModels
-                                    , Cmd newCmd
+                                    , fromCmd newCmd
                                     )
 
                                 _ ->
-                                    ( itemModels, Cmd Cmd.none )
+                                    ( itemModels, noCmd )
 
                         PrefixMatch { next1 } ->
                             case Dict.get next1 itemModels of
@@ -864,10 +900,10 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                                     )
 
                                 Nothing ->
-                                    ( itemModels, Cmd Cmd.none )
+                                    ( itemModels, noCmd )
 
                         NoMatch ->
-                            ( itemModels, Cmd Cmd.none )
+                            ( itemModels, noCmd )
             in
             ( Collection metadata innerType newItemModels, itemCmd )
 
@@ -876,10 +912,10 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                 FullMatch ->
                     case msgValue of
                         StringValue newSelected ->
-                            ( Sum newSelected metadata variants, Cmd Cmd.none )
+                            ( Sum newSelected metadata variants, noCmd )
 
                         _ ->
-                            ( model, Cmd Cmd.none )
+                            ( model, noCmd )
 
                 PrefixMatch { next1, next2 } ->
                     case Dict.get next1 variants of
@@ -900,13 +936,13 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                                     )
 
                                 Nothing ->
-                                    ( model, Cmd Cmd.none )
+                                    ( model, noCmd )
 
                         Nothing ->
-                            ( model, Cmd Cmd.none )
+                            ( model, noCmd )
 
                 NoMatch ->
-                    ( model, Cmd Cmd.none )
+                    ( model, noCmd )
 
 
 view : InternalConfig -> IR.Gadget a -> Model -> H.Html Msg
@@ -1475,8 +1511,8 @@ int =
         , toBackendGadget = Gadget.unit
         , toFrontendGadget = Gadget.unit
         , respond = \_ _ -> ()
-        , update = \msg _ -> ( msg, Cmd Cmd.none )
-        , updateFromBackend = \_ model -> ( model, Cmd Cmd.none )
+        , update = \msg _ -> ( msg, noCmd )
+        , updateFromBackend = \_ model -> ( model, noCmd )
         , view =
             \id model ->
                 H.input
@@ -1507,8 +1543,8 @@ float =
         , toBackendGadget = Gadget.unit
         , toFrontendGadget = Gadget.unit
         , respond = \_ _ -> ()
-        , update = \msg _ -> ( msg, Cmd Cmd.none )
-        , updateFromBackend = \_ model -> ( model, Cmd Cmd.none )
+        , update = \msg _ -> ( msg, noCmd )
+        , updateFromBackend = \_ model -> ( model, noCmd )
         , view =
             \id model ->
                 H.input
@@ -1539,8 +1575,8 @@ string =
         , toBackendGadget = Gadget.unit
         , toFrontendGadget = Gadget.unit
         , respond = \_ _ -> ()
-        , update = \msg _ -> ( msg, Cmd Cmd.none )
-        , updateFromBackend = \_ model -> ( model, Cmd Cmd.none )
+        , update = \msg _ -> ( msg, noCmd )
+        , updateFromBackend = \_ model -> ( model, noCmd )
         , view =
             \id model ->
                 H.input
@@ -1567,8 +1603,8 @@ bool =
         , toBackendGadget = Gadget.unit
         , toFrontendGadget = Gadget.unit
         , respond = \_ _ -> ()
-        , update = \msg _ -> ( msg, Cmd Cmd.none )
-        , updateFromBackend = \_ model -> ( model, Cmd Cmd.none )
+        , update = \msg _ -> ( msg, noCmd )
+        , updateFromBackend = \_ model -> ( model, noCmd )
         , view =
             \id model ->
                 H.input
@@ -1600,11 +1636,11 @@ char =
             \msg _ ->
                 case msg of
                     Nothing ->
-                        ( "", Cmd Cmd.none )
+                        ( "", noCmd )
 
                     Just c ->
-                        ( String.fromChar c, Cmd Cmd.none )
-        , updateFromBackend = \_ model -> ( model, Cmd Cmd.none )
+                        ( String.fromChar c, noCmd )
+        , updateFromBackend = \_ model -> ( model, noCmd )
         , view =
             \id model ->
                 H.input

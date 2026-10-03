@@ -296,8 +296,8 @@ myInt =
                         ]
                         []
                     ]
-        , update = \() model -> ( model, Form.ToBackend () )
-        , updateFromBackend = \int model -> ( int, Form.Cmd Cmd.none )
+        , update = \() model -> ( model, Form.sendCmd () )
+        , updateFromBackend = \int model -> ( int, Form.noCmd )
         , subscriptions = \model -> Sub.none
         , submit = Ok
         , init = ( 0, Cmd.none )
@@ -325,8 +325,8 @@ myFloat =
                         ]
                         []
                     ]
-        , update = \() model -> ( model, Form.ToBackend () )
-        , updateFromBackend = \float model -> ( float, Form.Cmd Cmd.none )
+        , update = \() model -> ( model, Form.sendCmd () )
+        , updateFromBackend = \float model -> ( float, Form.noCmd )
         , subscriptions = \model -> Sub.none
         , submit = Ok
         , init = ( 0.5, Cmd.none )
