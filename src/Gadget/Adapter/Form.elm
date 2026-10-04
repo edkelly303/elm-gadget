@@ -216,7 +216,7 @@ endForm gadget (FormBuilder builder) =
             )
     , view = \model -> view config gadget model |> H.map builder.toFrontendMsg
     , subscriptions = \model -> subscriptions config model |> Sub.map builder.toFrontendMsg
-    , submit = submit config gadget
+    , submit = \model -> submit config gadget model
     , respond =
         \sessionId toBackend value ->
             respond config toBackend gadget (IR.fromInput builder.backendModelGadget value)
