@@ -188,17 +188,9 @@ type Msg
     | UserChangedPrettyWidth String
     | NewSeed Int
     | FormReceivedMsg Form.Msg
-    | FormReceivedMsgFromBackend ToFrontend
+    | FormReceivedMsgFromBackend Form.Msg
     | FormSubmitted
-    | SimulateBackend ToBackend
-
-
-type ToBackend
-    = ToBackend Form.Msg
-
-
-type ToFrontend
-    = ToFrontend Form.Msg
+    | SimulateBackend Form.Msg
 
 
 update msg model =
@@ -227,7 +219,7 @@ update msg model =
             , formCmd
             )
 
-        FormReceivedMsgFromBackend (ToFrontend toFrontend) ->
+        FormReceivedMsgFromBackend toFrontend ->
             let
                 ( formModel, formCmd ) =
                     form.updateFromBackend toFrontend model.form
@@ -242,7 +234,7 @@ update msg model =
                 , Cmd.none
                 )
 
-        SimulateBackend (ToBackend toBackend) ->
+        SimulateBackend toBackend ->
             ( model
             , form.respond "" toBackend { int = 1, float = 1.2 }
             )
@@ -332,7 +324,7 @@ lamdera_sendToBackend toBackend =
         _ =
             Debug.log "sendToBackend" toBackend
     in
-    Task.perform (\() -> SimulateBackend (ToBackend toBackend)) (Process.sleep 0)
+    Task.perform (\() -> SimulateBackend toBackend) (Process.sleep 0)
 
 
 lamdera_sendToFrontend : sessionId -> Form.Msg -> Cmd Msg
@@ -343,7 +335,7 @@ lamdera_sendToFrontend sessionId toFrontend =
                 _ =
                     Debug.log "sendToFrontend" toFrontend
             in
-            FormReceivedMsgFromBackend (ToFrontend toFrontend)
+            FormReceivedMsgFromBackend toFrontend
         )
         (Process.sleep 1000)
 
