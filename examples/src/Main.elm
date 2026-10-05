@@ -223,7 +223,7 @@ update msg model =
             ( { model | form = formModel }
             , formCmd
             )
-            
+
         FormReceivedMsgFromBackend (ToFrontend toFrontend) ->
             let
                 ( formModel, formCmd ) =
@@ -237,7 +237,6 @@ update msg model =
             ( model
             , form.respond "" toBackend { int = 1, float = 1.2 }
             )
-
 
 
 form =
