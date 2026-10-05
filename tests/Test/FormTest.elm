@@ -27,7 +27,8 @@ suite =
                             |> G.endRecord
 
                     form =
-                        F.fromGadget identity g
+                        F.newForm identity 
+                            |> F.endForm g
 
                     errors =
                         form.init
@@ -58,7 +59,8 @@ suite =
 
                     -- this error is on the root gadget, which is a direct ancestor of `bar`
                     form =
-                        F.fromGadget identity g
+                        F.newForm identity 
+                            |> F.endForm g
 
                     errors =
                         form.init
