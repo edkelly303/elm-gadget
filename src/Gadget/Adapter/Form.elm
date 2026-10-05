@@ -30,6 +30,24 @@ import Html.Events as HE
 import List.Extra
 
 
+tools : IR.MetadataTools meta a
+tools =
+    IR.makeMetadataTools "Gadget.Adapter.Form"
+
+
+
+{-
+   d888888b db    db d8888b. d88888b .d8888.
+   `~~88~~' `8b  d8' 88  `8D 88'     88'  YP
+      88     `8bd8'  88oodD' 88ooooo `8bo.
+      88       88    88~~~   88~~~~~   `Y8b.
+      88       88    88      88.     db   8D
+      YP       YP    88      Y88888P `8888Y'
+
+
+-}
+
+
 type Msg
     = Msg Path Value
 
@@ -38,16 +56,6 @@ type Msg
 -}
 type alias Path =
     List String
-
-
-tools : IR.MetadataTools meta a
-tools =
-    IR.makeMetadataTools "Gadget.Adapter.Form"
-
-
-override : String -> IR.Gadget a -> IR.Gadget a
-override overrideName gadget =
-    tools.attach "override" Gadget.string overrideName gadget
 
 
 {-| A record of functions that you can plumb into a standard Elm application to
@@ -119,6 +127,19 @@ type alias InternalConfig frontendMsg =
     }
 
 
+
+{-
+   d88888b  .d88b.  d8888b. .88b  d88. .d8888.
+   88'     .8P  Y8. 88  `8D 88'YbdP`88 88'  YP
+   88ooo   88    88 88oobY' 88  88  88 `8bo.
+   88~~~   88    88 88`8b   88  88  88   `Y8b.
+   88      `8b  d8' 88 `88. 88  88  88 db   8D
+   YP       `Y88P'  88   YD YP  YP  YP `8888Y'
+
+
+-}
+
+
 newForm : (Msg -> frontendMsg) -> FormBuilder backendModel backendMsg frontendMsg
 newForm toFrontendMsg =
     FormBuilder
@@ -147,17 +168,6 @@ newForm toFrontendMsg =
         , sendToBackend = \_ -> Cmd.none
         , sendToFrontend = \_ _ -> Cmd.none
         , backendModelGadget = fail
-        }
-
-
-fail : IR.Gadget a
-fail =
-    IR.Gadget
-        { fromInput = \_ -> UnitValue
-        , toOutput =
-            \path _ ->
-                Err [ { error = "unit toOutput failed", path = path } ]
-        , irType = UnitType IR.emptyMetadata
         }
 
 
@@ -300,6 +310,24 @@ withTopLevelView f (FormBuilder builder) =
     FormBuilder { builder | viewTopLevel = f }
 
 
+
+{-
+    d888b   .d8b.  d8888b.  d888b  d88888b d888888b .d8888.
+   88' Y8b d8' `8b 88  `8D 88' Y8b 88'     `~~88~~' 88'  YP
+   88      88ooo88 88   88 88      88ooooo    88    `8bo.
+   88  ooo 88~~~88 88   88 88  ooo 88~~~~~    88      `Y8b.
+   88. ~8~ 88   88 88  .8D 88. ~8~ 88.        88    db   8D
+    Y888P  YP   YP Y8888D'  Y888P  Y88888P    YP    `8888Y'
+
+
+-}
+
+
+override : String -> IR.Gadget a -> IR.Gadget a
+override overrideName gadget =
+    tools.attach "override" Gadget.string overrideName gadget
+
+
 {-| Add a label to a `Gadget` - this will be displayed as an HTML `<label>` element
 -}
 label : String -> IR.Gadget a -> IR.Gadget a
@@ -317,6 +345,19 @@ customLabels l ls gadget =
         (Gadget.tuple Gadget.string (Gadget.list Gadget.string))
         ( l, ls )
         gadget
+
+
+
+{-
+   d888888b d8b   db d888888b d888888b
+     `88'   888o  88   `88'   `~~88~~'
+      88    88V8o 88    88       88
+      88    88 V8o88    88       88
+     .88.   88  V888   .88.      88
+   Y888888P VP   V8P Y888888P    YP
+
+
+-}
 
 
 init : InternalConfig frontendMsg -> IR.Gadget a -> ( Model, Command Msg Msg )
@@ -460,150 +501,134 @@ initHelp config path irType =
         |> Maybe.withDefault noOverride
 
 
-respond : InternalConfig frontendMsg -> Msg -> IR.Gadget a -> Value -> Msg
-respond config toBackend gadget value =
+
+{-
+   db       .d88b.   .d8b.  d8888b.
+   88      .8P  Y8. d8' `8b 88  `8D
+   88      88    88 88ooo88 88   88
+   88      88    88 88~~~88 88   88
+   88booo. `8b  d8' 88   88 88  .8D
+   Y88888P  `Y88P'  YP   YP Y8888D'
+
+
+-}
+
+
+load : InternalConfig frontendMsg -> IR.Gadget a -> a -> Model
+load config gadget a =
+    loadHelp config (IR.fromInput gadget a) (IR.irType gadget)
+
+
+loadHelp : InternalConfig frontendMsg -> Value -> Type -> Model
+loadHelp config value type_ =
     let
-        ( model, _ ) =
-            init config gadget
+        metadata =
+            tools.extract type_
     in
-    respondHelp config [] toBackend model value
+    case
+        tools.decode "override" Gadget.string metadata
+            |> Maybe.andThen
+                (\overrideName ->
+                    Dict.get overrideName config.overrides
+                        |> Maybe.map
+                            (\overrideControl ->
+                                Primitive (POverride overrideName) metadata (overrideControl.load value)
+                            )
+                )
+    of
+        Just model ->
+            model
 
+        Nothing ->
+            let
+                loadMe typ getType =
+                    let
+                        c =
+                            getType config
+                    in
+                    Primitive typ metadata (c.load value)
+            in
+            case ( value, type_ ) of
+                ( UnitValue, UnitType _ ) ->
+                    Unit
 
-respondHelp : InternalConfig frontendMsg -> Path -> Msg -> Model -> Value -> Msg
-respondHelp config modelPath ((Msg msgPath msgValue) as msg) model value =
-    case model of
-        Unit ->
-            Msg msgPath UnitValue
+                ( BoolValue _, BoolType _ ) ->
+                    loadMe PBool .bool
 
-        Primitive primitiveType _ _ ->
-            if modelPath == msgPath then
-                let
-                    respondFor getType =
-                        (getType config).respond msgValue value
+                ( CharValue _, CharType _ ) ->
+                    loadMe PChar .char
 
-                    toFrontend =
-                        case primitiveType of
-                            PString ->
-                                respondFor .string
+                ( StringValue _, StringType _ ) ->
+                    loadMe PString .string
 
-                            PChar ->
-                                respondFor .char
+                ( IntValue _, IntType _ ) ->
+                    loadMe PInt .int
 
-                            PInt ->
-                                respondFor .int
+                ( FloatValue _, FloatType _ ) ->
+                    loadMe PFloat .float
 
-                            PFloat ->
-                                respondFor .float
+                ( RecordValue namedFieldValues, RecordType _ namedFieldTypes ) ->
+                    List.Extra.zip namedFieldValues namedFieldTypes
+                        |> List.indexedMap (\idx ( ( name, fieldValue ), ( _, fieldType ) ) -> ( name, ( idx, loadHelp config fieldValue fieldType ) ))
+                        |> Dict.fromList
+                        |> Record 0 metadata
 
-                            PBool ->
-                                respondFor .bool
+                ( CustomValue selected ( name, variantValue ), CustomType _ firstNameAndVariantType restNamesAndVariantTypes ) ->
+                    let
+                        blank =
+                            initHelp config [] type_
+                                |> Tuple.first
+                    in
+                    case blank of
+                        Sum _ _ variantModels ->
+                            let
+                                argValues =
+                                    variantValueToArgsList variantValue
 
-                            POverride name ->
-                                case Dict.get name config.overrides of
-                                    Nothing ->
-                                        UnitValue
+                                argTypes =
+                                    List.Extra.getAt selected (firstNameAndVariantType :: restNamesAndVariantTypes)
+                                        |> Maybe.map Tuple.second
+                                        |> Maybe.withDefault Variant0Type
+                                        |> variantTypeToArgsList
 
-                                    Just o ->
-                                        o.respond msgValue value
-                in
-                Msg modelPath toFrontend
-
-            else
-                Msg [ "primitiveFailed" ] UnitValue
-
-        Record _ _ fields ->
-            case matchPath msgPath modelPath of
-                FullMatch ->
-                    Msg [] UnitValue
-
-                PrefixMatch { next1 } ->
-                    case Dict.get next1 fields of
-                        Just ( _, oldField ) ->
-                            respondHelp config (next1 :: modelPath) msg oldField value
-
-                        Nothing ->
-                            Msg [ "record no field" ] UnitValue
-
-                NoMatch ->
-                    Msg [ "record no match" ] UnitValue
-
-        Tuple _ a b ->
-            case matchPath msgPath modelPath of
-                FullMatch ->
-                    Msg [ "tuple full match" ] UnitValue
-
-                PrefixMatch { next1 } ->
-                    case next1 of
-                        "0" ->
-                            respondHelp config ("0" :: modelPath) msg a value
-
-                        "1" ->
-                            respondHelp config ("1" :: modelPath) msg b value
-
-                        _ ->
-                            Msg [ "tuple field doesn't exist" ] UnitValue
-
-                NoMatch ->
-                    Msg [ "tuple no match" ] UnitValue
-
-        Triple _ a b c ->
-            case matchPath msgPath modelPath of
-                FullMatch ->
-                    Msg [ "triple full match" ] UnitValue
-
-                PrefixMatch { next1 } ->
-                    case next1 of
-                        "0" ->
-                            respondHelp config ("0" :: modelPath) msg a value
-
-                        "1" ->
-                            respondHelp config ("1" :: modelPath) msg b value
-
-                        "2" ->
-                            respondHelp config ("2" :: modelPath) msg c value
+                                newArgsDict =
+                                    List.map2
+                                        (\( argName, argValue ) ( _, argType ) -> ( argName, loadHelp config argValue argType ))
+                                        argValues
+                                        argTypes
+                                        |> Dict.fromList
+                            in
+                            Sum name metadata (Dict.insert name ( selected, newArgsDict ) variantModels)
 
                         _ ->
-                            Msg [ "triple field doesn't exist" ] UnitValue
+                            blank
 
-                NoMatch ->
-                    Msg [ "triple no match" ] UnitValue
+                ( ListValue itemValues, ListType _ itemType ) ->
+                    List.indexedMap (\idx itemValue -> ( String.fromInt idx, loadHelp config itemValue itemType )) itemValues
+                        |> Dict.fromList
+                        |> Collection metadata itemType
 
-        Collection _ itemType _ ->
-            case matchPath msgPath modelPath of
-                FullMatch ->
-                    Msg [ "collection full match" ] UnitValue
+                ( TupleValue aValue bValue, TupleType _ aType bType ) ->
+                    Tuple metadata (loadHelp config aValue aType) (loadHelp config bValue bType)
 
-                PrefixMatch { next1 } ->
-                    respondHelp
-                        config
-                        (next1 :: modelPath)
-                        msg
-                        (initHelp config (next1 :: modelPath) itemType |> Tuple.first)
-                        value
+                ( TripleValue aValue bValue cValue, TripleType _ aType bType cType ) ->
+                    Triple metadata (loadHelp config aValue aType) (loadHelp config bValue bType) (loadHelp config cValue cType)
 
-                NoMatch ->
-                    Msg [ "collection no match" ] UnitValue
+                _ ->
+                    Unit
 
-        Sum _ _ variants ->
-            case matchPath msgPath modelPath of
-                FullMatch ->
-                    Msg [ "sum full match" ] UnitValue
 
-                PrefixMatch { next1, next2 } ->
-                    case Dict.get next1 variants of
-                        Just ( _, args ) ->
-                            case Dict.get next2 args of
-                                Just arg ->
-                                    respondHelp config (next2 :: next1 :: modelPath) msg arg value
 
-                                Nothing ->
-                                    Msg [ "sum arg not found" ] UnitValue
+{-
+   db    db d8888b. d8888b.  .d8b.  d888888b d88888b
+   88    88 88  `8D 88  `8D d8' `8b `~~88~~' 88'
+   88    88 88oodD' 88   88 88ooo88    88    88ooooo
+   88    88 88~~~   88   88 88~~~88    88    88~~~~~
+   88b  d88 88      88  .8D 88   88    88    88.
+   ~Y8888P' 88      Y8888D' YP   YP    YP    Y88888P
 
-                        Nothing ->
-                            Msg [ "sum variant not found" ] UnitValue
 
-                NoMatch ->
-                    Msg [ "sum no match" ] UnitValue
+-}
 
 
 update : (InnerControl -> Value -> Value -> ( Value, Command Value Value )) -> InternalConfig frontendMsg -> Msg -> Model -> ( Model, Command Msg Msg )
@@ -823,6 +848,19 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
 
                 NoMatch ->
                     ( model, noCommand )
+
+
+
+{-
+   db    db d888888b d88888b db   d8b   db
+   88    88   `88'   88'     88   I8I   88
+   Y8    8P    88    88ooooo 88   I8I   88
+   `8b  d8'    88    88~~~~~ Y8   I8I   88
+    `8bd8'    .88.   88.     `8b d8'8b d8'
+      YP    Y888888P Y88888P  `8b8' `8d8'
+
+
+-}
 
 
 view : InternalConfig frontendMsg -> IR.Gadget a -> Model -> H.Html frontendMsg
@@ -1059,6 +1097,19 @@ viewHelp config errs modelPath model =
                     (selectorView :: childView) ++ feedback
 
 
+
+{-
+   .d8888. db    db d8888b.    dD   d8b   db .d8888.
+   88'  YP 88    88 88  `8D   d8'   888o  88 88'  YP
+   `8bo.   88    88 88oooY'  d8'    88V8o 88 `8bo.
+     `Y8b. 88    88 88~~~b. d8888b. 88 V8o88   `Y8b.
+   db   8D 88b  d88 88   8D 88' `8D 88  V888 db   8D
+   `8888Y' ~Y8888P' Y8888P' `8888P  VP   V8P `8888Y'
+
+
+-}
+
+
 subscriptions : InternalConfig frontendMsg -> Model -> Sub Msg
 subscriptions config model =
     subscriptionsHelp config [] model
@@ -1142,6 +1193,19 @@ subscriptionsHelp config path model =
                 |> Dict.map (\itemName itemModel -> subscriptionsHelp config (itemName :: path) itemModel)
                 |> Dict.values
                 |> Sub.batch
+
+
+
+{-
+   .d8888. db    db d8888b. .88b  d88. d888888b d888888b
+   88'  YP 88    88 88  `8D 88'YbdP`88   `88'   `~~88~~'
+   `8bo.   88    88 88oooY' 88  88  88    88       88
+     `Y8b. 88    88 88~~~b. 88  88  88    88       88
+   db   8D 88b  d88 88   8D 88  88  88   .88.      88
+   `8888Y' ~Y8888P' Y8888P' YP  YP  YP Y888888P    YP
+
+
+-}
 
 
 submit : InternalConfig frontendMsg -> IR.Gadget a -> Model -> Result (List Error) a
@@ -1302,183 +1366,176 @@ parsePrimitiveControls config path model =
                             ( CustomValue idx ( selected, variantValue ), argsErrs )
 
 
-load : InternalConfig frontendMsg -> IR.Gadget a -> a -> Model
-load config gadget a =
-    loadHelp config (IR.fromInput gadget a) (IR.irType gadget)
+
+{-
+   d8888b. d88888b .d8888. d8888b.  .d88b.  d8b   db d8888b.
+   88  `8D 88'     88'  YP 88  `8D .8P  Y8. 888o  88 88  `8D
+   88oobY' 88ooooo `8bo.   88oodD' 88    88 88V8o 88 88   88
+   88`8b   88~~~~~   `Y8b. 88~~~   88    88 88 V8o88 88   88
+   88 `88. 88.     db   8D 88      `8b  d8' 88  V888 88  .8D
+   88   YD Y88888P `8888Y' 88       `Y88P'  VP   V8P Y8888D'
 
 
-loadHelp : InternalConfig frontendMsg -> Value -> Type -> Model
-loadHelp config value type_ =
+-}
+
+
+respond : InternalConfig frontendMsg -> Msg -> IR.Gadget a -> Value -> Msg
+respond config toBackend gadget value =
     let
-        metadata =
-            tools.extract type_
+        ( model, _ ) =
+            init config gadget
     in
-    case
-        tools.decode "override" Gadget.string metadata
-            |> Maybe.andThen
-                (\overrideName ->
-                    Dict.get overrideName config.overrides
-                        |> Maybe.map
-                            (\overrideControl ->
-                                Primitive (POverride overrideName) metadata (overrideControl.load value)
-                            )
-                )
-    of
-        Just model ->
-            model
+    respondHelp config [] toBackend model value
 
-        Nothing ->
-            let
-                loadMe typ getType =
-                    let
-                        c =
-                            getType config
-                    in
-                    Primitive typ metadata (c.load value)
-            in
-            case ( value, type_ ) of
-                ( UnitValue, UnitType _ ) ->
-                    Unit
 
-                ( BoolValue _, BoolType _ ) ->
-                    loadMe PBool .bool
+respondHelp : InternalConfig frontendMsg -> Path -> Msg -> Model -> Value -> Msg
+respondHelp config modelPath ((Msg msgPath msgValue) as msg) model value =
+    case model of
+        Unit ->
+            Msg msgPath UnitValue
 
-                ( CharValue _, CharType _ ) ->
-                    loadMe PChar .char
+        Primitive primitiveType _ _ ->
+            if modelPath == msgPath then
+                let
+                    respondFor getType =
+                        (getType config).respond msgValue value
 
-                ( StringValue _, StringType _ ) ->
-                    loadMe PString .string
+                    toFrontend =
+                        case primitiveType of
+                            PString ->
+                                respondFor .string
 
-                ( IntValue _, IntType _ ) ->
-                    loadMe PInt .int
+                            PChar ->
+                                respondFor .char
 
-                ( FloatValue _, FloatType _ ) ->
-                    loadMe PFloat .float
+                            PInt ->
+                                respondFor .int
 
-                ( RecordValue namedFieldValues, RecordType _ namedFieldTypes ) ->
-                    List.Extra.zip namedFieldValues namedFieldTypes
-                        |> List.indexedMap (\idx ( ( name, fieldValue ), ( _, fieldType ) ) -> ( name, ( idx, loadHelp config fieldValue fieldType ) ))
-                        |> Dict.fromList
-                        |> Record 0 metadata
+                            PFloat ->
+                                respondFor .float
 
-                ( CustomValue selected ( name, variantValue ), CustomType _ firstNameAndVariantType restNamesAndVariantTypes ) ->
-                    let
-                        blank =
-                            initHelp config [] type_
-                                |> Tuple.first
-                    in
-                    case blank of
-                        Sum _ _ variantModels ->
-                            let
-                                argValues =
-                                    variantValueToArgsList variantValue
+                            PBool ->
+                                respondFor .bool
 
-                                argTypes =
-                                    List.Extra.getAt selected (firstNameAndVariantType :: restNamesAndVariantTypes)
-                                        |> Maybe.map Tuple.second
-                                        |> Maybe.withDefault Variant0Type
-                                        |> variantTypeToArgsList
+                            POverride name ->
+                                case Dict.get name config.overrides of
+                                    Nothing ->
+                                        UnitValue
 
-                                newArgsDict =
-                                    List.map2
-                                        (\( argName, argValue ) ( _, argType ) -> ( argName, loadHelp config argValue argType ))
-                                        argValues
-                                        argTypes
-                                        |> Dict.fromList
-                            in
-                            Sum name metadata (Dict.insert name ( selected, newArgsDict ) variantModels)
+                                    Just o ->
+                                        o.respond msgValue value
+                in
+                Msg modelPath toFrontend
+
+            else
+                Msg [ "primitiveFailed" ] UnitValue
+
+        Record _ _ fields ->
+            case matchPath msgPath modelPath of
+                FullMatch ->
+                    Msg [] UnitValue
+
+                PrefixMatch { next1 } ->
+                    case Dict.get next1 fields of
+                        Just ( _, oldField ) ->
+                            respondHelp config (next1 :: modelPath) msg oldField value
+
+                        Nothing ->
+                            Msg [ "record no field" ] UnitValue
+
+                NoMatch ->
+                    Msg [ "record no match" ] UnitValue
+
+        Tuple _ a b ->
+            case matchPath msgPath modelPath of
+                FullMatch ->
+                    Msg [ "tuple full match" ] UnitValue
+
+                PrefixMatch { next1 } ->
+                    case next1 of
+                        "0" ->
+                            respondHelp config ("0" :: modelPath) msg a value
+
+                        "1" ->
+                            respondHelp config ("1" :: modelPath) msg b value
 
                         _ ->
-                            blank
+                            Msg [ "tuple field doesn't exist" ] UnitValue
 
-                ( ListValue itemValues, ListType _ itemType ) ->
-                    List.indexedMap (\idx itemValue -> ( String.fromInt idx, loadHelp config itemValue itemType )) itemValues
-                        |> Dict.fromList
-                        |> Collection metadata itemType
+                NoMatch ->
+                    Msg [ "tuple no match" ] UnitValue
 
-                ( TupleValue aValue bValue, TupleType _ aType bType ) ->
-                    Tuple metadata (loadHelp config aValue aType) (loadHelp config bValue bType)
+        Triple _ a b c ->
+            case matchPath msgPath modelPath of
+                FullMatch ->
+                    Msg [ "triple full match" ] UnitValue
 
-                ( TripleValue aValue bValue cValue, TripleType _ aType bType cType ) ->
-                    Triple metadata (loadHelp config aValue aType) (loadHelp config bValue bType) (loadHelp config cValue cType)
+                PrefixMatch { next1 } ->
+                    case next1 of
+                        "0" ->
+                            respondHelp config ("0" :: modelPath) msg a value
 
-                _ ->
-                    Unit
+                        "1" ->
+                            respondHelp config ("1" :: modelPath) msg b value
 
+                        "2" ->
+                            respondHelp config ("2" :: modelPath) msg c value
 
-argsListToVariantValue : List Value -> Result String IR.VariantValue
-argsListToVariantValue l =
-    case l of
-        [] ->
-            Ok IR.Variant0Value
+                        _ ->
+                            Msg [ "triple field doesn't exist" ] UnitValue
 
-        [ arg1 ] ->
-            Ok <| IR.Variant1Value arg1
+                NoMatch ->
+                    Msg [ "triple no match" ] UnitValue
 
-        [ arg1, arg2 ] ->
-            Ok <| IR.Variant2Value arg1 arg2
+        Collection _ itemType _ ->
+            case matchPath msgPath modelPath of
+                FullMatch ->
+                    Msg [ "collection full match" ] UnitValue
 
-        [ arg1, arg2, arg3 ] ->
-            Ok <| IR.Variant3Value arg1 arg2 arg3
+                PrefixMatch { next1 } ->
+                    respondHelp
+                        config
+                        (next1 :: modelPath)
+                        msg
+                        (initHelp config (next1 :: modelPath) itemType |> Tuple.first)
+                        value
 
-        [ arg1, arg2, arg3, arg4 ] ->
-            Ok <| IR.Variant4Value arg1 arg2 arg3 arg4
+                NoMatch ->
+                    Msg [ "collection no match" ] UnitValue
 
-        [ arg1, arg2, arg3, arg4, arg5 ] ->
-            Ok <| IR.Variant5Value arg1 arg2 arg3 arg4 arg5
+        Sum _ _ variants ->
+            case matchPath msgPath modelPath of
+                FullMatch ->
+                    Msg [ "sum full match" ] UnitValue
 
-        _ ->
-            Err "Variant has too many args"
+                PrefixMatch { next1, next2 } ->
+                    case Dict.get next1 variants of
+                        Just ( _, args ) ->
+                            case Dict.get next2 args of
+                                Just arg ->
+                                    respondHelp config (next2 :: next1 :: modelPath) msg arg value
 
+                                Nothing ->
+                                    Msg [ "sum arg not found" ] UnitValue
 
-variantTypeToArgsList : VariantType -> List ( String, Type )
-variantTypeToArgsList v =
-    List.indexedMap (\idx item -> ( String.fromInt idx, item )) <|
-        case v of
-            Variant0Type ->
-                []
+                        Nothing ->
+                            Msg [ "sum variant not found" ] UnitValue
 
-            Variant1Type arg1 ->
-                [ arg1 ]
-
-            Variant2Type arg1 arg2 ->
-                [ arg1, arg2 ]
-
-            Variant3Type arg1 arg2 arg3 ->
-                [ arg1, arg2, arg3 ]
-
-            Variant4Type arg1 arg2 arg3 arg4 ->
-                [ arg1, arg2, arg3, arg4 ]
-
-            Variant5Type arg1 arg2 arg3 arg4 arg5 ->
-                [ arg1, arg2, arg3, arg4, arg5 ]
-
-
-variantValueToArgsList : VariantValue -> List ( String, Value )
-variantValueToArgsList v =
-    List.indexedMap (\idx item -> ( String.fromInt idx, item )) <|
-        case v of
-            Variant0Value ->
-                []
-
-            Variant1Value arg1 ->
-                [ arg1 ]
-
-            Variant2Value arg1 arg2 ->
-                [ arg1, arg2 ]
-
-            Variant3Value arg1 arg2 arg3 ->
-                [ arg1, arg2, arg3 ]
-
-            Variant4Value arg1 arg2 arg3 arg4 ->
-                [ arg1, arg2, arg3, arg4 ]
-
-            Variant5Value arg1 arg2 arg3 arg4 arg5 ->
-                [ arg1, arg2, arg3, arg4, arg5 ]
+                NoMatch ->
+                    Msg [ "sum no match" ] UnitValue
 
 
 
--- PATH
+{-
+   d8888b.  .d8b.  d888888b db   db
+   88  `8D d8' `8b `~~88~~' 88   88
+   88oodD' 88ooo88    88    88ooo88
+   88~~~   88~~~88    88    88~~~88
+   88      88   88    88    88   88
+   88      YP   YP    YP    YP   YP
+
+
+-}
 
 
 pathToString : Path -> String
@@ -1582,6 +1639,19 @@ type Match
     = FullMatch
     | PrefixMatch { next1 : String, next2 : String }
     | NoMatch
+
+
+
+{-
+    .o88b.  .d88b.  d8b   db d888888b d8888b.  .d88b.  db      .d8888.
+   d8P  Y8 .8P  Y8. 888o  88 `~~88~~' 88  `8D .8P  Y8. 88      88'  YP
+   8P      88    88 88V8o 88    88    88oobY' 88    88 88      `8bo.
+   8b      88    88 88 V8o88    88    88`8b   88    88 88        `Y8b.
+   Y8b  d8 `8b  d8' 88  V888    88    88 `88. `8b  d8' 88booo. db   8D
+    `Y88P'  `Y88P'  VP   V8P    YP    88   YD  `Y88P'  Y88888P `8888Y'
+
+
+-}
 
 
 intControl : Control backendModel Int
@@ -1717,3 +1787,98 @@ charControl =
                     |> Maybe.map Tuple.first
                     |> Result.fromMaybe "This must not be blank"
         }
+
+
+fail : IR.Gadget a
+fail =
+    IR.Gadget
+        { fromInput = \_ -> UnitValue
+        , toOutput =
+            \path _ ->
+                Err [ { error = "unit toOutput failed", path = path } ]
+        , irType = UnitType IR.emptyMetadata
+        }
+
+
+
+{-
+   db   db d88888b db      d8888b. d88888b d8888b. .d8888.
+   88   88 88'     88      88  `8D 88'     88  `8D 88'  YP
+   88ooo88 88ooooo 88      88oodD' 88ooooo 88oobY' `8bo.
+   88~~~88 88~~~~~ 88      88~~~   88~~~~~ 88`8b     `Y8b.
+   88   88 88.     88booo. 88      88.     88 `88. db   8D
+   YP   YP Y88888P Y88888P 88      Y88888P 88   YD `8888Y'
+
+
+-}
+
+
+argsListToVariantValue : List Value -> Result String IR.VariantValue
+argsListToVariantValue l =
+    case l of
+        [] ->
+            Ok IR.Variant0Value
+
+        [ arg1 ] ->
+            Ok <| IR.Variant1Value arg1
+
+        [ arg1, arg2 ] ->
+            Ok <| IR.Variant2Value arg1 arg2
+
+        [ arg1, arg2, arg3 ] ->
+            Ok <| IR.Variant3Value arg1 arg2 arg3
+
+        [ arg1, arg2, arg3, arg4 ] ->
+            Ok <| IR.Variant4Value arg1 arg2 arg3 arg4
+
+        [ arg1, arg2, arg3, arg4, arg5 ] ->
+            Ok <| IR.Variant5Value arg1 arg2 arg3 arg4 arg5
+
+        _ ->
+            Err "Variant has too many args"
+
+
+variantTypeToArgsList : VariantType -> List ( String, Type )
+variantTypeToArgsList v =
+    List.indexedMap (\idx item -> ( String.fromInt idx, item )) <|
+        case v of
+            Variant0Type ->
+                []
+
+            Variant1Type arg1 ->
+                [ arg1 ]
+
+            Variant2Type arg1 arg2 ->
+                [ arg1, arg2 ]
+
+            Variant3Type arg1 arg2 arg3 ->
+                [ arg1, arg2, arg3 ]
+
+            Variant4Type arg1 arg2 arg3 arg4 ->
+                [ arg1, arg2, arg3, arg4 ]
+
+            Variant5Type arg1 arg2 arg3 arg4 arg5 ->
+                [ arg1, arg2, arg3, arg4, arg5 ]
+
+
+variantValueToArgsList : VariantValue -> List ( String, Value )
+variantValueToArgsList v =
+    List.indexedMap (\idx item -> ( String.fromInt idx, item )) <|
+        case v of
+            Variant0Value ->
+                []
+
+            Variant1Value arg1 ->
+                [ arg1 ]
+
+            Variant2Value arg1 arg2 ->
+                [ arg1, arg2 ]
+
+            Variant3Value arg1 arg2 arg3 ->
+                [ arg1, arg2, arg3 ]
+
+            Variant4Value arg1 arg2 arg3 arg4 ->
+                [ arg1, arg2, arg3, arg4 ]
+
+            Variant5Value arg1 arg2 arg3 arg4 arg5 ->
+                [ arg1, arg2, arg3, arg4, arg5 ]
