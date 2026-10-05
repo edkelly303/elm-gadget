@@ -99,7 +99,12 @@ type FormBuilder backendModel backendMsg frontendMsg
         , string : Control backendModel String
         , viewFeedback : String -> H.Html frontendMsg
         , viewControl : Bool -> List (H.Html frontendMsg) -> List (H.Html frontendMsg)
-        , viewTopLevel : (Int -> frontendMsg) -> Int -> List (H.Html frontendMsg) -> List (H.Html frontendMsg)
+        , viewTopLevel :
+            { switchActiveField : Int -> frontendMsg
+            , activeField : Int
+            , fieldViews : List (H.Html frontendMsg)
+            }
+            -> List (H.Html frontendMsg)
         , overrides : Dict String (IR.Gadget backendModel -> Internal.InnerControl)
         , toFrontendMsg : Msg -> frontendMsg
         , sendToBackend : Msg -> Cmd frontendMsg
@@ -117,7 +122,12 @@ type alias InternalConfig frontendMsg =
     , overrides : Dict String Internal.InnerControl
     , viewFeedback : String -> H.Html frontendMsg
     , viewControl : Bool -> List (H.Html frontendMsg) -> List (H.Html frontendMsg)
-    , viewTopLevel : (Int -> frontendMsg) -> Int -> List (H.Html frontendMsg) -> List (H.Html frontendMsg)
+    , viewTopLevel :
+        { switchActiveField : Int -> frontendMsg
+        , activeField : Int
+        , fieldViews : List (H.Html frontendMsg)
+        }
+        -> List (H.Html frontendMsg)
     , toFrontendMsg : Msg -> frontendMsg
     }
 
@@ -186,7 +196,7 @@ newForm toFrontendMsg =
         , char = charControl
         , string = stringControl
         , viewFeedback = \error -> H.span [] [ H.text error ]
-        , viewTopLevel = \_ _ inner -> inner
+        , viewTopLevel = \{ fieldViews } -> fieldViews
         , viewControl =
             \validity inner ->
                 [ H.node "form-control"
@@ -340,7 +350,12 @@ withFeedbackView f (FormBuilder builder) =
 
 
 withTopLevelView :
-    ((Int -> frontendMsg) -> Int -> List (H.Html frontendMsg) -> List (H.Html frontendMsg))
+    ({ switchActiveField : Int -> frontendMsg
+     , activeField : Int
+     , fieldViews : List (H.Html frontendMsg)
+     }
+     -> List (H.Html frontendMsg)
+    )
     -> FormBuilder backendModel backendMsg frontendMsg
     -> FormBuilder backendModel backendMsg frontendMsg
 withTopLevelView f (FormBuilder builder) =
@@ -1123,20 +1138,24 @@ viewHelp config errs modelPath model =
 
                 isTopLevel =
                     List.isEmpty modelPath
+
+                fieldViews =
+                    case maybeLabel metadata of
+                        Nothing ->
+                            inner ++ feedback
+
+                        Just label_ ->
+                            H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) :: feedback
             in
-            (if isTopLevel then
-                config.viewTopLevel (config.toFrontendMsg << Msg [] << IntValue) active
+            if isTopLevel then
+                config.viewTopLevel
+                    { switchActiveField = config.toFrontendMsg << Msg [] << IntValue
+                    , activeField = active
+                    , fieldViews = fieldViews
+                    }
 
-             else
-                identity
-            )
-            <|
-                case maybeLabel metadata of
-                    Nothing ->
-                        inner ++ feedback
-
-                    Just label_ ->
-                        H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) :: feedback
+            else
+                fieldViews
 
         Tuple metadata a b ->
             let

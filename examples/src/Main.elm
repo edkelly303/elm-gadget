@@ -255,21 +255,37 @@ form =
             , backendModelGadget = backendModelGadget
             }
         |> Form.withTopLevelView
-            (\toMsg active controls ->
-                case List.Extra.getAt active controls of
+            (\{ switchActiveField, activeField, fieldViews } ->
+                case List.Extra.getAt activeField fieldViews of
                     Just control ->
                         let
                             numberOfPages =
-                                List.length controls
+                                List.length fieldViews
+
+                            pages =
+                                List.indexedMap
+                                    (\idx fv ->
+                                        H.span
+                                            [ HA.class
+                                                (if idx == activeField then
+                                                    "active"
+
+                                                 else
+                                                    "inactive"
+                                                )
+                                            ]
+                                            [ fv ]
+                                    )
+                                    fieldViews
                         in
-                        [ control
+                        [ H.div [ HA.id "wizard-pages" ] pages
                         , H.div [ HA.id "wizard-controls" ]
                             [ H.input
                                 [ HA.type_ "button"
-                                , HE.onClick (toMsg (active - 1))
+                                , HE.onClick (switchActiveField (activeField - 1))
                                 , HA.value "Previous"
                                 , HA.style "visibility"
-                                    (if active > 0 then
+                                    (if activeField > 0 then
                                         "visible"
 
                                      else
@@ -277,11 +293,11 @@ form =
                                     )
                                 ]
                                 []
-                            , H.text ("Page " ++ String.fromInt (active + 1) ++ " of " ++ String.fromInt numberOfPages)
-                            , if active < numberOfPages - 1 then
+                            , H.text ("Page " ++ String.fromInt (activeField + 1) ++ " of " ++ String.fromInt numberOfPages)
+                            , if activeField < numberOfPages - 1 then
                                 H.input
                                     [ HA.type_ "button"
-                                    , HE.onClick (toMsg (active + 1))
+                                    , HE.onClick (switchActiveField (activeField + 1))
                                     , HA.value "Next"
                                     ]
                                     []
