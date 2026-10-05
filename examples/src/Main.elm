@@ -47,15 +47,15 @@ personGadget =
             .name
             (Gadget.string
                 |> Gadget.filterMap
-                    (\s ->
+                    (\string ->
                         case
                             List.filterMap identity
-                                [ if String.isEmpty s then
+                                [ if String.isEmpty string then
                                     Just "This must not be blank"
 
                                   else
                                     Nothing
-                                , if String.length s < 2 then
+                                , if String.length string < 2 then
                                     Just "This must be at least 2 characters"
 
                                   else
@@ -63,7 +63,7 @@ personGadget =
                                 ]
                         of
                             [] ->
-                                Ok s
+                                Ok string
 
                             errs ->
                                 Err errs
