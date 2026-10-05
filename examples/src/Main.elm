@@ -263,31 +263,35 @@ form =
                                 List.length controls
                         in
                         [ control
-                        , H.div []
-                            [ if active > 0 then
-                                H.input
-                                    [ HA.type_ "button"
-                                    , HE.onClick (toMsg (active - 1))
-                                    , HA.value "previous"
-                                    ]
-                                    []
+                        , H.div [ HA.id "wizard-controls" ]
+                            [ H.input
+                                [ HA.type_ "button"
+                                , HE.onClick (toMsg (active - 1))
+                                , HA.value "Previous"
+                                , HA.style "visibility"
+                                    (if active > 0 then
+                                        "visible"
 
-                              else
-                                H.text ""
+                                     else
+                                        "hidden"
+                                    )
+                                ]
+                                []
                             , H.text ("Page " ++ String.fromInt (active + 1) ++ " of " ++ String.fromInt numberOfPages)
                             , if active < numberOfPages - 1 then
                                 H.input
                                     [ HA.type_ "button"
                                     , HE.onClick (toMsg (active + 1))
-                                    , HA.value "next"
+                                    , HA.value "Next"
                                     ]
                                     []
 
                               else
                                 H.input
                                     [ HA.type_ "button"
+                                    , HA.id "wizard-submit"
                                     , HE.onClick FormSubmitted
-                                    , HA.value "submit"
+                                    , HA.value "Submit"
                                     ]
                                     []
                             ]
