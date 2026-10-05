@@ -235,11 +235,11 @@ update msg model =
             , Cmd.none
             )
 
-        FormSubmitted ->   
+        FormSubmitted ->
             Debug.log "Submitted!"
-            ( model
-            , Cmd.none
-            )
+                ( model
+                , Cmd.none
+                )
 
         SimulateBackend (ToBackend toBackend) ->
             ( model
