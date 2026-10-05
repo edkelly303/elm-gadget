@@ -16,6 +16,7 @@ module Gadget.Adapter.Form exposing
     , withIntControl
     , withOverride
     , withStringControl
+    , withTopLevelView
     )
 
 import Dict exposing (Dict)
@@ -95,6 +96,7 @@ type FormBuilder backendModel backendMsg frontendMsg
         , string : Control backendModel String
         , viewFeedback : String -> H.Html Msg
         , viewControl : Bool -> List (H.Html Msg) -> List (H.Html Msg)
+        , viewTopLevel : List (H.Html Msg) -> List (H.Html Msg)
         , overrides : Dict String (IR.Gadget backendModel -> Internal.InnerControl)
         , toFrontendMsg : Msg -> frontendMsg
         , sendToBackend : Msg -> Cmd frontendMsg
@@ -112,6 +114,7 @@ newForm toFrontendMsg =
         , char = charControl
         , string = stringControl
         , viewFeedback = \error -> H.span [] [ H.text error ]
+        , viewTopLevel = identity
         , viewControl =
             \validity inner ->
                 [ H.node "form-control"
@@ -160,6 +163,7 @@ withBackend args (FormBuilder builder) =
         , string = builder.string
         , viewFeedback = builder.viewFeedback
         , viewControl = builder.viewControl
+        , viewTopLevel = builder.viewTopLevel
         , overrides = builder.overrides
         , toFrontendMsg = builder.toFrontendMsg
         , sendToBackend = args.sendToBackend
@@ -184,9 +188,10 @@ endForm gadget (FormBuilder builder) =
             , float = unwrapControl builder.float
             , char = unwrapControl builder.char
             , string = unwrapControl builder.string
+            , overrides = unwrappedOverrides
             , viewFeedback = builder.viewFeedback
             , viewControl = builder.viewControl
-            , overrides = unwrappedOverrides
+            , viewTopLevel = builder.viewTopLevel
             }
     in
     { init =
@@ -272,6 +277,14 @@ withFeedbackView f (FormBuilder builder) =
     FormBuilder { builder | viewFeedback = f }
 
 
+withTopLevelView :
+    (List (H.Html Msg) -> List (H.Html Msg))
+    -> FormBuilder backendModel backendMsg frontendMsg
+    -> FormBuilder backendModel backendMsg frontendMsg
+withTopLevelView f (FormBuilder builder) =
+    FormBuilder { builder | viewTopLevel = f }
+
+
 type alias InternalConfig =
     { bool : Internal.InnerControl
     , int : Internal.InnerControl
@@ -281,6 +294,7 @@ type alias InternalConfig =
     , overrides : Dict String Internal.InnerControl
     , viewFeedback : String -> H.Html Msg
     , viewControl : Bool -> List (H.Html Msg) -> List (H.Html Msg)
+    , viewTopLevel : List (H.Html Msg) -> List (H.Html Msg)
     }
 
 
@@ -909,7 +923,20 @@ viewHelp config errs modelPath model =
                 inner =
                     Dict.toList fields
                         |> List.sortBy (\( _, ( idx, _ ) ) -> idx)
-                        |> List.concatMap (\( name, ( _, childModel ) ) -> viewHelp config errs (name :: modelPath) childModel)
+                        |> List.concatMap
+                            (\( name, ( _, childModel ) ) ->
+                                (if isTopLevel then
+                                    config.viewTopLevel
+
+                                 else
+                                    identity
+                                )
+                                <|
+                                    viewHelp config errs (name :: modelPath) childModel
+                            )
+
+                isTopLevel =
+                    List.isEmpty modelPath
             in
             case maybeLabel metadata of
                 Nothing ->
@@ -986,39 +1013,43 @@ viewHelp config errs modelPath model =
                         ( customLabel_, variantLabels ) =
                             tools.decode "customLabel" (Gadget.tuple Gadget.string (Gadget.list Gadget.string)) metadata
                                 |> Maybe.withDefault ( pathToString modelPath, [] )
-                    in
-                    (H.fieldset [ HA.class "custom-variant-selector" ]
-                        (H.legend [] [ H.text customLabel_ ]
-                            :: (childModels
-                                    |> Dict.map
-                                        (\name ( idx, _ ) ->
-                                            let
-                                                childId =
-                                                    pathToString (name :: modelPath)
-                                            in
-                                            H.span []
-                                                [ H.input
-                                                    [ HA.id childId
-                                                    , HA.name id
-                                                    , HA.type_ "radio"
-                                                    , HE.onCheck (\_ -> Msg modelPath (StringValue name))
-                                                    , HA.checked (selected == name)
-                                                    ]
-                                                    []
-                                                , H.label [ HA.for childId ]
-                                                    [ H.text
-                                                        (List.Extra.getAt idx variantLabels
-                                                            |> Maybe.withDefault (maybeLabel metadata |> Maybe.withDefault "")
-                                                        )
-                                                    ]
-                                                ]
+
+                        selectorView =
+                            H.fieldset [ HA.class "custom-variant-selector" ]
+                                (H.legend [] [ H.text customLabel_ ]
+                                    :: (childModels
+                                            |> Dict.map radioButtonView
+                                            |> Dict.values
+                                       )
+                                )
+
+                        radioButtonView name ( idx, _ ) =
+                            let
+                                childId =
+                                    pathToString (name :: modelPath)
+                            in
+                            H.span []
+                                [ H.input
+                                    [ HA.id childId
+                                    , HA.name id
+                                    , HA.type_ "radio"
+                                    , HE.onCheck (\_ -> Msg modelPath (StringValue name))
+                                    , HA.checked (selected == name)
+                                    ]
+                                    []
+                                , H.label [ HA.for childId ]
+                                    [ H.text
+                                        (case List.Extra.getAt idx variantLabels of
+                                            Just variantLabel ->
+                                                variantLabel
+
+                                            Nothing ->
+                                                name
                                         )
-                                    |> Dict.values
-                               )
-                        )
-                        :: childView
-                    )
-                        ++ feedback
+                                    ]
+                                ]
+                    in
+                    selectorView :: childView ++ feedback
 
 
 subscriptions : InternalConfig -> Model -> Sub Msg
