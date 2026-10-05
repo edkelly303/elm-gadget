@@ -10,6 +10,8 @@ module Gadget.Adapter.Form exposing
     , withBackend
     , withBoolControl
     , withCharControl
+    , withControlView
+    , withFeedbackView
     , withFloatControl
     , withIntControl
     , withOverride
@@ -252,6 +254,22 @@ withCharControl control (FormBuilder builder) =
 withBoolControl : Control backendModel Bool -> FormBuilder backendModel backendMsg frontendMsg -> FormBuilder backendModel backendMsg frontendMsg
 withBoolControl control (FormBuilder builder) =
     FormBuilder { builder | bool = control }
+
+
+withControlView :
+    (Bool -> List (H.Html Msg) -> List (H.Html Msg))
+    -> FormBuilder backendModel backendMsg frontendMsg
+    -> FormBuilder backendModel backendMsg frontendMsg
+withControlView f (FormBuilder builder) =
+    FormBuilder { builder | viewControl = f }
+
+
+withFeedbackView :
+    (String -> H.Html Msg)
+    -> FormBuilder backendModel backendMsg frontendMsg
+    -> FormBuilder backendModel backendMsg frontendMsg
+withFeedbackView f (FormBuilder builder) =
+    FormBuilder { builder | viewFeedback = f }
 
 
 type alias InternalConfig =
