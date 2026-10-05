@@ -246,7 +246,7 @@ form =
             , sendToFrontend = lamdera_sendToFrontend
             , backendModelGadget = backendModelGadget
             }
-        |> Form.withTopLevelView (\controls -> [H.details [HA.name "wiz"] controls])
+        |> Form.withTopLevelView (\controls -> [ H.details [ HA.name "wiz" ] controls ])
         |> Form.withOverride "heightInCentimetres" myFloat
         |> Form.withIntControl counter
         |> Form.endForm gadget
