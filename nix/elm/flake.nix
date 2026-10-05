@@ -120,6 +120,5 @@
           ln -s elm-0.19.3 $out/bin/elm-latest
         '';
       };
-
   };
 }
