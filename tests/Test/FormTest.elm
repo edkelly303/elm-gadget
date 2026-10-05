@@ -27,7 +27,7 @@ suite =
                             |> G.endRecord
 
                     form =
-                        F.newForm identity 
+                        F.newForm identity
                             |> F.endForm g
 
                     errors =
@@ -59,7 +59,7 @@ suite =
 
                     -- this error is on the root gadget, which is a direct ancestor of `bar`
                     form =
-                        F.newForm identity 
+                        F.newForm identity
                             |> F.endForm g
 
                     errors =
