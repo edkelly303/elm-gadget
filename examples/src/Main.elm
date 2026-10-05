@@ -23,6 +23,7 @@ import List.Extra
 import Parser
 import Process
 import Random
+import Set
 import Task
 
 
@@ -255,66 +256,70 @@ form =
             , backendModelGadget = backendModelGadget
             }
         |> Form.withTopLevelView
-            (\{ switchActiveField, activeField, fieldViews } ->
-                case List.Extra.getAt activeField fieldViews of
-                    Just control ->
-                        let
-                            numberOfPages =
-                                List.length fieldViews
+            (\{ switchActiveField, activeField, fieldViews, result } ->
+                let
+                    numberOfPages =
+                        List.length fieldViews
 
-                            pages =
-                                List.indexedMap
-                                    (\idx fv ->
-                                        H.span
-                                            [ HA.class
-                                                (if idx == activeField then
-                                                    "active"
+                    pages =
+                        List.indexedMap
+                            (\idx fv ->
+                                H.span
+                                    [ HA.class
+                                        (if idx == activeField then
+                                            "active"
 
-                                                 else
-                                                    "inactive"
-                                                )
-                                            ]
-                                            [ fv ]
-                                    )
-                                    fieldViews
-                        in
-                        [ H.div [ HA.id "wizard-pages" ] pages
-                        , H.div [ HA.id "wizard-controls" ]
-                            [ H.input
-                                [ HA.type_ "button"
-                                , HE.onClick (switchActiveField (activeField - 1))
-                                , HA.value "Previous"
-                                , HA.style "visibility"
-                                    (if activeField > 0 then
-                                        "visible"
-
-                                     else
-                                        "hidden"
-                                    )
-                                ]
-                                []
-                            , H.text ("Page " ++ String.fromInt (activeField + 1) ++ " of " ++ String.fromInt numberOfPages)
-                            , if activeField < numberOfPages - 1 then
-                                H.input
-                                    [ HA.type_ "button"
-                                    , HE.onClick (switchActiveField (activeField + 1))
-                                    , HA.value "Next"
+                                         else
+                                            "inactive"
+                                        )
                                     ]
-                                    []
+                                    [ fv ]
+                            )
+                            (fieldViews ++ summary)
 
-                              else
-                                H.input
-                                    [ HA.type_ "button"
-                                    , HA.id "wizard-submit"
-                                    , HE.onClick FormSubmitted
-                                    , HA.value "Submit"
-                                    ]
-                                    []
-                            ]
+                    ( summary, errors ) =
+                        case result of
+                            Ok person ->
+                                ( [ H.text person.name ], Set.empty )
+
+                            Err e ->
+                                ( [ H.text "error!" ], e )
+                in
+                [ H.div [ HA.id "wizard-pages" ] pages
+                , H.div [ HA.id "wizard-controls" ]
+                    [ H.input
+                        [ HA.type_ "button"
+                        , HE.onClick (switchActiveField (activeField - 1))
+                        , HA.value "Previous"
+                        , HA.style "visibility"
+                            (if activeField > 0 then
+                                "visible"
+
+                             else
+                                "hidden"
+                            )
                         ]
-
-                    Nothing ->
                         []
+                    , H.text ("Page " ++ String.fromInt (activeField + 1) ++ " of " ++ String.fromInt (numberOfPages + 1))
+                    , if activeField < numberOfPages then
+                        H.input
+                            [ HA.type_ "button"
+                            , HE.onClick (switchActiveField (activeField + 1))
+                            , HA.value "Next"
+                            , HA.disabled (Set.member activeField errors)
+                            ]
+                            []
+
+                      else
+                        H.input
+                            [ HA.type_ "button"
+                            , HA.id "wizard-submit"
+                            , HE.onClick FormSubmitted
+                            , HA.value "Submit"
+                            ]
+                            []
+                    ]
+                ]
             )
         |> Form.withOverride "heightInCentimetres" myFloat
         |> Form.withIntControl counter
