@@ -211,12 +211,31 @@ form {
     flex-direction: column;
     gap: 20px;
 
+    & #wizard-pages {
+        display: grid;
+        align-items: center;
+
+        &>* {
+            grid-column: 1;
+            grid-row: 1;
+        }
+
+        &>.inactive {
+            visibility: hidden;
+        }
+    }
+
     & #wizard-controls {
         display: flex;
         justify-content: space-between;
         align-items: center;
         gap: 20px;
-        & #wizard-submit {background-color: rgb(255, 248, 205);}
+
+        & #wizard-submit {
+            background-color: rgb(255, 248, 205);
+        }
+
+
     }
 
     & .counter {
@@ -239,7 +258,7 @@ form {
         min-width: none;
     }
 
-    & :has(input[type="checkbox"]+label) {
+    & form-control:has(input[type="checkbox"]+label) {
         flex-direction: row;
     }
 
