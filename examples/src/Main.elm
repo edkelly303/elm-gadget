@@ -19,6 +19,7 @@ import Html.Attributes as HA
 import Html.Events as HE
 import Json.Decode as JD
 import Json.Encode as JE
+import List.Extra
 import Parser
 import Process
 import Random
@@ -187,6 +188,7 @@ type Msg
     | NewSeed Int
     | FormReceivedMsg Form.Msg
     | FormReceivedMsgFromBackend ToFrontend
+    | FormSubmitted
     | SimulateBackend ToBackend
 
 
@@ -233,6 +235,12 @@ update msg model =
             , Cmd.none
             )
 
+        FormSubmitted ->   
+            Debug.log "Submitted!"
+            ( model
+            , Cmd.none
+            )
+
         SimulateBackend (ToBackend toBackend) ->
             ( model
             , form.respond "" toBackend { int = 1, float = 1.2 }
@@ -246,7 +254,48 @@ form =
             , sendToFrontend = lamdera_sendToFrontend
             , backendModelGadget = backendModelGadget
             }
-        |> Form.withTopLevelView (\controls -> [ H.details [ HA.name "wiz" ] controls ])
+        |> Form.withTopLevelView
+            (\toMsg active controls ->
+                case List.Extra.getAt active controls of
+                    Just control ->
+                        let
+                            numberOfPages =
+                                List.length controls
+                        in
+                        [ control
+                        , H.div []
+                            [ if active > 0 then
+                                H.input
+                                    [ HA.type_ "button"
+                                    , HE.onClick (toMsg (active - 1))
+                                    , HA.value "previous"
+                                    ]
+                                    []
+
+                              else
+                                H.text ""
+                            , H.text ("Page " ++ String.fromInt (active + 1) ++ " of " ++ String.fromInt numberOfPages)
+                            , if active < numberOfPages - 1 then
+                                H.input
+                                    [ HA.type_ "button"
+                                    , HE.onClick (toMsg (active + 1))
+                                    , HA.value "next"
+                                    ]
+                                    []
+
+                              else
+                                H.input
+                                    [ HA.type_ "button"
+                                    , HE.onClick FormSubmitted
+                                    , HA.value "submit"
+                                    ]
+                                    []
+                            ]
+                        ]
+
+                    Nothing ->
+                        []
+            )
         |> Form.withOverride "heightInCentimetres" myFloat
         |> Form.withIntControl counter
         |> Form.endForm gadget
