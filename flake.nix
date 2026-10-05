@@ -3,7 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
-    elm-0-19-2-pkg.url = "path:./nix/elm";
+    elmPkg.url = "path:./nix/elm";
   };
 
   outputs =
@@ -14,7 +14,7 @@
         system = system;
         config.allowUnfree = true;
       };
-      elm-0-19-2 = inputs.elm-0-19-2-pkg.defaultPackage.${system};
+      elmWrapper = inputs.elmPkg.packages.${system}.default;
     in
     {
       # SHELL
@@ -24,9 +24,7 @@
           git
           xdg-utils
           nodejs
-          # use our own flake for Elm until nixpkgs has 0.19.2
-          # elmPackages.elm
-          elm-0-19-2
+          elmWrapper
           elmPackages.elm-json
           elmPackages.elm-format
           elmPackages.elm-test
