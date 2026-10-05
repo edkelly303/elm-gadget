@@ -13,7 +13,7 @@
           {
             version = "0.19.3";
             name = "elm-0.19.3-linux-x64";
-            sha = "sha256-3X+el2FzvcQIyDnzzlBj+I6Q6R5zXcHepaVJBrqDLYs=";
+            sha = "sha256-0RcCsxV37YtyC52BxSyKGaUrcrH8+t7w/K2S8heYxYo=";
           }
           {
             version = "0.19.2";
