@@ -5,8 +5,11 @@ STAGED=$(git diff --name-only --staged --diff-filter=d | grep -i ".elm$")
 if [[ -n "$STAGED" ]]; then
 
     printf "  1. Running elm-format... "
-
-    if elm-format "$STAGED" --yes ; then
+    # Don't double-quote $STAGED, we want it to do the globbing.
+    # shellcheck disable=SC2086
+    if elm-format $STAGED --yes ; then
+        # shellcheck disable=SC2086
+        git add $STAGED
         printf "Success!\n\n"
     else 
         printf "Failed!\n\n"
