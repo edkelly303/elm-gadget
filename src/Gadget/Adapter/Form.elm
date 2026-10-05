@@ -30,11 +30,6 @@ import Html.Events as HE
 import List.Extra
 
 
-tools : IR.MetadataTools meta a
-tools =
-    IR.makeMetadataTools "Gadget.Adapter.Form"
-
-
 
 {-
    d888888b db    db d8888b. d88888b .d8888.
@@ -125,6 +120,48 @@ type alias InternalConfig frontendMsg =
     , viewTopLevel : (Int -> frontendMsg) -> Int -> List (H.Html frontendMsg) -> List (H.Html frontendMsg)
     , toFrontendMsg : Msg -> frontendMsg
     }
+
+
+
+{-
+    d888b   .d8b.  d8888b.  d888b  d88888b d888888b .d8888.
+   88' Y8b d8' `8b 88  `8D 88' Y8b 88'     `~~88~~' 88'  YP
+   88      88ooo88 88   88 88      88ooooo    88    `8bo.
+   88  ooo 88~~~88 88   88 88  ooo 88~~~~~    88      `Y8b.
+   88. ~8~ 88   88 88  .8D 88. ~8~ 88.        88    db   8D
+    Y888P  YP   YP Y8888D'  Y888P  Y88888P    YP    `8888Y'
+
+
+-}
+
+
+tools : IR.MetadataTools meta a
+tools =
+    IR.makeMetadataTools "Gadget.Adapter.Form"
+
+
+override : String -> IR.Gadget a -> IR.Gadget a
+override overrideName gadget =
+    tools.attach "override" Gadget.string overrideName gadget
+
+
+{-| Add a label to a `Gadget` - this will be displayed as an HTML `<label>` element
+-}
+label : String -> IR.Gadget a -> IR.Gadget a
+label l gadget =
+    tools.attach "label" Gadget.string l gadget
+
+
+{-| Add labels to a custom type `Gadget` - this allows you to define a label for
+the custom type itself (displayed as an HTML `<legend>` within a `<fieldset>`),
+and for each of its variants (displayed as HTML `<input type="radio">` buttons).
+-}
+customLabels : String -> List String -> IR.Gadget a -> IR.Gadget a
+customLabels l ls gadget =
+    tools.attach "customLabel"
+        (Gadget.tuple Gadget.string (Gadget.list Gadget.string))
+        ( l, ls )
+        gadget
 
 
 
@@ -312,39 +349,150 @@ withTopLevelView f (FormBuilder builder) =
 
 
 {-
-    d888b   .d8b.  d8888b.  d888b  d88888b d888888b .d8888.
-   88' Y8b d8' `8b 88  `8D 88' Y8b 88'     `~~88~~' 88'  YP
-   88      88ooo88 88   88 88      88ooooo    88    `8bo.
-   88  ooo 88~~~88 88   88 88  ooo 88~~~~~    88      `Y8b.
-   88. ~8~ 88   88 88  .8D 88. ~8~ 88.        88    db   8D
-    Y888P  YP   YP Y8888D'  Y888P  Y88888P    YP    `8888Y'
+    .o88b.  .d88b.  d8b   db d888888b d8888b.  .d88b.  db      .d8888.
+   d8P  Y8 .8P  Y8. 888o  88 `~~88~~' 88  `8D .8P  Y8. 88      88'  YP
+   8P      88    88 88V8o 88    88    88oobY' 88    88 88      `8bo.
+   8b      88    88 88 V8o88    88    88`8b   88    88 88        `Y8b.
+   Y8b  d8 `8b  d8' 88  V888    88    88 `88. `8b  d8' 88booo. db   8D
+    `Y88P'  `Y88P'  VP   V8P    YP    88   YD  `Y88P'  Y88888P `8888Y'
 
 
 -}
 
 
-override : String -> IR.Gadget a -> IR.Gadget a
-override overrideName gadget =
-    tools.attach "override" Gadget.string overrideName gadget
+intControl : Control backendModel Int
+intControl =
+    Control.sandbox
+        { modelGadget = Gadget.string
+        , msgGadget = Gadget.string
+        , outputGadget = Gadget.int
+        , init = ""
+        , placeholder = 0
+        , load = String.fromInt
+        , update = \msg _ -> msg
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "number"
+                    , HA.attribute "inputmode" "numeric"
+                    , HE.onInput identity
+                    , HA.id id
+                    , HA.value model
+                    ]
+                    []
+        , submit =
+            \model ->
+                String.toInt model
+                    |> Result.fromMaybe "This must be an integer"
+        }
 
 
-{-| Add a label to a `Gadget` - this will be displayed as an HTML `<label>` element
--}
-label : String -> IR.Gadget a -> IR.Gadget a
-label l gadget =
-    tools.attach "label" Gadget.string l gadget
+floatControl : Control backendModel Float
+floatControl =
+    Control.sandbox
+        { modelGadget = Gadget.string
+        , msgGadget = Gadget.string
+        , outputGadget = Gadget.float
+        , init = ""
+        , placeholder = 0.0
+        , load = String.fromFloat
+        , update = \msg _ -> msg
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "number"
+                    , HA.attribute "inputmode" "decimal"
+                    , HE.onInput identity
+                    , HA.id id
+                    , HA.value model
+                    ]
+                    []
+        , submit =
+            \model ->
+                String.toFloat model
+                    |> Result.fromMaybe "This must be a decimal number"
+        }
 
 
-{-| Add labels to a custom type `Gadget` - this allows you to define a label for
-the custom type itself (displayed as an HTML `<legend>` within a `<fieldset>`),
-and for each of its variants (displayed as HTML `<input type="radio">` buttons).
--}
-customLabels : String -> List String -> IR.Gadget a -> IR.Gadget a
-customLabels l ls gadget =
-    tools.attach "customLabel"
-        (Gadget.tuple Gadget.string (Gadget.list Gadget.string))
-        ( l, ls )
-        gadget
+stringControl : Control backendModel String
+stringControl =
+    Control.sandbox
+        { modelGadget = Gadget.string
+        , msgGadget = Gadget.string
+        , outputGadget = Gadget.string
+        , init = ""
+        , placeholder = ""
+        , load = identity
+        , update = \msg _ -> msg
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "text"
+                    , HE.onInput identity
+                    , HA.id id
+                    , HA.value model
+                    ]
+                    []
+        , submit = Ok
+        }
+
+
+boolControl : Control backendModel Bool
+boolControl =
+    Control.sandbox
+        { modelGadget = Gadget.bool
+        , msgGadget = Gadget.bool
+        , outputGadget = Gadget.bool
+        , init = False
+        , placeholder = False
+        , load = identity
+        , update = \msg _ -> msg
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "checkbox"
+                    , HE.onCheck identity
+                    , HA.checked model
+                    , HA.id id
+                    ]
+                    []
+        , submit = Ok
+        }
+        |> Control.withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
+
+
+charControl : Control backendModel Char
+charControl =
+    Control.sandbox
+        { modelGadget = Gadget.string
+        , msgGadget = Gadget.maybe Gadget.char
+        , outputGadget = Gadget.char
+        , init = ""
+        , placeholder = 'a'
+        , load = String.fromChar
+        , update =
+            \msg _ ->
+                case msg of
+                    Nothing ->
+                        ""
+
+                    Just c ->
+                        String.fromChar c
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "text"
+                    , HE.onInput (\str -> String.uncons str |> Maybe.map Tuple.first)
+                    , HA.id id
+                    , HA.value model
+                    ]
+                    []
+        , submit =
+            \model ->
+                String.uncons model
+                    |> Maybe.map Tuple.first
+                    |> Result.fromMaybe "This must not be blank"
+        }
 
 
 
@@ -1643,150 +1791,15 @@ type Match
 
 
 {-
-    .o88b.  .d88b.  d8b   db d888888b d8888b.  .d88b.  db      .d8888.
-   d8P  Y8 .8P  Y8. 888o  88 `~~88~~' 88  `8D .8P  Y8. 88      88'  YP
-   8P      88    88 88V8o 88    88    88oobY' 88    88 88      `8bo.
-   8b      88    88 88 V8o88    88    88`8b   88    88 88        `Y8b.
-   Y8b  d8 `8b  d8' 88  V888    88    88 `88. `8b  d8' 88booo. db   8D
-    `Y88P'  `Y88P'  VP   V8P    YP    88   YD  `Y88P'  Y88888P `8888Y'
+   db   db d88888b db      d8888b. d88888b d8888b. .d8888.
+   88   88 88'     88      88  `8D 88'     88  `8D 88'  YP
+   88ooo88 88ooooo 88      88oodD' 88ooooo 88oobY' `8bo.
+   88~~~88 88~~~~~ 88      88~~~   88~~~~~ 88`8b     `Y8b.
+   88   88 88.     88booo. 88      88.     88 `88. db   8D
+   YP   YP Y88888P Y88888P 88      Y88888P 88   YD `8888Y'
 
 
 -}
-
-
-intControl : Control backendModel Int
-intControl =
-    Control.sandbox
-        { modelGadget = Gadget.string
-        , msgGadget = Gadget.string
-        , outputGadget = Gadget.int
-        , init = ""
-        , placeholder = 0
-        , load = String.fromInt
-        , update = \msg _ -> msg
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "number"
-                    , HA.attribute "inputmode" "numeric"
-                    , HE.onInput identity
-                    , HA.id id
-                    , HA.value model
-                    ]
-                    []
-        , submit =
-            \model ->
-                String.toInt model
-                    |> Result.fromMaybe "This must be an integer"
-        }
-
-
-floatControl : Control backendModel Float
-floatControl =
-    Control.sandbox
-        { modelGadget = Gadget.string
-        , msgGadget = Gadget.string
-        , outputGadget = Gadget.float
-        , init = ""
-        , placeholder = 0.0
-        , load = String.fromFloat
-        , update = \msg _ -> msg
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "number"
-                    , HA.attribute "inputmode" "decimal"
-                    , HE.onInput identity
-                    , HA.id id
-                    , HA.value model
-                    ]
-                    []
-        , submit =
-            \model ->
-                String.toFloat model
-                    |> Result.fromMaybe "This must be a decimal number"
-        }
-
-
-stringControl : Control backendModel String
-stringControl =
-    Control.sandbox
-        { modelGadget = Gadget.string
-        , msgGadget = Gadget.string
-        , outputGadget = Gadget.string
-        , init = ""
-        , placeholder = ""
-        , load = identity
-        , update = \msg _ -> msg
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "text"
-                    , HE.onInput identity
-                    , HA.id id
-                    , HA.value model
-                    ]
-                    []
-        , submit = Ok
-        }
-
-
-boolControl : Control backendModel Bool
-boolControl =
-    Control.sandbox
-        { modelGadget = Gadget.bool
-        , msgGadget = Gadget.bool
-        , outputGadget = Gadget.bool
-        , init = False
-        , placeholder = False
-        , load = identity
-        , update = \msg _ -> msg
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "checkbox"
-                    , HE.onCheck identity
-                    , HA.checked model
-                    , HA.id id
-                    ]
-                    []
-        , submit = Ok
-        }
-        |> Control.withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
-
-
-charControl : Control backendModel Char
-charControl =
-    Control.sandbox
-        { modelGadget = Gadget.string
-        , msgGadget = Gadget.maybe Gadget.char
-        , outputGadget = Gadget.char
-        , init = ""
-        , placeholder = 'a'
-        , load = String.fromChar
-        , update =
-            \msg _ ->
-                case msg of
-                    Nothing ->
-                        ""
-
-                    Just c ->
-                        String.fromChar c
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "text"
-                    , HE.onInput (\str -> String.uncons str |> Maybe.map Tuple.first)
-                    , HA.id id
-                    , HA.value model
-                    ]
-                    []
-        , submit =
-            \model ->
-                String.uncons model
-                    |> Maybe.map Tuple.first
-                    |> Result.fromMaybe "This must not be blank"
-        }
 
 
 fail : IR.Gadget a
@@ -1798,19 +1811,6 @@ fail =
                 Err [ { error = "unit toOutput failed", path = path } ]
         , irType = UnitType IR.emptyMetadata
         }
-
-
-
-{-
-   db   db d88888b db      d8888b. d88888b d8888b. .d8888.
-   88   88 88'     88      88  `8D 88'     88  `8D 88'  YP
-   88ooo88 88ooooo 88      88oodD' 88ooooo 88oobY' `8bo.
-   88~~~88 88~~~~~ 88      88~~~   88~~~~~ 88`8b     `Y8b.
-   88   88 88.     88booo. 88      88.     88 `88. db   8D
-   YP   YP Y88888P Y88888P 88      Y88888P 88   YD `8888Y'
-
-
--}
 
 
 argsListToVariantValue : List Value -> Result String IR.VariantValue
