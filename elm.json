@@ -9,7 +9,6 @@
         "Gadget.IR",
         "Gadget.Adapter.Diff",
         "Gadget.Adapter.Form",
-        "Gadget.Adapter.Form.Lamdera",
         "Gadget.Adapter.Fuzz",
         "Gadget.Adapter.Html",
         "Gadget.Adapter.Json",
