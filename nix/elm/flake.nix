@@ -57,17 +57,34 @@
           };
 
         elmVersions = map getAndInstallElmVersion releases;
+
+        lamdera = pkgs.stdenv.mkDerivation rec {
+          pname = "lamdera";
+          version = "1.4.0";
+
+          src = pkgs.fetchurl {
+            url = "https://static.lamdera.com/bin/lamdera-${version}-linux-x86_64";
+            sha256 = "sha256-YofQhTI3qAa+c9QyEqLtg5vWl/KxuUZqjRNerkOFdcQ=";
+          };
+
+          dontUnpack = true;
+
+          installPhase = ''
+            install -Dm755 $src $out/bin/lamdera
+          '';
+        };
       in
       pkgs.stdenv.mkDerivation {
         pname = "elm";
         version = "0.19.3";
-        nativeBuildInputs = elmVersions;
+        nativeBuildInputs = [ lamdera ] ++ elmVersions;
 
         src = pkgs.writeText "elm" ''
           #!/usr/bin/env bash
 
           # A script that automatically runs the correct Elm version based on elm.json.
           # Assumes the following binaries in $PATH: 
+          # lamdera
           # elm-0.19.0
           # elm-0.19.1
           # elm-0.19.2
@@ -87,19 +104,23 @@
             fi
             dir="$(dirname "$dir")"
           done
-
-          if grep -qE '"type"\s*:\s*"package"' "$dir/elm.json"; then
-            # Run the latest Elm for packages.
-            elm-latest "$@"
-          else
-            # Read the Elm version for applications.
-            version="$(grep -P '\"elm-version\"\s*:\s*\"\d+\.\d+\.\d+\"' "$dir/elm.json" | cut -d '"' -f 4)"
-            
-            if test -z "$version"; then
-              # No version found in elm.json. Fall back to the latest version.
+          if grep -q '"lamdera/' "$dir/elm.json"; then
+            # if elm.json refers to Lamdera packages then run the Lamdera compiler.
+            lamdera "$@"
+          else 
+            if grep -qE '"type"\s*:\s*"package"' "$dir/elm.json"; then
+              # If elm.json specifies that this is a package then run the latest Elm compiler.
               elm-latest "$@"
             else
-              "elm-$version" "$@"
+              # Otherwise this must be an application, so check which Elm version is specified.
+              version="$(grep -P '\"elm-version\"\s*:\s*\"\d+\.\d+\.\d+\"' "$dir/elm.json" | cut -d '"' -f 4)"
+
+              if test -z "$version"; then
+                # If no version information is found in elm.json, fall back to using the latest Elm version.
+                elm-latest "$@"
+              else
+                "elm-$version" "$@"
+              fi
             fi
           fi'';
 
@@ -110,6 +131,9 @@
 
           # Install the wrapper.
           install -Dm755 $src $out/bin/elm
+
+          # Copy the Lamdera binary.
+          cp "${lamdera}/bin/lamdera" "$out/bin/lamdera"
 
           # Copy all versioned Elm binaries.
           for elm in ${pkgs.lib.concatStringsSep " " elmVersions}; do
