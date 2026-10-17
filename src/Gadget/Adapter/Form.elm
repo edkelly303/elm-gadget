@@ -801,12 +801,23 @@ loadHelp config value type_ =
 -}
 
 
-update : (InnerControl -> Value -> Value -> ( Value, Command Value Value )) -> InternalConfig frontendMsg output -> Msg -> Model -> ( Model, Command Msg Msg )
+update :
+    (InnerControl -> Value -> Value -> ( Value, Command Value Value ))
+    -> InternalConfig frontendMsg output
+    -> Msg
+    -> Model
+    -> ( Model, Command Msg Msg )
 update updater config msg model =
     updateHelp updater config [] msg model
 
 
-updateHelp : (InnerControl -> Value -> Value -> ( Value, Command Value Value )) -> InternalConfig frontendMsg output -> Path -> Msg -> Model -> ( Model, Command Msg Msg )
+updateHelp :
+    (InnerControl -> Value -> Value -> ( Value, Command Value Value ))
+    -> InternalConfig frontendMsg output
+    -> Path
+    -> Msg
+    -> Model
+    -> ( Model, Command Msg Msg )
 updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
     case model of
         Unit ->

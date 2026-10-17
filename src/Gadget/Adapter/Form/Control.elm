@@ -61,20 +61,20 @@ sandbox :
     -> Control backendModel output
 sandbox { placeholder, init, load, update, view, submit, modelGadget, msgGadget, outputGadget } =
     define
-        { placeholder = placeholder
-        , init = ( init, noCommand )
-        , load = load
-        , update = \msg model -> ( update msg model, noCommand )
-        , view = view
-        , subscriptions = \_ -> Sub.none
-        , submit = submit
-        , frontendModelGadget = modelGadget
+        { frontendModelGadget = modelGadget
         , frontendMsgGadget = msgGadget
         , outputGadget = outputGadget
         , toBackendGadget = Gadget.unit
         , toFrontendGadget = Gadget.unit
-        , respond = \_ _ -> ()
+        , placeholder = placeholder
+        , init = ( init, noCommand )
+        , load = load
+        , update = \msg model -> ( update msg model, noCommand )
         , updateFromBackend = \_ model -> ( model, noCommand )
+        , view = view
+        , subscriptions = \_ -> Sub.none
+        , submit = submit
+        , respond = \_ _ -> ()
         }
 
 
@@ -93,20 +93,20 @@ element :
     -> Control backendModel output
 element { placeholder, init, load, update, view, subscriptions, submit, modelGadget, msgGadget, outputGadget } =
     define
-        { placeholder = placeholder
-        , init = init |> Tuple.mapSecond toCommand
-        , load = load
-        , update = \msg model -> update msg model |> Tuple.mapSecond toCommand
-        , view = view
-        , subscriptions = subscriptions
-        , submit = submit
-        , frontendModelGadget = modelGadget
+        { frontendModelGadget = modelGadget
         , frontendMsgGadget = msgGadget
         , outputGadget = outputGadget
         , toBackendGadget = Gadget.unit
         , toFrontendGadget = Gadget.unit
-        , respond = \_ _ -> ()
+        , placeholder = placeholder
+        , init = init |> Tuple.mapSecond toCommand
+        , load = load
+        , update = \msg model -> update msg model |> Tuple.mapSecond toCommand
         , updateFromBackend = \_ model -> ( model, noCommand )
+        , view = view
+        , subscriptions = subscriptions
+        , submit = submit
+        , respond = \_ _ -> ()
         }
 
 
@@ -136,7 +136,7 @@ define config =
                 |> config.load
                 |> IR.fromInput config.frontendModelGadget
 
-        mapCmdType =
+        mapCommand =
             Internal.mapCommand
                 (IR.fromInput config.frontendMsgGadget)
                 (IR.fromInput config.toBackendGadget)
@@ -145,11 +145,11 @@ define config =
         \backendModelGadget ->
             { init =
                 let
-                    ( model, cmdType ) =
+                    ( model, command ) =
                         config.init
                 in
                 ( IR.fromInput config.frontendModelGadget model
-                , mapCmdType cmdType
+                , mapCommand command
                 )
             , load =
                 \outputValue ->
@@ -167,9 +167,9 @@ define config =
                                 (IR.toOutput config.frontendModelGadget modelValue)
                     in
                     case result of
-                        Ok ( model, either ) ->
+                        Ok ( model, command ) ->
                             ( IR.fromInput config.frontendModelGadget model
-                            , mapCmdType either
+                            , mapCommand command
                             )
 
                         Err _ ->
@@ -185,9 +185,9 @@ define config =
                                 (IR.toOutput config.frontendModelGadget modelValue)
                     in
                     case result of
-                        Ok ( model, either ) ->
+                        Ok ( model, command ) ->
                             ( IR.fromInput config.frontendModelGadget model
-                            , mapCmdType either
+                            , mapCommand command
                             )
 
                         Err _ ->

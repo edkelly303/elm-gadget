@@ -14,8 +14,8 @@ type Effect frontendMsg toBackend
 
 
 batchCommands : List (Command frontendMsg toBackend) -> Command frontendMsg toBackend
-batchCommands cmdTypes =
-    List.foldl concatCommands (Command [ Cmd Cmd.none ]) cmdTypes
+batchCommands commands =
+    List.foldl concatCommands (Command [ Cmd Cmd.none ]) commands
 
 
 concatCommands : Command frontendMsg toBackend -> Command frontendMsg toBackend -> Command frontendMsg toBackend
@@ -24,7 +24,7 @@ concatCommands (Command cmdType1) (Command cmdType2) =
 
 
 mapCommand : (frontendMsgA -> frontendMsgB) -> (toBackendA -> toBackendB) -> Command frontendMsgA toBackendA -> Command frontendMsgB toBackendB
-mapCommand cmdMapper toBackendMapper (Command cmdTypes) =
+mapCommand cmdMapper toBackendMapper (Command commands) =
     List.map
         (\cmdType_ ->
             case cmdType_ of
@@ -34,12 +34,12 @@ mapCommand cmdMapper toBackendMapper (Command cmdTypes) =
                 ToBackend toBackend ->
                     ToBackend (toBackendMapper toBackend)
         )
-        cmdTypes
+        commands
         |> Command
 
 
 toCmd : (frontendMsg -> msg) -> (toBackend -> Cmd msg) -> Command frontendMsg toBackend -> Cmd msg
-toCmd toFrontendMsg sendToBackend (Command cmdTypes) =
+toCmd toFrontendMsg sendToBackend (Command command) =
     List.map
         (\cmdType ->
             case cmdType of
@@ -49,7 +49,7 @@ toCmd toFrontendMsg sendToBackend (Command cmdTypes) =
                 ToBackend toBackend ->
                     sendToBackend toBackend
         )
-        cmdTypes
+        command
         |> Cmd.batch
 
 
