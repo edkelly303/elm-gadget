@@ -1,5 +1,5 @@
 {
-  description = "Elm";
+  description = "Elm version picker";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
