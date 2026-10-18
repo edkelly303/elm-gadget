@@ -420,7 +420,8 @@ myFloat =
         , load = identity
         , placeholder = 0.0
         , update = \() model -> ( model, Control.sendCommand () )
-        , updateFromBackend = \float model -> ( float, Control.noCommand )
+        , updateFromBackend = \float _ -> ( float, Control.noCommand )
+        , updateFromBroadcast = \_ model -> ( model, Control.noCommand )
         , view =
             \id model ->
                 H.div []

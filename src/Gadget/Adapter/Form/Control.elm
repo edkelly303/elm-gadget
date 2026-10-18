@@ -1,6 +1,7 @@
 module Gadget.Adapter.Form.Control exposing
     ( Control(..), sandbox, element, define, withLayout
     , Command, noCommand, toCommand, sendCommand
+    , broadcastCommand
     )
 
 {-|
@@ -18,33 +19,38 @@ import List.Extra
 import Result.Extra
 
 
-type alias Command frontendMsg toBackend =
-    Internal.Command frontendMsg toBackend
+type alias Command frontendMsg broadcastMsg toBackend =
+    Internal.Command frontendMsg broadcastMsg toBackend
 
 
 type alias UI =
     Internal.UI
 
 
-noCommand : Command frontendMsg toBackend
+noCommand : Command frontendMsg broadcastMsg toBackend
 noCommand =
     Internal.Command []
 
 
-toCommand : Cmd frontendMsg -> Command frontendMsg toBackend
+toCommand : Cmd frontendMsg -> Command frontendMsg broadcastMsg toBackend
 toCommand cmd =
     Internal.Command [ Internal.Cmd cmd ]
 
 
-sendCommand : toBackend -> Command frontendMsg toBackend
+sendCommand : toBackend -> Command frontendMsg broadcastMsg toBackend
 sendCommand toBackend =
     Internal.Command [ Internal.ToBackend toBackend ]
 
 
+broadcastCommand : broadcastMsg -> Command frontendMsg broadcastMsg toBackend
+broadcastCommand broadcastMsg =
+    Internal.Command [ Internal.Broadcast broadcastMsg ]
+
+
 {-| A custom form control.
 -}
-type Control backendModel output
-    = Control (IR.Gadget backendModel -> Internal.InnerControl)
+type Control backendModel broadcastMsg output
+    = Control (IR.Gadget backendModel -> Internal.InnerControl broadcastMsg)
 
 
 sandbox :
@@ -58,7 +64,7 @@ sandbox :
     , view : String -> model -> H.Html msg
     , submit : model -> Result String output
     }
-    -> Control backendModel output
+    -> Control backendModel broadcastMsg output
 sandbox { placeholder, init, load, update, view, submit, modelGadget, msgGadget, outputGadget } =
     define
         { frontendModelGadget = modelGadget
@@ -71,6 +77,7 @@ sandbox { placeholder, init, load, update, view, submit, modelGadget, msgGadget,
         , load = load
         , update = \msg model -> ( update msg model, noCommand )
         , updateFromBackend = \_ model -> ( model, noCommand )
+        , updateFromBroadcast = \_ model -> ( model, noCommand )
         , view = view
         , subscriptions = \_ -> Sub.none
         , submit = submit
@@ -90,7 +97,7 @@ element :
     , subscriptions : model -> Sub msg
     , submit : model -> Result String output
     }
-    -> Control backendModel output
+    -> Control backendModel broadcastMsg output
 element { placeholder, init, load, update, view, subscriptions, submit, modelGadget, msgGadget, outputGadget } =
     define
         { frontendModelGadget = modelGadget
@@ -103,6 +110,7 @@ element { placeholder, init, load, update, view, subscriptions, submit, modelGad
         , load = load
         , update = \msg model -> update msg model |> Tuple.mapSecond toCommand
         , updateFromBackend = \_ model -> ( model, noCommand )
+        , updateFromBroadcast = \_ model -> ( model, noCommand )
         , view = view
         , subscriptions = subscriptions
         , submit = submit
@@ -119,16 +127,17 @@ define :
     , toBackendGadget : IR.Gadget toBackend
     , toFrontendGadget : IR.Gadget toFrontend
     , placeholder : output
-    , init : ( frontendModel, Command frontendMsg toBackend )
+    , init : ( frontendModel, Command frontendMsg broadcastMsg toBackend )
     , load : output -> frontendModel
-    , update : frontendMsg -> frontendModel -> ( frontendModel, Command frontendMsg toBackend )
-    , updateFromBackend : toFrontend -> frontendModel -> ( frontendModel, Command frontendMsg toBackend )
+    , update : frontendMsg -> frontendModel -> ( frontendModel, Command frontendMsg broadcastMsg toBackend )
+    , updateFromBackend : toFrontend -> frontendModel -> ( frontendModel, Command frontendMsg broadcastMsg toBackend )
+    , updateFromBroadcast : broadcastMsg -> frontendModel -> ( frontendModel, Command frontendMsg broadcastMsg toBackend )
     , view : String -> frontendModel -> H.Html frontendMsg
     , subscriptions : frontendModel -> Sub frontendMsg
     , submit : frontendModel -> Result String output
     , respond : toBackend -> backendModel -> toFrontend
     }
-    -> Control backendModel output
+    -> Control backendModel broadcastMsg output
 define config =
     let
         placeholderValue =
@@ -139,6 +148,7 @@ define config =
         mapCommand =
             Internal.mapCommand
                 (IR.fromInput config.frontendMsgGadget)
+                identity
                 (IR.fromInput config.toBackendGadget)
     in
     Control <|
@@ -194,6 +204,24 @@ define config =
                             ( modelValue
                             , noCommand
                             )
+            , updateFromBroadcast =
+                \broadcastMsg modelValue ->
+                    let
+                        result =
+                            Result.map
+                                (config.updateFromBroadcast broadcastMsg)
+                                (IR.toOutput config.frontendModelGadget modelValue)
+                    in
+                    case result of
+                        Ok ( model, command ) ->
+                            ( IR.fromInput config.frontendModelGadget model
+                            , mapCommand command
+                            )
+
+                        Err _ ->
+                            ( modelValue
+                            , noCommand
+                            )
             , view =
                 \id modelValue ->
                     Result.map (config.view id) (IR.toOutput config.frontendModelGadget modelValue)
@@ -223,8 +251,8 @@ define config =
 
 withLayout :
     ({ label : UI, input : UI, feedback : UI } -> List UI)
-    -> Control backendModel output
-    -> Control backendModel output
+    -> Control backendModel broadcastMsg output
+    -> Control backendModel broadcastMsg output
 withLayout f (Control toControl) =
     Control <|
         \backendModelGadget ->
