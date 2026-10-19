@@ -98,8 +98,8 @@ personGadget =
         |> Gadget.field "tuple"
             .tuple
             (Gadget.tuple
-                (Gadget.bool |> Form.label "one")
-                (Gadget.bool |> Form.label "two")
+                (Gadget.bool |> Form.label "one" |> Form.override "myBoolBroadcaster")
+                (Gadget.bool |> Form.label "two" |> Form.override "myBoolReceiver")
                 |> Form.label "What's your favourite pair of booleans?"
             )
         |> Gadget.field "triple"
@@ -247,73 +247,10 @@ form =
             , sendToFrontend = lamdera_sendToFrontend
             , backendModelGadget = backendModelGadget
             }
-        |> Form.withTopLevelView
-            (\{ switchActiveField, activeField, fieldViews, result } ->
-                let
-                    numberOfPages =
-                        List.length fieldViews
-
-                    pages =
-                        List.indexedMap
-                            (\idx fv ->
-                                H.span
-                                    [ HA.class
-                                        (if idx == activeField then
-                                            "active"
-
-                                         else
-                                            "inactive"
-                                        )
-                                    ]
-                                    [ fv ]
-                            )
-                            (fieldViews ++ summary)
-
-                    ( summary, errors ) =
-                        case result of
-                            Ok person ->
-                                ( [ H.text person.name ], Set.empty )
-
-                            Err e ->
-                                ( [ H.text "error!" ], e )
-                in
-                [ H.div [ HA.id "wizard-pages" ] pages
-                , H.div [ HA.id "wizard-controls" ]
-                    [ H.input
-                        [ HA.type_ "button"
-                        , HE.onClick (switchActiveField (activeField - 1))
-                        , HA.value "Previous"
-                        , HA.style "visibility"
-                            (if activeField > 0 then
-                                "visible"
-
-                             else
-                                "hidden"
-                            )
-                        ]
-                        []
-                    , H.text ("Page " ++ String.fromInt (activeField + 1) ++ " of " ++ String.fromInt (numberOfPages + 1))
-                    , if activeField < numberOfPages then
-                        H.input
-                            [ HA.type_ "button"
-                            , HE.onClick (switchActiveField (activeField + 1))
-                            , HA.value "Next"
-                            , HA.disabled (Set.member activeField errors)
-                            ]
-                            []
-
-                      else
-                        H.input
-                            [ HA.type_ "button"
-                            , HA.id "wizard-submit"
-                            , HE.onClick FormSubmitted
-                            , HA.value "Submit"
-                            ]
-                            []
-                    ]
-                ]
-            )
+        |> Form.withTopLevelView wizardView
         |> Form.withOverride "heightInCentimetres" myFloat
+        |> Form.withOverride "myBoolBroadcaster" myBoolBroadcaster
+        |> Form.withOverride "myBoolReceiver" myBoolReceiver
         |> Form.withIntControl counter
         |> Form.endForm gadget
 
@@ -409,6 +346,10 @@ counter =
         }
 
 
+type Broadcast
+    = Incremented
+
+
 myFloat =
     Control.define
         { frontendModelGadget = Gadget.float
@@ -419,8 +360,9 @@ myFloat =
         , init = ( 0.5, Control.noCommand )
         , load = identity
         , placeholder = 0.0
-        , update = \() model -> ( model, Control.sendCommand () )
-        , updateFromBackend = \float model -> ( float, Control.noCommand )
+        , update = \_ model -> ( model, Control.sendCommand () )
+        , updateFromBackend = \float _ -> ( float, Control.noCommand )
+        , updateFromBroadcast = \_ model -> ( model, Control.noCommand )
         , view =
             \id model ->
                 H.div []
@@ -436,6 +378,55 @@ myFloat =
         , submit = Ok
         , respond = \() { float } -> float
         }
+
+
+myBoolBroadcaster =
+    Control.broadcaster
+        { modelGadget = Gadget.bool
+        , msgGadget = Gadget.unit
+        , outputGadget = Gadget.bool
+        , init = ( False, Control.noCommand )
+        , load = identity
+        , placeholder = True
+        , update = \_ model -> ( not model, Control.broadcastCommand Incremented )
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "checkbox"
+                    , HE.onCheck (always ())
+                    , HA.checked model
+                    , HA.id id
+                    ]
+                    []
+        , subscriptions = \model -> Sub.none
+        , submit = Ok
+        }
+        |> Control.withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
+
+
+myBoolReceiver =
+    Control.receiver
+        { modelGadget = Gadget.bool
+        , msgGadget = Gadget.unit
+        , outputGadget = Gadget.bool
+        , init = ( False, Control.noCommand )
+        , load = identity
+        , placeholder = True
+        , update = \_ model -> ( not model, Control.noCommand )
+        , updateFromBroadcast = \Incremented model -> ( not model, Control.noCommand )
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "checkbox"
+                    , HE.onCheck (always ())
+                    , HA.checked model
+                    , HA.id id
+                    ]
+                    []
+        , subscriptions = \model -> Sub.none
+        , submit = Ok
+        }
+        |> Control.withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
 
 
 init _ =
@@ -642,3 +633,69 @@ demo title contents =
 head : String -> H.Html msg
 head txt =
     H.h3 [] [ H.text txt ]
+
+
+wizardView { switchActiveField, activeField, fieldViews, result } =
+    let
+        numberOfPages =
+            List.length fieldViews
+
+        pages =
+            List.indexedMap
+                (\idx fv ->
+                    H.span
+                        [ HA.class
+                            (if idx == activeField then
+                                "active"
+
+                             else
+                                "inactive"
+                            )
+                        ]
+                        [ fv ]
+                )
+                (fieldViews ++ summary)
+
+        ( summary, errors ) =
+            case result of
+                Ok person ->
+                    ( [ H.text person.name ], Set.empty )
+
+                Err e ->
+                    ( [ H.text "error!" ], e )
+    in
+    [ H.div [ HA.id "wizard-pages" ] pages
+    , H.div [ HA.id "wizard-controls" ]
+        [ H.input
+            [ HA.type_ "button"
+            , HE.onClick (switchActiveField (activeField - 1))
+            , HA.value "Previous"
+            , HA.style "visibility"
+                (if activeField > 0 then
+                    "visible"
+
+                 else
+                    "hidden"
+                )
+            ]
+            []
+        , H.text ("Page " ++ String.fromInt (activeField + 1) ++ " of " ++ String.fromInt (numberOfPages + 1))
+        , if activeField < numberOfPages then
+            H.input
+                [ HA.type_ "button"
+                , HE.onClick (switchActiveField (activeField + 1))
+                , HA.value "Next"
+                , HA.disabled (Set.member activeField errors)
+                ]
+                []
+
+          else
+            H.input
+                [ HA.type_ "button"
+                , HA.id "wizard-submit"
+                , HE.onClick FormSubmitted
+                , HA.value "Submit"
+                ]
+                []
+        ]
+    ]
