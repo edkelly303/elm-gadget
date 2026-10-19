@@ -1,15 +1,23 @@
 {
-  description = "Elm";
+  description = "Elm version picker";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
   };
 
   outputs = { self, nixpkgs }: {
-    defaultPackage.x86_64-linux =
-      with import nixpkgs { system = "x86_64-linux"; };
+    packages.x86_64-linux.default =
       let
+        pkgs = import nixpkgs {
+          system = "x86_64-linux";
+        };
+
         releases = [
+          {
+            version = "0.19.3";
+            name = "elm-0.19.3-linux-x64";
+            sha = "sha256-0RcCsxV37YtyC52BxSyKGaUrcrH8+t7w/K2S8heYxYo=";
+          }
           {
             version = "0.19.2";
             name = "elm-0.19.2-linux-x64";
@@ -29,83 +37,112 @@
 
         getAndInstallElmVersion =
           release:
-          stdenv.mkDerivation rec {
+          pkgs.stdenv.mkDerivation {
+            pname = "elm-${release.version}";
             version = release.version;
 
-            name = "elm-${version}";
-
             src = pkgs.fetchurl {
-              url = "https://github.com/elm/compiler/releases/download/${version}/${release.name}.gz";
+              url = "https://github.com/elm/compiler/releases/download/${release.version}/${release.name}.gz";
               sha256 = release.sha;
             };
 
-            sourceRoot = ".";
-
             unpackPhase = ''
-              cp $src $name.gz
-              gzip -d $name.gz
+              cp $src elm.gz
+              gzip -d elm.gz
             '';
 
             installPhase = ''
-              install -m755 -D $name $out/bin/$name
-              install -m755 -D $name $out/bin/elm-latest
+              install -Dm755 elm $out/bin/elm-${release.version}
             '';
           };
 
-        elmScript = stdenv.mkDerivation {
-          name = "elm";
+        elmVersions = map getAndInstallElmVersion releases;
 
-          src = pkgs.writeText "elm" ''
-            #!/usr/bin/env bash
+        lamdera = pkgs.stdenv.mkDerivation rec {
+          pname = "lamdera";
+          version = "1.4.0";
 
-            # A script that automatically runs the correct Elm version based on elm.json.
-            # Assumes the following binaries in $PATH: 
-            # elm-0.19.0
-            # elm-0.19.1
-            # elm-0.19.2
-            # etc...
-            # elm-latest (the latest version, used for packages and as a fallback)
+          src = pkgs.fetchurl {
+            url = "https://static.lamdera.com/bin/lamdera-${version}-linux-x86_64";
+            sha256 = "sha256-YofQhTI3qAa+c9QyEqLtg5vWl/KxuUZqjRNerkOFdcQ=";
+          };
 
-            # Find the closest elm.json.
-            dir="$(pwd)"
-            while true; do
-              if test -f "$dir/elm.json"; then
-                break
-              fi
-              if test "$dir" = '/'; then
-                # No elm.json exists. Fall back to the latest version.
-                elm-latest "$@"
-                exit $?
-              fi
-              dir="$(dirname "$dir")"
-            done
+          dontUnpack = true;
 
+          installPhase = ''
+            install -Dm755 $src $out/bin/lamdera
+          '';
+        };
+      in
+      pkgs.stdenv.mkDerivation {
+        pname = "elm";
+        version = "0.19.3";
+        nativeBuildInputs = [ lamdera ] ++ elmVersions;
+
+        src = pkgs.writeText "elm" ''
+          #!/usr/bin/env bash
+
+          # A script that automatically runs the correct Elm version based on elm.json.
+          # Assumes the following binaries in $PATH: 
+          # lamdera
+          # elm-0.19.0
+          # elm-0.19.1
+          # elm-0.19.2
+          # etc...
+          # elm-latest (the latest version, used for packages and as a fallback)
+
+          # Find the closest elm.json.
+          dir="$(pwd)"
+          while true; do
+            if test -f "$dir/elm.json"; then
+              break
+            fi
+            if test "$dir" = '/'; then
+              # No elm.json exists. Fall back to the latest version.
+              elm-latest "$@"
+              exit $?
+            fi
+            dir="$(dirname "$dir")"
+          done
+          if grep -q '"lamdera/' "$dir/elm.json"; then
+            # if elm.json refers to Lamdera packages then run the Lamdera compiler.
+            lamdera "$@"
+          else 
             if grep -qE '"type"\s*:\s*"package"' "$dir/elm.json"; then
-              # Run the latest Elm for packages.
+              # If elm.json specifies that this is a package then run the latest Elm compiler.
               elm-latest "$@"
             else
-              # Read the Elm version for applications.
+              # Otherwise this must be an application, so check which Elm version is specified.
               version="$(grep -P '\"elm-version\"\s*:\s*\"\d+\.\d+\.\d+\"' "$dir/elm.json" | cut -d '"' -f 4)"
-              
+
               if test -z "$version"; then
-                # No version found in elm.json. Fall back to the latest version.
+                # If no version information is found in elm.json, fall back to using the latest Elm version.
                 elm-latest "$@"
               else
                 "elm-$version" "$@"
               fi
-            fi'';
+            fi
+          fi'';
 
-          sourceRoot = ".";
+        dontUnpack = true;
 
-          unpackPhase = ''
-            cp $src $name
-          '';
+        installPhase = ''
+          mkdir -p $out/bin
 
-          installPhase = ''
-            install -m755 -D $name $out/bin/$name
-          '';
-        };
-      in
-      [ elmScript ] ++ map getAndInstallElmVersion releases;
+          # Install the wrapper.
+          install -Dm755 $src $out/bin/elm
+
+          # Copy the Lamdera binary.
+          cp "${lamdera}/bin/lamdera" "$out/bin/lamdera"
+
+          # Copy all versioned Elm binaries.
+          for elm in ${pkgs.lib.concatStringsSep " " elmVersions}; do
+            cp "$elm/bin/"* "$out/bin/"
+          done
+
+          # The newest version is the fallback.
+          ln -s elm-0.19.3 $out/bin/elm-latest
+        '';
+      };
   };
 }

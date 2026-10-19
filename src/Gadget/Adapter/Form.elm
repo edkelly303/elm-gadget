@@ -1,206 +1,71 @@
 module Gadget.Adapter.Form exposing
-    ( fromGadget, fromGadgetWithConfig, Config, defaultConfig
-    , Form, Model, Msg
-    , Control, ControlDefinition, makeControl
-    , label, customLabels
+    ( Form
+    , Model
+    , Msg
+    , customLabels
+    , endForm
+    , label
+    , newForm
+    , override
+    , withBackend
+    , withBoolControl
+    , withCharControl
+    , withControlView
+    , withFeedbackView
+    , withFloatControl
+    , withIntControl
+    , withOverride
+    , withStringControl
+    , withTopLevelView
     )
-
-{-|
-
-
-## ☠️ **Warning:** Not designed for production use! ☠️
-
-The `Gadget.Adapter` modules are included in this package as toy adapters to
-show you what Gadgets are capable of, and provide source-code examples that you
-can use to get started with writing your own adapters. You should probably write
-your own production-grade adapters that are designed for your specific use-case.
-
-
-## Introduction
-
-This module allows you to turn Gadgets into simple HTML forms.
-
-
-## Example
-
-    import Gadget
-    import Gadget.Adapter.Form as Form
-    import Html
-
-    gadget : Gadget.Gadget ( Bool, String )
-    gadget =
-        Gadget.tuple Gadget.bool Gadget.string
-
-    type Msg
-        = FormChanged Form.Msg
-        | FormSubmitted
-
-    type alias Model =
-        { formState : Form.Model
-        , otherFields : ()
-        }
-
-    form : Form.Form Msg ( Bool, String )
-    form =
-        Form.fromGadget FormChanged gadget
-
-    init =
-        let
-            ( formState, formCmd ) =
-                form.init
-        in
-        ( { formState = formState, otherFields = () }
-        , formCmd
-        )
-
-    update msg model =
-        case msg of
-            FormChanged formMsg ->
-                let
-                    ( formState, formCmd ) =
-                        form.update formMsg model.formState
-                in
-                ( { model | formState = formState }
-                , formCmd
-                )
-
-            FormSubmitted ->
-                let
-                    result =
-                        form.submit model.formState
-                in
-                case result of
-                    Ok output ->
-                        let
-                            _ =
-                                Debug.log "Success!" output
-                        in
-                        ( model, Cmd.none )
-
-                    Err errors ->
-                        let
-                            _ =
-                                Debug.log "Failure!" errors
-                        in
-                        ( model, Cmd.none )
-
-    view model =
-        form.view model.formState
-
-    subscriptions model =
-        form.subscriptions model.formState
-
-    -- doctest
-    init --: ( Model, Cmd Msg )
-
-
-## API
-
-
-### Creating forms
-
-@docs fromGadget, fromGadgetWithConfig, Config, defaultConfig
-
-
-### Using forms within an application
-
-@docs Form, Model, Msg
-
-
-### Defining custom form controls
-
-The default form control for a `Gadget Int` is an HTML `<input type="number">`
-element, but let's say we wanted it to work more like the classic Elm counter
-example, with buttons for incrementing and decrementing the number.
-
-We can define a custom form control like this:
-
-    import Gadget
-    import Gadget.Adapter.Form as Form
-    import Html as H
-    import Html.Attributes as HA
-    import Html.Events as HE
-
-    counter =
-        Form.makeControl
-            { model = Gadget.int
-            , msg = Gadget.bool
-            , output = Gadget.int
-            , init = ( 0, Cmd.none )
-            , load = \output -> output
-            , placeholder = 0
-            , update =
-                \msg model ->
-                    ( if msg then
-                        model + 1
-
-                      else
-                        model - 1
-                    , Cmd.none
-                    )
-            , view =
-                \id model ->
-                    H.div [ HA.id id ]
-                        [ H.button [ HE.onClick False ]
-                            [ H.text "-" ]
-                        , H.text (String.fromInt model)
-                        , H.button [ HE.onClick True ]
-                            [ H.text "+" ]
-                        ]
-            , subscriptions = \_ -> Sub.none
-            , submit = \model -> Ok model
-            }
-
-    -- And now we can swap in our counter instead of the
-    -- default control for `Int`s:
-
-    form =
-        let
-            config =
-                Form.defaultConfig
-        in
-        Form.fromGadgetWithConfig
-            { config | int = counter}
-            identity
-            Gadget.int
-
-    -- doctest
-    counter --: Form.Control Int
-
-@docs Control, ControlDefinition, makeControl
-
-
-### Labelling form controls
-
-@docs label, customLabels
-
--}
 
 import Dict exposing (Dict)
 import Gadget
+import Gadget.Adapter.Form.Control as Control exposing (Command, Control(..), broadcastCommand, noCommand)
+import Gadget.Adapter.Form.Internal as Internal exposing (InnerControl, batchCommands, concatCommands, mapCommand, toCmd)
 import Gadget.IR as IR exposing (Error, Path, Type(..), Value(..), VariantType(..), VariantValue(..))
 import Html as H
 import Html.Attributes as HA
 import Html.Events as HE
 import List.Extra
-import Result.Extra
+import Set
 
 
-tools : IR.MetadataTools meta a
-tools =
-    IR.makeMetadataTools "Gadget.Adapter.Form"
+
+{-
+   d888888b db    db d8888b. d88888b .d8888.
+   `~~88~~' `8b  d8' 88  `8D 88'     88'  YP
+      88     `8bd8'  88oodD' 88ooooo `8bo.
+      88       88    88~~~   88~~~~~   `Y8b.
+      88       88    88      88.     db   8D
+      YP       YP    88      Y88888P `8888Y'
+
+
+-}
+
+
+type Msg
+    = Msg Path Value
+
+
+{-| A type used within `Error` to specify _where_ something went wrong.
+-}
+type alias Path =
+    List String
 
 
 {-| A record of functions that you can plumb into a standard Elm application to
 manage the lifecycle of a form.
 -}
-type alias Form msg a =
-    { init : ( Model, Cmd msg )
+type alias Form backendModel backendMsg frontendMsg a =
+    { init : ( Model, Cmd frontendMsg )
     , load : a -> Model
-    , update : Msg -> Model -> ( Model, Cmd msg )
-    , view : Model -> H.Html msg
-    , subscriptions : Model -> Sub msg
+    , update : Msg -> Model -> ( Model, Cmd frontendMsg )
+    , updateFromBackend : Msg -> Model -> ( Model, Cmd frontendMsg )
+    , view : Model -> H.Html frontendMsg
+    , subscriptions : Model -> Sub frontendMsg
     , submit : Model -> Result (List Error) a
+    , respond : String -> Msg -> backendModel -> Cmd backendMsg
     }
 
 
@@ -210,7 +75,7 @@ worry about the details, so this is an opaque type.
 type Model
     = Sum String IR.Metadata (Dict String ( Int, Dict String Model ))
     | Collection IR.Metadata Type (Dict String Model)
-    | Record IR.Metadata (Dict String ( Int, Model ))
+    | Record Int IR.Metadata (Dict String ( Int, Model ))
     | Tuple IR.Metadata Model Model
     | Triple IR.Metadata Model Model Model
     | Unit
@@ -223,165 +88,74 @@ type PrimitiveType
     | PInt
     | PFloat
     | PBool
+    | POverride String
 
 
-{-| The internal messages used to update the form - as a user of this module,
-you don't need to worry about the details, so this is an opaque type.
--}
-type Msg
-    = Msg Path Value
-
-
-{-| Convert a `Gadget` into a `Form`.
--}
-fromGadget : (Msg -> msg) -> IR.Gadget a -> Form msg a
-fromGadget toMsg gadget =
-    fromGadgetWithConfig defaultConfig toMsg gadget
-
-
-{-| Convert a `Gadget` into a `Form`, supplying a `Config`.
--}
-fromGadgetWithConfig : Config -> (Msg -> msg) -> IR.Gadget a -> Form msg a
-fromGadgetWithConfig config toMsg gadget =
-    { init = init config gadget |> Tuple.mapSecond (Cmd.map toMsg)
-    , load = \output -> load config gadget output
-    , update = \msg model -> update config msg model |> Tuple.mapSecond (Cmd.map toMsg)
-    , view = \model -> view config gadget model |> H.map toMsg
-    , subscriptions = \model -> subscriptions config model |> Sub.map toMsg
-    , submit = submit config gadget
-    }
-
-
-{-| A configuration record that you can use to tweak various details of how to
-convert a `Gadget` into a `Form`. For example, you can specify the types of form
-controls you would like to use for each primitive type `(Bool`, `Int`, `Float`,
-`Char`, `String`), you can configure how controls are laid out and how feedback
-is formatted, and so on.
--}
-type alias Config =
-    { bool : Control Bool
-    , int : Control Int
-    , float : Control Float
-    , char : Control Char
-    , string : Control String
-    , viewFeedback : String -> H.Html Msg
-    , viewControl : Bool -> List (H.Html Msg) -> List (H.Html Msg)
-    }
-
-
-{-| The default configuration record for forms.
-
-`fromGadget == fromGadgetWithConfig defaultConfig`
-
--}
-defaultConfig : Config
-defaultConfig =
-    { bool = bool
-    , int = int
-    , float = float
-    , char = char
-    , string = string
-    , viewFeedback = \error -> H.span [] [ H.text error ]
-    , viewControl =
-        \validity inner ->
-            [ H.node "form-control"
-                [ HA.class
-                    (if validity then
-                        "valid"
-
-                     else
-                        "invalid"
-                    )
-                ]
-                inner
-            ]
-    }
-
-
-{-| A custom form control.
--}
-type Control output
-    = Control InnerControl
-
-
-type alias InnerControl =
-    { init : ( Value, Cmd Value )
-    , load : Value -> Value
-    , placeholder : Value
-    , update : Value -> Value -> ( Value, Cmd Value )
-    , view : String -> Value -> H.Html Value
-    , subscriptions : Value -> Sub Value
-    , layout : { label : H.Html Msg, input : H.Html Msg, feedback : H.Html Msg } -> List (H.Html Msg)
-    , submit : Path -> Value -> Result (List Error) Value
-    }
-
-
-{-| A definition for a custom form control.
--}
-type alias ControlDefinition msg model output =
-    { msg : IR.Gadget msg
-    , model : IR.Gadget model
-    , output : IR.Gadget output
-    , init : ( model, Cmd msg )
-    , placeholder : output
-    , load : output -> model
-    , update : msg -> model -> ( model, Cmd msg )
-    , view : String -> model -> H.Html msg
-    , subscriptions : model -> Sub msg
-    , submit : model -> Result String output
-    }
-
-
-{-| Turn a `ControlDefinition` into a `Control`.
--}
-makeControl : ControlDefinition msg model output -> Control output
-makeControl config =
-    let
-        placeholderValue =
-            config.placeholder
-                |> config.load
-                |> IR.fromInput config.model
-    in
-    Control
-        { init = config.init |> Tuple.mapBoth (IR.fromInput config.model) (Cmd.map (IR.fromInput config.msg))
-        , load =
-            \outputValue ->
-                IR.toOutput config.output outputValue
-                    |> Result.map (\output -> config.load output)
-                    |> Result.map (IR.fromInput config.model)
-                    |> Result.withDefault placeholderValue
-        , placeholder = IR.fromInput config.output config.placeholder
-        , update =
-            \msg modelValue ->
-                Result.map2 config.update
-                    (IR.toOutput config.msg msg)
-                    (IR.toOutput config.model modelValue)
-                    |> Result.map (Tuple.mapBoth (IR.fromInput config.model) (Cmd.map (IR.fromInput config.msg)))
-                    |> Result.withDefault ( modelValue, Cmd.none )
-        , view =
-            \id modelValue ->
-                Result.map (config.view id) (IR.toOutput config.model modelValue)
-                    |> Result.Extra.extract (List.map (.error >> H.text) >> H.div [])
-                    |> H.map (\msg -> IR.fromInput config.msg msg)
-        , layout =
-            \ui ->
-                [ ui.label, ui.input, ui.feedback ]
-        , subscriptions = \_ -> Sub.none
-        , submit =
-            \path modelValue ->
-                IR.toOutput config.model modelValue
-                    |> Result.andThen
-                        (\model ->
-                            config.submit model
-                                |> Result.mapError (\error -> [ { error = error, path = path } ])
-                                |> Result.map (IR.fromInput config.output)
-                        )
+type FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+    = FormBuilder
+        { bool : Control backendModel broadcastMsg Bool
+        , int : Control backendModel broadcastMsg Int
+        , float : Control backendModel broadcastMsg Float
+        , char : Control backendModel broadcastMsg Char
+        , string : Control backendModel broadcastMsg String
+        , viewFeedback : String -> H.Html frontendMsg
+        , viewControl : Bool -> List (H.Html frontendMsg) -> List (H.Html frontendMsg)
+        , viewTopLevel :
+            { switchActiveField : Int -> frontendMsg
+            , activeField : Int
+            , fieldViews : List (H.Html frontendMsg)
+            , result : Result (Set.Set Int) output
+            }
+            -> List (H.Html frontendMsg)
+        , overrides : Dict String (IR.Gadget backendModel -> Internal.InnerControl broadcastMsg)
+        , toFrontendMsg : Msg -> frontendMsg
+        , sendToBackend : Msg -> Cmd frontendMsg
+        , sendToFrontend : String -> Msg -> Cmd backendMsg
+        , backendModelGadget : IR.Gadget backendModel
         }
 
 
-withLayout : ({ label : H.Html Msg, input : H.Html Msg, feedback : H.Html Msg } -> List (H.Html Msg)) -> Control output -> Control output
-withLayout f (Control c) =
-    Control { c | layout = f }
+type alias InternalConfig frontendMsg broadcastMsg output =
+    { bool : Internal.InnerControl broadcastMsg
+    , int : Internal.InnerControl broadcastMsg
+    , float : Internal.InnerControl broadcastMsg
+    , char : Internal.InnerControl broadcastMsg
+    , string : Internal.InnerControl broadcastMsg
+    , overrides : Dict String (Internal.InnerControl broadcastMsg)
+    , viewFeedback : String -> H.Html frontendMsg
+    , viewControl : Bool -> List (H.Html frontendMsg) -> List (H.Html frontendMsg)
+    , viewTopLevel :
+        { switchActiveField : Int -> frontendMsg
+        , activeField : Int
+        , fieldViews : List (H.Html frontendMsg)
+        , result : Result (Set.Set Int) output
+        }
+        -> List (H.Html frontendMsg)
+    , toFrontendMsg : Msg -> frontendMsg
+    }
+
+
+
+{-
+    d888b   .d8b.  d8888b.  d888b  d88888b d888888b .d8888.
+   88' Y8b d8' `8b 88  `8D 88' Y8b 88'     `~~88~~' 88'  YP
+   88      88ooo88 88   88 88      88ooooo    88    `8bo.
+   88  ooo 88~~~88 88   88 88  ooo 88~~~~~    88      `Y8b.
+   88. ~8~ 88   88 88  .8D 88. ~8~ 88.        88    db   8D
+    Y888P  YP   YP Y8888D'  Y888P  Y88888P    YP    `8888Y'
+
+
+-}
+
+
+tools : IR.MetadataTools meta a
+tools =
+    IR.makeMetadataTools "Gadget.Adapter.Form"
+
+
+override : String -> IR.Gadget a -> IR.Gadget a
+override overrideName gadget =
+    tools.attach "override" Gadget.string overrideName gadget
 
 
 {-| Add a label to a `Gadget` - this will be displayed as an HTML `<label>` element
@@ -403,143 +177,702 @@ customLabels l ls gadget =
         gadget
 
 
-init : Config -> IR.Gadget a -> ( Model, Cmd Msg )
+
+{-
+   d88888b  .d88b.  d8888b. .88b  d88. .d8888.
+   88'     .8P  Y8. 88  `8D 88'YbdP`88 88'  YP
+   88ooo   88    88 88oobY' 88  88  88 `8bo.
+   88~~~   88    88 88`8b   88  88  88   `Y8b.
+   88      `8b  d8' 88 `88. 88  88  88 db   8D
+   YP       `Y88P'  88   YD YP  YP  YP `8888Y'
+
+
+-}
+
+
+newForm : (Msg -> frontendMsg) -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+newForm toFrontendMsg =
+    FormBuilder
+        { bool = boolControl
+        , int = intControl
+        , float = floatControl
+        , char = charControl
+        , string = stringControl
+        , viewFeedback = \error -> H.span [] [ H.text error ]
+        , viewTopLevel = \{ fieldViews } -> fieldViews
+        , viewControl =
+            \validity inner ->
+                [ H.node "form-control"
+                    [ HA.class
+                        (if validity then
+                            "valid"
+
+                         else
+                            "invalid"
+                        )
+                    ]
+                    inner
+                ]
+        , overrides = Dict.empty
+        , toFrontendMsg = toFrontendMsg
+        , sendToBackend = \_ -> Cmd.none
+        , sendToFrontend = \_ _ -> Cmd.none
+        , backendModelGadget = Internal.fail
+        }
+
+
+withBackend :
+    { sendToBackend : Msg -> Cmd frontendMsg
+    , sendToFrontend : String -> Msg -> Cmd backendMsg
+    , backendModelGadget : IR.Gadget backendModel
+    }
+    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+withBackend args (FormBuilder builder) =
+    FormBuilder
+        { bool = builder.bool
+        , int = builder.int
+        , float = builder.float
+        , char = builder.char
+        , string = builder.string
+        , viewFeedback = builder.viewFeedback
+        , viewControl = builder.viewControl
+        , viewTopLevel = builder.viewTopLevel
+        , overrides = builder.overrides
+        , toFrontendMsg = builder.toFrontendMsg
+        , sendToBackend = args.sendToBackend
+        , sendToFrontend = args.sendToFrontend
+        , backendModelGadget = args.backendModelGadget
+        }
+
+
+endForm :
+    IR.Gadget a
+    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg a
+    -> Form backendModel backendMsg frontendMsg a
+endForm gadget (FormBuilder builder) =
+    let
+        unwrapControl (Control toControl) =
+            toControl builder.backendModelGadget
+
+        unwrappedOverrides =
+            Dict.map (\_ toControl -> toControl builder.backendModelGadget) builder.overrides
+
+        config : InternalConfig frontendMsg broadcastMsg a
+        config =
+            { bool = unwrapControl builder.bool
+            , int = unwrapControl builder.int
+            , float = unwrapControl builder.float
+            , char = unwrapControl builder.char
+            , string = unwrapControl builder.string
+            , overrides = unwrappedOverrides
+            , viewFeedback = builder.viewFeedback
+            , viewControl = builder.viewControl
+            , viewTopLevel = builder.viewTopLevel
+            , toFrontendMsg = builder.toFrontendMsg
+            }
+    in
+    { init =
+        let
+            ( newModel, cmdType ) =
+                init config gadget
+        in
+        ( newModel
+        , toCmd builder.toFrontendMsg builder.sendToBackend cmdType
+        )
+    , load = \output -> load config gadget output
+    , update =
+        \msg model ->
+            let
+                ( newModel, cmdType ) =
+                    update .update config msg model
+            in
+            ( newModel
+            , toCmd builder.toFrontendMsg builder.sendToBackend cmdType
+            )
+    , updateFromBackend =
+        \msg model ->
+            let
+                ( newModel, cmdType ) =
+                    update .updateFromBackend config msg model
+            in
+            ( newModel
+            , toCmd builder.toFrontendMsg builder.sendToBackend cmdType
+            )
+    , view = \model -> view config gadget model
+    , subscriptions = \model -> subscriptions config model |> Sub.map builder.toFrontendMsg
+    , submit = \model -> submit config gadget model
+    , respond =
+        \sessionId toBackend value ->
+            respond config toBackend gadget (IR.fromInput builder.backendModelGadget value)
+                |> builder.sendToFrontend sessionId
+    }
+
+
+withOverride :
+    String
+    -> Control backendModel broadcastMsg a
+    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+withOverride id (Control toControl) (FormBuilder builder) =
+    FormBuilder { builder | overrides = Dict.insert id toControl builder.overrides }
+
+
+withIntControl :
+    Control backendModel broadcastMsg Int
+    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+withIntControl control (FormBuilder builder) =
+    FormBuilder { builder | int = control }
+
+
+withFloatControl :
+    Control backendModel broadcastMsg Float
+    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+withFloatControl control (FormBuilder builder) =
+    FormBuilder { builder | float = control }
+
+
+withStringControl :
+    Control backendModel broadcastMsg String
+    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+withStringControl control (FormBuilder builder) =
+    FormBuilder { builder | string = control }
+
+
+withCharControl :
+    Control backendModel broadcastMsg Char
+    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+withCharControl control (FormBuilder builder) =
+    FormBuilder { builder | char = control }
+
+
+withBoolControl :
+    Control backendModel broadcastMsg Bool
+    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+withBoolControl control (FormBuilder builder) =
+    FormBuilder { builder | bool = control }
+
+
+withControlView :
+    (Bool -> List (H.Html frontendMsg) -> List (H.Html frontendMsg))
+    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+withControlView f (FormBuilder builder) =
+    FormBuilder { builder | viewControl = f }
+
+
+withFeedbackView :
+    (String -> H.Html frontendMsg)
+    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+withFeedbackView f (FormBuilder builder) =
+    FormBuilder { builder | viewFeedback = f }
+
+
+withTopLevelView :
+    ({ switchActiveField : Int -> frontendMsg
+     , activeField : Int
+     , fieldViews : List (H.Html frontendMsg)
+     , result : Result (Set.Set Int) output
+     }
+     -> List (H.Html frontendMsg)
+    )
+    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+withTopLevelView f (FormBuilder builder) =
+    FormBuilder { builder | viewTopLevel = f }
+
+
+
+{-
+    .o88b.  .d88b.  d8b   db d888888b d8888b.  .d88b.  db      .d8888.
+   d8P  Y8 .8P  Y8. 888o  88 `~~88~~' 88  `8D .8P  Y8. 88      88'  YP
+   8P      88    88 88V8o 88    88    88oobY' 88    88 88      `8bo.
+   8b      88    88 88 V8o88    88    88`8b   88    88 88        `Y8b.
+   Y8b  d8 `8b  d8' 88  V888    88    88 `88. `8b  d8' 88booo. db   8D
+    `Y88P'  `Y88P'  VP   V8P    YP    88   YD  `Y88P'  Y88888P `8888Y'
+
+
+-}
+
+
+intControl : Control backendModel broadcastMsg Int
+intControl =
+    Control.sandbox
+        { modelGadget = Gadget.string
+        , msgGadget = Gadget.string
+        , outputGadget = Gadget.int
+        , init = ""
+        , placeholder = 0
+        , load = String.fromInt
+        , update = \msg _ -> msg
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "number"
+                    , HA.attribute "inputmode" "numeric"
+                    , HE.onInput identity
+                    , HA.id id
+                    , HA.value model
+                    ]
+                    []
+        , submit =
+            \model ->
+                String.toInt model
+                    |> Result.fromMaybe "This must be an integer"
+        }
+
+
+floatControl : Control backendModel broadcastMsg Float
+floatControl =
+    Control.sandbox
+        { modelGadget = Gadget.string
+        , msgGadget = Gadget.string
+        , outputGadget = Gadget.float
+        , init = ""
+        , placeholder = 0.0
+        , load = String.fromFloat
+        , update = \msg _ -> msg
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "number"
+                    , HA.attribute "inputmode" "decimal"
+                    , HE.onInput identity
+                    , HA.id id
+                    , HA.value model
+                    ]
+                    []
+        , submit =
+            \model ->
+                String.toFloat model
+                    |> Result.fromMaybe "This must be a decimal number"
+        }
+
+
+stringControl : Control backendModel broadcastMsg String
+stringControl =
+    Control.sandbox
+        { modelGadget = Gadget.string
+        , msgGadget = Gadget.string
+        , outputGadget = Gadget.string
+        , init = ""
+        , placeholder = ""
+        , load = identity
+        , update = \msg _ -> msg
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "text"
+                    , HE.onInput identity
+                    , HA.id id
+                    , HA.value model
+                    ]
+                    []
+        , submit = Ok
+        }
+
+
+boolControl : Control backendModel broadcastMsg Bool
+boolControl =
+    Control.sandbox
+        { modelGadget = Gadget.bool
+        , msgGadget = Gadget.bool
+        , outputGadget = Gadget.bool
+        , init = False
+        , placeholder = False
+        , load = identity
+        , update = \msg _ -> msg
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "checkbox"
+                    , HE.onCheck identity
+                    , HA.checked model
+                    , HA.id id
+                    ]
+                    []
+        , submit = Ok
+        }
+        |> Control.withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
+
+
+charControl : Control backendModel broadcastMsg Char
+charControl =
+    Control.sandbox
+        { modelGadget = Gadget.string
+        , msgGadget = Gadget.maybe Gadget.char
+        , outputGadget = Gadget.char
+        , init = ""
+        , placeholder = 'a'
+        , load = String.fromChar
+        , update =
+            \msg _ ->
+                case msg of
+                    Nothing ->
+                        ""
+
+                    Just c ->
+                        String.fromChar c
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "text"
+                    , HE.onInput (\str -> String.uncons str |> Maybe.map Tuple.first)
+                    , HA.id id
+                    , HA.value model
+                    ]
+                    []
+        , submit =
+            \model ->
+                String.uncons model
+                    |> Maybe.map Tuple.first
+                    |> Result.fromMaybe "This must not be blank"
+        }
+
+
+
+{-
+   d888888b d8b   db d888888b d888888b
+     `88'   888o  88   `88'   `~~88~~'
+      88    88V8o 88    88       88
+      88    88 V8o88    88       88
+     .88.   88  V888   .88.      88
+   Y888888P VP   V8P Y888888P    YP
+
+
+-}
+
+
+init : InternalConfig frontendMsg broadcastMsg output -> IR.Gadget a -> ( Model, Command Msg broadcastMsg Msg )
 init config gadget =
     initHelp config [] (IR.irType gadget)
 
 
-initHelp : Config -> Path -> Type -> ( Model, Cmd Msg )
+initHelp : InternalConfig frontendMsg broadcastMsg output -> Path -> Type -> ( Model, Command Msg broadcastMsg Msg )
 initHelp config path irType =
     let
-        initFor getType primitiveType metadata =
-            let
-                (Control c) =
-                    getType config
-            in
-            c.init
+        metadata =
+            tools.extract irType
+
+        initFor getType primitiveType =
+            config
+                |> getType
+                |> .init
                 |> Tuple.mapBoth
                     (Primitive primitiveType metadata)
-                    (Cmd.map (Msg path))
+                    (mapCommand (Msg path) identity (Msg path))
+
+        noOverride =
+            case irType of
+                UnitType _ ->
+                    ( Unit, noCommand )
+
+                BoolType _ ->
+                    initFor .bool PBool
+
+                CharType _ ->
+                    initFor .char PChar
+
+                StringType _ ->
+                    initFor .string PString
+
+                IntType _ ->
+                    initFor .int PInt
+
+                FloatType _ ->
+                    initFor .float PFloat
+
+                CustomType _ ( firstName, firstVariantType ) restNamesAndVariantTypes ->
+                    let
+                        variantTypes =
+                            ( firstName, firstVariantType ) :: restNamesAndVariantTypes
+
+                        ( namedVariantModels, variantCmds ) =
+                            variantTypes
+                                |> List.indexedMap
+                                    (\idx ( variantName, variantType ) ->
+                                        variantType
+                                            |> variantTypeToArgsList
+                                            |> List.map
+                                                (\( argName, argType ) ->
+                                                    let
+                                                        argPath =
+                                                            argName :: variantName :: path
+
+                                                        ( argModel, argCmd ) =
+                                                            initHelp config argPath argType
+                                                    in
+                                                    ( ( argName, argModel ), argCmd )
+                                                )
+                                            |> List.unzip
+                                            |> Tuple.mapFirst
+                                                (\list -> ( variantName, ( idx, Dict.fromList list ) ))
+                                    )
+                                |> List.unzip
+                                |> Tuple.mapBoth Dict.fromList List.concat
+                    in
+                    ( Sum firstName metadata namedVariantModels
+                    , batchCommands variantCmds
+                    )
+
+                RecordType _ namedFieldTypes ->
+                    let
+                        ( namedFieldModels, fieldCmds ) =
+                            namedFieldTypes
+                                |> List.indexedMap
+                                    (\idx ( fieldName, fieldType ) ->
+                                        let
+                                            ( fieldModel, fieldCmd ) =
+                                                initHelp config (fieldName :: path) fieldType
+                                        in
+                                        ( ( fieldName, ( idx, fieldModel ) ), fieldCmd )
+                                    )
+                                |> List.unzip
+                                |> Tuple.mapFirst Dict.fromList
+                    in
+                    ( Record 0 metadata namedFieldModels
+                    , batchCommands fieldCmds
+                    )
+
+                ListType _ innerType ->
+                    ( Collection metadata innerType Dict.empty
+                    , noCommand
+                    )
+
+                LazyType _ innerType ->
+                    initHelp config path (innerType ())
+
+                TupleType _ a b ->
+                    let
+                        ( aModel, aCmd ) =
+                            initHelp config ("0" :: path) a
+
+                        ( bModel, bCmd ) =
+                            initHelp config ("1" :: path) b
+                    in
+                    ( Tuple metadata aModel bModel
+                    , concatCommands aCmd bCmd
+                    )
+
+                TripleType _ a b c ->
+                    let
+                        ( aModel, aCmd ) =
+                            initHelp config ("0" :: path) a
+
+                        ( bModel, bCmd ) =
+                            initHelp config ("1" :: path) b
+
+                        ( cModel, cCmd ) =
+                            initHelp config ("2" :: path) c
+                    in
+                    ( Triple metadata aModel bModel cModel
+                    , batchCommands [ aCmd, bCmd, cCmd ]
+                    )
     in
-    case irType of
-        UnitType _ ->
-            ( Unit, Cmd.none )
+    tools.decode "override" Gadget.string metadata
+        |> Maybe.andThen
+            (\overrideName ->
+                Dict.get overrideName config.overrides
+                    |> Maybe.map
+                        (\overrideControl ->
+                            overrideControl.init
+                                |> Tuple.mapBoth
+                                    (Primitive (POverride overrideName) metadata)
+                                    (mapCommand (Msg path) identity (Msg path))
+                        )
+            )
+        |> Maybe.withDefault noOverride
 
-        BoolType m ->
-            initFor .bool PBool m
 
-        CharType m ->
-            initFor .char PChar m
 
-        StringType m ->
-            initFor .string PString m
+{-
+   db       .d88b.   .d8b.  d8888b.
+   88      .8P  Y8. d8' `8b 88  `8D
+   88      88    88 88ooo88 88   88
+   88      88    88 88~~~88 88   88
+   88booo. `8b  d8' 88   88 88  .8D
+   Y88888P  `Y88P'  YP   YP Y8888D'
 
-        IntType m ->
-            initFor .int PInt m
 
-        FloatType m ->
-            initFor .float PFloat m
+-}
 
-        CustomType m ( firstName, firstVariantType ) restNamesAndVariantTypes ->
-            let
-                variantTypes =
-                    ( firstName, firstVariantType ) :: restNamesAndVariantTypes
 
-                ( namedVariantModels, variantCmds ) =
-                    variantTypes
-                        |> List.indexedMap
-                            (\idx ( variantName, variantType ) ->
-                                variantType
-                                    |> variantTypeToArgsList
-                                    |> List.map
-                                        (\( argName, argType ) ->
-                                            let
-                                                argPath =
-                                                    argName :: variantName :: path
+load : InternalConfig frontendMsg broadcastMsg output -> IR.Gadget a -> a -> Model
+load config gadget a =
+    loadHelp config (IR.fromInput gadget a) (IR.irType gadget)
 
-                                                ( argModel, argCmd ) =
-                                                    initHelp config argPath argType
-                                            in
-                                            ( ( argName, argModel ), argCmd )
-                                        )
-                                    |> List.unzip
-                                    |> Tuple.mapFirst
-                                        (\list -> ( variantName, ( idx, Dict.fromList list ) ))
+
+loadHelp : InternalConfig frontendMsg broadcastMsg output -> Value -> Type -> Model
+loadHelp config value type_ =
+    let
+        metadata =
+            tools.extract type_
+    in
+    case
+        tools.decode "override" Gadget.string metadata
+            |> Maybe.andThen
+                (\overrideName ->
+                    Dict.get overrideName config.overrides
+                        |> Maybe.map
+                            (\overrideControl ->
+                                Primitive (POverride overrideName) metadata (overrideControl.load value)
                             )
-                        |> List.unzip
-                        |> Tuple.mapBoth Dict.fromList List.concat
-            in
-            ( Sum firstName m namedVariantModels, Cmd.batch variantCmds )
+                )
+    of
+        Just model ->
+            model
 
-        RecordType m namedFieldTypes ->
+        Nothing ->
             let
-                ( namedFieldModels, fieldCmds ) =
-                    namedFieldTypes
-                        |> List.indexedMap
-                            (\idx ( fieldName, fieldType ) ->
-                                let
-                                    ( fieldModel, fieldCmd ) =
-                                        initHelp config (fieldName :: path) fieldType
-                                in
-                                ( ( fieldName, ( idx, fieldModel ) ), fieldCmd )
-                            )
-                        |> List.unzip
-                        |> Tuple.mapFirst Dict.fromList
+                loadMe typ getType =
+                    let
+                        c =
+                            getType config
+                    in
+                    Primitive typ metadata (c.load value)
             in
-            ( Record m namedFieldModels, Cmd.batch fieldCmds )
+            case ( value, type_ ) of
+                ( UnitValue, UnitType _ ) ->
+                    Unit
 
-        ListType m innerType ->
-            ( Collection m innerType Dict.empty, Cmd.none )
+                ( BoolValue _, BoolType _ ) ->
+                    loadMe PBool .bool
 
-        LazyType _ innerType ->
-            initHelp config path (innerType ())
+                ( CharValue _, CharType _ ) ->
+                    loadMe PChar .char
 
-        TupleType m a b ->
+                ( StringValue _, StringType _ ) ->
+                    loadMe PString .string
+
+                ( IntValue _, IntType _ ) ->
+                    loadMe PInt .int
+
+                ( FloatValue _, FloatType _ ) ->
+                    loadMe PFloat .float
+
+                ( RecordValue namedFieldValues, RecordType _ namedFieldTypes ) ->
+                    List.Extra.zip namedFieldValues namedFieldTypes
+                        |> List.indexedMap (\idx ( ( name, fieldValue ), ( _, fieldType ) ) -> ( name, ( idx, loadHelp config fieldValue fieldType ) ))
+                        |> Dict.fromList
+                        |> Record 0 metadata
+
+                ( CustomValue selected ( name, variantValue ), CustomType _ firstNameAndVariantType restNamesAndVariantTypes ) ->
+                    let
+                        blank =
+                            initHelp config [] type_
+                                |> Tuple.first
+                    in
+                    case blank of
+                        Sum _ _ variantModels ->
+                            let
+                                argValues =
+                                    variantValueToArgsList variantValue
+
+                                argTypes =
+                                    List.Extra.getAt selected (firstNameAndVariantType :: restNamesAndVariantTypes)
+                                        |> Maybe.map Tuple.second
+                                        |> Maybe.withDefault Variant0Type
+                                        |> variantTypeToArgsList
+
+                                newArgsDict =
+                                    List.map2
+                                        (\( argName, argValue ) ( _, argType ) -> ( argName, loadHelp config argValue argType ))
+                                        argValues
+                                        argTypes
+                                        |> Dict.fromList
+                            in
+                            Sum name metadata (Dict.insert name ( selected, newArgsDict ) variantModels)
+
+                        _ ->
+                            blank
+
+                ( ListValue itemValues, ListType _ itemType ) ->
+                    List.indexedMap (\idx itemValue -> ( String.fromInt idx, loadHelp config itemValue itemType )) itemValues
+                        |> Dict.fromList
+                        |> Collection metadata itemType
+
+                ( TupleValue aValue bValue, TupleType _ aType bType ) ->
+                    Tuple metadata (loadHelp config aValue aType) (loadHelp config bValue bType)
+
+                ( TripleValue aValue bValue cValue, TripleType _ aType bType cType ) ->
+                    Triple metadata (loadHelp config aValue aType) (loadHelp config bValue bType) (loadHelp config cValue cType)
+
+                _ ->
+                    Unit
+
+
+
+{-
+   db    db d8888b. d8888b.  .d8b.  d888888b d88888b
+   88    88 88  `8D 88  `8D d8' `8b `~~88~~' 88'
+   88    88 88oodD' 88   88 88ooo88    88    88ooooo
+   88    88 88~~~   88   88 88~~~88    88    88~~~~~
+   88b  d88 88      88  .8D 88   88    88    88.
+   ~Y8888P' 88      Y8888D' YP   YP    YP    Y88888P
+
+
+-}
+
+
+update :
+    (InnerControl broadcastMsg -> Value -> Value -> ( Value, Command Value broadcastMsg Value ))
+    -> InternalConfig frontendMsg broadcastMsg output
+    -> Msg
+    -> Model
+    -> ( Model, Command Msg broadcastMsg Msg )
+update updater config msg model =
+    updateHelp updater config [] msg model
+        |> updateFromBroadcast config
+
+
+updateFromBroadcast :
+    InternalConfig frontendMsg broadcastMsg output
+    -> ( Model, Command Msg broadcastMsg Msg )
+    -> ( Model, Command Msg broadcastMsg Msg )
+updateFromBroadcast config ( model, command ) =
+    let
+        ( broadcastMsgs, otherCommands ) =
+            Internal.extractBroadcasts command
+    in
+    List.foldl
+        (\broadcastMsg ( previousModel, previousCommand ) ->
             let
-                ( aModel, aCmd ) =
-                    initHelp config ("0" :: path) a
-
-                ( bModel, bCmd ) =
-                    initHelp config ("1" :: path) b
+                ( newModel, newCommand ) =
+                    updateFromBroadcastHelp config [] broadcastMsg previousModel
             in
-            ( Tuple m aModel bModel, Cmd.batch [ aCmd, bCmd ] )
-
-        TripleType m a b c ->
-            let
-                ( aModel, aCmd ) =
-                    initHelp config ("0" :: path) a
-
-                ( bModel, bCmd ) =
-                    initHelp config ("1" :: path) b
-
-                ( cModel, cCmd ) =
-                    initHelp config ("2" :: path) c
-            in
-            ( Triple m aModel bModel cModel, Cmd.batch [ aCmd, bCmd, cCmd ] )
+            ( newModel, concatCommands newCommand previousCommand )
+        )
+        ( model, otherCommands )
+        broadcastMsgs
 
 
-update : Config -> Msg -> Model -> ( Model, Cmd Msg )
-update config msg model =
-    updateHelp config [] msg model
-
-
-updateHelp : Config -> Path -> Msg -> Model -> ( Model, Cmd Msg )
-updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
+updateFromBroadcastHelp :
+    InternalConfig frontendMsg broadcastMsg output
+    -> Path
+    -> broadcastMsg
+    -> Model
+    -> ( Model, Command Msg broadcastMsg Msg )
+updateFromBroadcastHelp config path broadcastMsg model =
     case model of
         Unit ->
-            ( model, Cmd.none )
+            ( model, noCommand )
 
         Primitive primitiveType metadata modelValue ->
-            Tuple.mapBoth (Primitive primitiveType metadata) (Cmd.map (Msg modelPath)) <|
-                if modelPath == msgPath then
+            let
+                updateFor getType =
                     let
-                        updateFor getType =
-                            let
-                                (Control c) =
-                                    getType config
-                            in
-                            c.update msgValue modelValue
+                        c =
+                            getType config
                     in
+                    c.updateFromBroadcast broadcastMsg modelValue
+
+                ( newModelValue, cmdType ) =
                     case primitiveType of
                         PString ->
                             updateFor .string
@@ -556,94 +889,253 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
                         PBool ->
                             updateFor .bool
 
-                else
-                    ( modelValue, Cmd.none )
+                        POverride overrideName ->
+                            case Dict.get overrideName config.overrides of
+                                Just overrideControl ->
+                                    overrideControl.updateFromBroadcast broadcastMsg modelValue
 
-        Record metadata fields ->
+                                Nothing ->
+                                    ( modelValue, noCommand )
+            in
+            ( Primitive primitiveType metadata newModelValue
+            , mapCommand (Msg path) identity (Msg path) cmdType
+            )
+
+        Record active metadata fields ->
+            let
+                ( newFields, cmd ) =
+                    Dict.foldl
+                        (\name ( idx, field ) ( outDict, outCommand ) ->
+                            let
+                                ( newField, fieldCommand ) =
+                                    updateFromBroadcastHelp config (name :: path) broadcastMsg field
+                            in
+                            ( Dict.insert name ( idx, newField ) outDict
+                            , concatCommands fieldCommand outCommand
+                            )
+                        )
+                        ( Dict.empty, noCommand )
+                        fields
+            in
+            ( Record active metadata newFields, cmd )
+
+        Tuple metadata a b ->
+            let
+                ( newA, cmdA ) =
+                    updateFromBroadcastHelp config ("0" :: path) broadcastMsg a
+
+                ( newB, cmdB ) =
+                    updateFromBroadcastHelp config ("1" :: path) broadcastMsg b
+            in
+            ( Tuple metadata newA newB, batchCommands [ cmdA, cmdB ] )
+
+        Triple metadata a b c ->
+            let
+                ( newA, cmdA ) =
+                    updateFromBroadcastHelp config ("0" :: path) broadcastMsg a
+
+                ( newB, cmdB ) =
+                    updateFromBroadcastHelp config ("1" :: path) broadcastMsg b
+
+                ( newC, cmdC ) =
+                    updateFromBroadcastHelp config ("2" :: path) broadcastMsg c
+            in
+            ( Triple metadata newA newB newC, batchCommands [ cmdA, cmdB, cmdC ] )
+
+        Collection metadata innerType itemModels ->
+            let
+                ( newItemModels, itemCmd ) =
+                    Dict.foldl
+                        (\name item ( outDict, outCommand ) ->
+                            let
+                                ( newField, itemCommand ) =
+                                    updateFromBroadcastHelp config (name :: path) broadcastMsg item
+                            in
+                            ( Dict.insert name newField outDict
+                            , concatCommands itemCommand outCommand
+                            )
+                        )
+                        ( Dict.empty, noCommand )
+                        itemModels
+            in
+            ( Collection metadata innerType newItemModels, itemCmd )
+
+        Sum selected metadata variants ->
+            let
+                ( newVariants, command ) =
+                    Dict.foldl
+                        (\variantName ( variantIdx, args ) ( previousVariantDict, previousVariantCommand ) ->
+                            let
+                                ( newArgs, newArgsCommand ) =
+                                    Dict.foldl
+                                        (\argName arg ( previousArgsDict, previousArgsCommand ) ->
+                                            let
+                                                ( newArg, newArgCommand ) =
+                                                    updateFromBroadcastHelp config (argName :: variantName :: path) broadcastMsg arg
+                                            in
+                                            ( Dict.insert argName newArg previousArgsDict
+                                            , concatCommands newArgCommand previousArgsCommand
+                                            )
+                                        )
+                                        ( Dict.empty, noCommand )
+                                        args
+                            in
+                            ( Dict.insert variantName ( variantIdx, newArgs ) previousVariantDict
+                            , concatCommands newArgsCommand previousVariantCommand
+                            )
+                        )
+                        ( Dict.empty, noCommand )
+                        variants
+            in
+            ( Sum selected metadata newVariants
+            , command
+            )
+
+
+updateHelp :
+    (InnerControl broadcastMsg -> Value -> Value -> ( Value, Command Value broadcastMsg Value ))
+    -> InternalConfig frontendMsg broadcastMsg output
+    -> Path
+    -> Msg
+    -> Model
+    -> ( Model, Command Msg broadcastMsg Msg )
+updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
+    case model of
+        Unit ->
+            ( model, noCommand )
+
+        Primitive primitiveType metadata modelValue ->
+            if modelPath == msgPath then
+                let
+                    updateFor getType =
+                        let
+                            c =
+                                getType config
+                        in
+                        updater c msgValue modelValue
+
+                    ( newModelValue, cmdType ) =
+                        case primitiveType of
+                            PString ->
+                                updateFor .string
+
+                            PChar ->
+                                updateFor .char
+
+                            PInt ->
+                                updateFor .int
+
+                            PFloat ->
+                                updateFor .float
+
+                            PBool ->
+                                updateFor .bool
+
+                            POverride overrideName ->
+                                case Dict.get overrideName config.overrides of
+                                    Just overrideControl ->
+                                        updater overrideControl msgValue modelValue
+
+                                    Nothing ->
+                                        ( modelValue, noCommand )
+                in
+                ( Primitive primitiveType metadata newModelValue
+                , mapCommand (Msg modelPath) identity (Msg modelPath) cmdType
+                )
+
+            else
+                ( model, noCommand )
+
+        Record active metadata fields ->
             case matchPath msgPath modelPath of
                 FullMatch ->
-                    ( model, Cmd.none )
+                    case msgValue of
+                        IntValue newActive ->
+                            ( Record newActive metadata fields, noCommand )
+
+                        _ ->
+                            ( model, noCommand )
 
                 PrefixMatch { next1 } ->
                     case Dict.get next1 fields of
                         Just ( idx, oldField ) ->
                             let
                                 ( newField, cmd ) =
-                                    updateHelp config (next1 :: modelPath) msg oldField
+                                    updateHelp updater config (next1 :: modelPath) msg oldField
 
                                 newFields =
                                     Dict.insert next1
                                         ( idx, newField )
                                         fields
                             in
-                            ( Record metadata newFields, cmd )
+                            ( Record active metadata newFields, cmd )
 
                         Nothing ->
-                            ( model, Cmd.none )
+                            ( model, noCommand )
 
                 NoMatch ->
-                    ( model, Cmd.none )
+                    ( model, noCommand )
 
         Tuple metadata a b ->
             case matchPath msgPath modelPath of
                 FullMatch ->
-                    ( model, Cmd.none )
+                    ( model, noCommand )
 
                 PrefixMatch { next1 } ->
                     case next1 of
                         "0" ->
                             let
                                 ( new, cmd ) =
-                                    updateHelp config ("0" :: modelPath) msg a
+                                    updateHelp updater config ("0" :: modelPath) msg a
                             in
                             ( Tuple metadata new b, cmd )
 
                         "1" ->
                             let
                                 ( new, cmd ) =
-                                    updateHelp config ("1" :: modelPath) msg b
+                                    updateHelp updater config ("1" :: modelPath) msg b
                             in
                             ( Tuple metadata a new, cmd )
 
                         _ ->
-                            ( model, Cmd.none )
+                            ( model, noCommand )
 
                 NoMatch ->
-                    ( model, Cmd.none )
+                    ( model, noCommand )
 
         Triple metadata a b c ->
             case matchPath msgPath modelPath of
                 FullMatch ->
-                    ( model, Cmd.none )
+                    ( model, noCommand )
 
                 PrefixMatch { next1 } ->
                     case next1 of
                         "0" ->
                             let
                                 ( new, cmd ) =
-                                    updateHelp config ("0" :: modelPath) msg a
+                                    updateHelp updater config ("0" :: modelPath) msg a
                             in
                             ( Triple metadata new b c, cmd )
 
                         "1" ->
                             let
                                 ( new, cmd ) =
-                                    updateHelp config ("1" :: modelPath) msg b
+                                    updateHelp updater config ("1" :: modelPath) msg b
                             in
                             ( Triple metadata a new c, cmd )
 
                         "2" ->
                             let
                                 ( new, cmd ) =
-                                    updateHelp config ("2" :: modelPath) msg c
+                                    updateHelp updater config ("2" :: modelPath) msg c
                             in
                             ( Triple metadata a b new, cmd )
 
                         _ ->
-                            ( model, Cmd.none )
+                            ( model, noCommand )
 
                 NoMatch ->
-                    ( model, Cmd.none )
+                    ( model, noCommand )
 
         Collection metadata innerType itemModels ->
             let
@@ -661,24 +1153,24 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
                                     )
 
                                 _ ->
-                                    ( itemModels, Cmd.none )
+                                    ( itemModels, noCommand )
 
                         PrefixMatch { next1 } ->
                             case Dict.get next1 itemModels of
                                 Just oldItemModel ->
                                     let
                                         ( newItemModel, newCmd ) =
-                                            updateHelp config (next1 :: modelPath) msg oldItemModel
+                                            updateHelp updater config (next1 :: modelPath) msg oldItemModel
                                     in
                                     ( Dict.insert next1 newItemModel itemModels
                                     , newCmd
                                     )
 
                                 Nothing ->
-                                    ( itemModels, Cmd.none )
+                                    ( itemModels, noCommand )
 
                         NoMatch ->
-                            ( itemModels, Cmd.none )
+                            ( itemModels, noCommand )
             in
             ( Collection metadata innerType newItemModels, itemCmd )
 
@@ -687,10 +1179,10 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
                 FullMatch ->
                     case msgValue of
                         StringValue newSelected ->
-                            ( Sum newSelected metadata variants, Cmd.none )
+                            ( Sum newSelected metadata variants, noCommand )
 
                         _ ->
-                            ( model, Cmd.none )
+                            ( model, noCommand )
 
                 PrefixMatch { next1, next2 } ->
                     case Dict.get next1 variants of
@@ -699,7 +1191,7 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
                                 Just arg ->
                                     let
                                         ( newArg, cmd ) =
-                                            updateHelp config (next2 :: next1 :: modelPath) msg arg
+                                            updateHelp updater config (next2 :: next1 :: modelPath) msg arg
 
                                         newVariants =
                                             Dict.insert next1
@@ -711,31 +1203,44 @@ updateHelp config modelPath ((Msg msgPath msgValue) as msg) model =
                                     )
 
                                 Nothing ->
-                                    ( model, Cmd.none )
+                                    ( model, noCommand )
 
                         Nothing ->
-                            ( model, Cmd.none )
+                            ( model, noCommand )
 
                 NoMatch ->
-                    ( model, Cmd.none )
+                    ( model, noCommand )
 
 
-view : Config -> IR.Gadget a -> Model -> H.Html Msg
+
+{-
+   db    db d888888b d88888b db   d8b   db
+   88    88   `88'   88'     88   I8I   88
+   Y8    8P    88    88ooooo 88   I8I   88
+   `8b  d8'    88    88~~~~~ Y8   I8I   88
+    `8bd8'    .88.   88.     `8b d8'8b d8'
+      YP    Y888888P Y88888P  `8b8' `8d8'
+
+
+-}
+
+
+view : InternalConfig frontendMsg broadcastMsg a -> IR.Gadget a -> Model -> H.Html frontendMsg
 view config gadget model =
     let
-        errs =
-            case submit config gadget model of
-                Ok _ ->
-                    []
-
-                Err errs_ ->
-                    errs_
+        result =
+            submit config gadget model
     in
-    H.form [] (viewHelp config errs [] model)
+    H.form [] (viewHelp config result [] model)
 
 
-viewHelp : Config -> List Error -> Path -> Model -> List (H.Html Msg)
-viewHelp config errs modelPath model =
+viewHelp :
+    InternalConfig frontendMsg broadcastMsg a
+    -> Result (List Error) a
+    -> Path
+    -> Model
+    -> List (H.Html frontendMsg)
+viewHelp config result modelPath model =
     let
         id =
             pathToString modelPath
@@ -744,15 +1249,20 @@ viewHelp config errs modelPath model =
             tools.decode "label" Gadget.string metadata
 
         feedback =
-            errs
-                |> List.concatMap
-                    (\{ path, error } ->
-                        if path == modelPath then
-                            [ config.viewFeedback error ]
+            case result of
+                Ok _ ->
+                    []
 
-                        else
-                            []
-                    )
+                Err errs ->
+                    List.concatMap
+                        (\{ path, error } ->
+                            if path == modelPath then
+                                [ config.viewFeedback error ]
+
+                            else
+                                []
+                        )
+                        errs
 
         isValid =
             List.isEmpty feedback
@@ -765,18 +1275,23 @@ viewHelp config errs modelPath model =
             let
                 viewMe getType =
                     let
-                        (Control c) =
+                        c =
                             getType config
                     in
                     config.viewControl isValid <|
-                        c.layout
-                            { label =
-                                H.label [ HA.for id ] [ H.text (maybeLabel metadata |> Maybe.withDefault id) ]
-                            , input =
-                                c.view id modelValue |> H.map (Msg modelPath)
-                            , feedback =
-                                H.output [] feedback
-                            }
+                        List.map
+                            (\ui ->
+                                case ui of
+                                    Internal.Label ->
+                                        H.label [ HA.for id ] [ H.text (maybeLabel metadata |> Maybe.withDefault id) ]
+
+                                    Internal.Input ->
+                                        c.view id modelValue |> H.map (config.toFrontendMsg << Msg modelPath)
+
+                                    Internal.Feedback ->
+                                        H.output [] feedback
+                            )
+                            c.layout
             in
             case primitiveType of
                 PString ->
@@ -794,25 +1309,76 @@ viewHelp config errs modelPath model =
                 PBool ->
                     viewMe .bool
 
-        Record metadata fields ->
+                POverride overrideName ->
+                    case Dict.get overrideName config.overrides of
+                        Just overrideControl ->
+                            config.viewControl isValid <|
+                                List.map
+                                    (\ui ->
+                                        case ui of
+                                            Internal.Label ->
+                                                H.label [ HA.for id ] [ H.text (maybeLabel metadata |> Maybe.withDefault id) ]
+
+                                            Internal.Input ->
+                                                overrideControl.view id modelValue |> H.map (config.toFrontendMsg << Msg modelPath)
+
+                                            Internal.Feedback ->
+                                                H.output [] feedback
+                                    )
+                                    overrideControl.layout
+
+                        Nothing ->
+                            [ H.text ("Override " ++ overrideName ++ "is missing!") ]
+
+        Record active metadata fields ->
             let
                 inner =
                     Dict.toList fields
                         |> List.sortBy (\( _, ( idx, _ ) ) -> idx)
-                        |> List.concatMap (\( name, ( _, childModel ) ) -> viewHelp config errs (name :: modelPath) childModel)
-            in
-            case maybeLabel metadata of
-                Nothing ->
-                    inner ++ feedback
+                        |> List.concatMap
+                            (\( name, ( _, childModel ) ) ->
+                                viewHelp config result (name :: modelPath) childModel
+                            )
 
-                Just label_ ->
-                    H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) :: feedback
+                isTopLevel =
+                    List.isEmpty modelPath
+
+                fieldViews =
+                    case maybeLabel metadata of
+                        Nothing ->
+                            inner ++ feedback
+
+                        Just label_ ->
+                            H.fieldset [] (H.legend [] [ H.text label_ ] :: inner) :: feedback
+            in
+            if isTopLevel then
+                config.viewTopLevel
+                    { switchActiveField = config.toFrontendMsg << Msg [] << IntValue
+                    , activeField = active
+                    , fieldViews = fieldViews
+                    , result =
+                        result
+                            |> Result.mapError
+                                (List.filterMap
+                                    (\{ path } ->
+                                        path
+                                            |> List.reverse
+                                            |> List.head
+                                            |> Maybe.andThen (\firstSegment -> Dict.get firstSegment fields)
+                                            |> Maybe.map Tuple.first
+                                    )
+                                    >> Set.fromList
+                                )
+                    }
+
+            else
+                fieldViews
 
         Tuple metadata a b ->
             let
                 inner =
-                    viewHelp config errs ("0" :: modelPath) a
-                        ++ viewHelp config errs ("1" :: modelPath) b
+                    viewHelp config result ("0" :: modelPath) a
+                        ++ viewHelp config result ("1" :: modelPath) b
             in
             case maybeLabel metadata of
                 Nothing ->
@@ -824,9 +1390,9 @@ viewHelp config errs modelPath model =
         Triple metadata a b c ->
             let
                 inner =
-                    viewHelp config errs ("0" :: modelPath) a
-                        ++ viewHelp config errs ("1" :: modelPath) b
-                        ++ viewHelp config errs ("2" :: modelPath) c
+                    viewHelp config result ("0" :: modelPath) a
+                        ++ viewHelp config result ("1" :: modelPath) b
+                        ++ viewHelp config result ("2" :: modelPath) c
             in
             case maybeLabel metadata of
                 Nothing ->
@@ -840,9 +1406,9 @@ viewHelp config errs modelPath model =
                 (case maybeLabel metadata of
                     Nothing ->
                         List.concat
-                            [ [ H.input [ HA.type_ "button", HE.onClick (Msg modelPath UnitValue), HA.value "Add an item" ] [] ]
+                            [ [ H.input [ HA.type_ "button", HE.onClick (config.toFrontendMsg <| Msg modelPath UnitValue), HA.value "Add an item" ] [] ]
                             , childModels
-                                |> Dict.map (\idx childModel -> viewHelp config errs (idx :: modelPath) childModel)
+                                |> Dict.map (\idx childModel -> viewHelp config result (idx :: modelPath) childModel)
                                 |> Dict.values
                                 |> List.concat
                             , feedback
@@ -851,9 +1417,9 @@ viewHelp config errs modelPath model =
                     Just legend ->
                         List.concat
                             [ [ H.legend [] [ H.text legend ] ]
-                            , [ H.input [ HA.type_ "button", HE.onClick (Msg modelPath UnitValue), HA.value "Add an item" ] [] ]
+                            , [ H.input [ HA.type_ "button", HE.onClick (config.toFrontendMsg <| Msg modelPath UnitValue), HA.value "Add an item" ] [] ]
                             , childModels
-                                |> Dict.map (\idx childModel -> viewHelp config errs (idx :: modelPath) childModel)
+                                |> Dict.map (\idx childModel -> viewHelp config result (idx :: modelPath) childModel)
                                 |> Dict.values
                                 |> List.concat
                             , feedback
@@ -869,52 +1435,71 @@ viewHelp config errs modelPath model =
                 Just ( _, variant ) ->
                     let
                         childView =
-                            Dict.map (\idx arg -> viewHelp config errs (idx :: selected :: modelPath) arg) variant
+                            Dict.map (\idx arg -> viewHelp config result (idx :: selected :: modelPath) arg) variant
                                 |> Dict.values
                                 |> List.concat
 
                         ( customLabel_, variantLabels ) =
                             tools.decode "customLabel" (Gadget.tuple Gadget.string (Gadget.list Gadget.string)) metadata
                                 |> Maybe.withDefault ( pathToString modelPath, [] )
-                    in
-                    (H.fieldset [ HA.class "custom-variant-selector" ]
-                        (H.legend [] [ H.text customLabel_ ]
-                            :: (childModels
-                                    |> Dict.map
-                                        (\name ( idx, _ ) ->
-                                            let
-                                                childId =
-                                                    pathToString (name :: modelPath)
-                                            in
-                                            H.span []
-                                                [ H.input
-                                                    [ HA.id childId
-                                                    , HA.name id
-                                                    , HA.type_ "radio"
-                                                    , HE.onCheck (\_ -> Msg modelPath (StringValue name))
-                                                    , HA.checked (selected == name)
-                                                    ]
-                                                    []
-                                                , H.label [ HA.for childId ]
-                                                    [ H.text
-                                                        (List.Extra.getAt idx variantLabels
-                                                            |> Maybe.withDefault (maybeLabel metadata |> Maybe.withDefault "")
-                                                        )
-                                                    ]
-                                                ]
+
+                        selectorView =
+                            H.fieldset [ HA.class "custom-variant-selector" ]
+                                (H.legend [] [ H.text customLabel_ ]
+                                    :: (childModels
+                                            |> Dict.map radioButtonView
+                                            |> Dict.values
+                                       )
+                                )
+
+                        radioButtonView name ( idx, _ ) =
+                            let
+                                childId =
+                                    pathToString (name :: modelPath)
+                            in
+                            H.span []
+                                [ H.input
+                                    [ HA.id childId
+                                    , HA.name id
+                                    , HA.type_ "radio"
+                                    , HE.onCheck (\_ -> config.toFrontendMsg (Msg modelPath (StringValue name)))
+                                    , HA.checked (selected == name)
+                                    ]
+                                    []
+                                , H.label [ HA.for childId ]
+                                    [ H.text
+                                        (case List.Extra.getAt idx variantLabels of
+                                            Just variantLabel ->
+                                                variantLabel
+
+                                            Nothing ->
+                                                name
                                         )
-                                    |> Dict.values
-                               )
-                        )
-                        :: childView
-                    )
-                        ++ feedback
+                                    ]
+                                ]
+                    in
+                    (selectorView :: childView) ++ feedback
 
 
+
+{-
+   .d8888. db    db d8888b.    dD   d8b   db .d8888.
+   88'  YP 88    88 88  `8D   d8'   888o  88 88'  YP
+   `8bo.   88    88 88oooY'  d8'    88V8o 88 `8bo.
+     `Y8b. 88    88 88~~~b. d8888b. 88 V8o88   `Y8b.
+   db   8D 88b  d88 88   8D 88' `8D 88  V888 db   8D
+   `8888Y' ~Y8888P' Y8888P' `8888P  VP   V8P `8888Y'
+
+
+-}
+
+
+subscriptions : InternalConfig frontendMsg broadcastMsg output -> Model -> Sub Msg
 subscriptions config model =
     subscriptionsHelp config [] model
 
 
+subscriptionsHelp : InternalConfig frontendMsg broadcastMsg output -> Path -> Model -> Sub Msg
 subscriptionsHelp config path model =
     case model of
         Unit ->
@@ -924,7 +1509,7 @@ subscriptionsHelp config path model =
             let
                 subMe getType =
                     let
-                        (Control c) =
+                        c =
                             getType config
                     in
                     c.subscriptions modelValue
@@ -946,6 +1531,14 @@ subscriptionsHelp config path model =
                 PString ->
                     subMe .string
 
+                POverride overrideName ->
+                    case Dict.get overrideName config.overrides of
+                        Just overrideControl ->
+                            overrideControl.subscriptions modelValue |> Sub.map (Msg path)
+
+                        Nothing ->
+                            Sub.none
+
         Tuple _ a b ->
             Sub.batch
                 [ subscriptionsHelp config ("0" :: path) a
@@ -959,7 +1552,7 @@ subscriptionsHelp config path model =
                 , subscriptionsHelp config ("2" :: path) c
                 ]
 
-        Record _ namedFieldModels ->
+        Record _ _ namedFieldModels ->
             namedFieldModels
                 |> Dict.map (\fieldName ( _, fieldModel ) -> subscriptionsHelp config (fieldName :: path) fieldModel)
                 |> Dict.values
@@ -986,7 +1579,20 @@ subscriptionsHelp config path model =
                 |> Sub.batch
 
 
-submit : Config -> IR.Gadget a -> Model -> Result (List Error) a
+
+{-
+   .d8888. db    db d8888b. .88b  d88. d888888b d888888b
+   88'  YP 88    88 88  `8D 88'YbdP`88   `88'   `~~88~~'
+   `8bo.   88    88 88oooY' 88  88  88    88       88
+     `Y8b. 88    88 88~~~b. 88  88  88    88       88
+   db   8D 88b  d88 88   8D 88  88  88   .88.      88
+   `8888Y' ~Y8888P' Y8888P' YP  YP  YP Y888888P    YP
+
+
+-}
+
+
+submit : InternalConfig frontendMsg broadcastMsg output -> IR.Gadget a -> Model -> Result (List Error) a
 submit config gadget model =
     let
         ( parsedValue, parsingErrors ) =
@@ -1028,7 +1634,7 @@ submit config gadget model =
             Err (parsingErrors ++ filteredValidationErrors)
 
 
-parsePrimitiveControls : Config -> Path -> Model -> ( Value, List Error )
+parsePrimitiveControls : InternalConfig frontendMsg broadcastMsg output -> Path -> Model -> ( Value, List Error )
 parsePrimitiveControls config path model =
     case model of
         Unit ->
@@ -1038,7 +1644,7 @@ parsePrimitiveControls config path model =
             let
                 submit_ getter =
                     let
-                        (Control c) =
+                        c =
                             getter config
                     in
                     case c.submit path modelValue of
@@ -1064,7 +1670,20 @@ parsePrimitiveControls config path model =
                 PBool ->
                     submit_ .bool
 
-        Record _ fields ->
+                POverride overrideName ->
+                    case Dict.get overrideName config.overrides of
+                        Just overrideControl ->
+                            case overrideControl.submit path modelValue of
+                                Ok v ->
+                                    ( v, [] )
+
+                                Err errs ->
+                                    ( overrideControl.placeholder, errs )
+
+                        Nothing ->
+                            ( UnitValue, [ { path = path, error = "override '" ++ overrideName ++ "' is missing" } ] )
+
+        Record _ _ fields ->
             fields
                 |> Dict.toList
                 |> List.sortBy (\( _, ( idx, _ ) ) -> idx)
@@ -1131,304 +1750,176 @@ parsePrimitiveControls config path model =
                             ( CustomValue idx ( selected, variantValue ), argsErrs )
 
 
-load : Config -> IR.Gadget a -> a -> Model
-load config gadget a =
-    loadHelp config (IR.fromInput gadget a) (IR.irType gadget)
+
+{-
+   d8888b. d88888b .d8888. d8888b.  .d88b.  d8b   db d8888b.
+   88  `8D 88'     88'  YP 88  `8D .8P  Y8. 888o  88 88  `8D
+   88oobY' 88ooooo `8bo.   88oodD' 88    88 88V8o 88 88   88
+   88`8b   88~~~~~   `Y8b. 88~~~   88    88 88 V8o88 88   88
+   88 `88. 88.     db   8D 88      `8b  d8' 88  V888 88  .8D
+   88   YD Y88888P `8888Y' 88       `Y88P'  VP   V8P Y8888D'
 
 
-loadHelp : Config -> Value -> Type -> Model
-loadHelp config value type_ =
+-}
+
+
+respond : InternalConfig frontendMsg broadcastMsg output -> Msg -> IR.Gadget a -> Value -> Msg
+respond config toBackend gadget value =
     let
-        loadMe typ metadata getType =
-            let
-                (Control c) =
-                    getType config
-            in
-            Primitive typ metadata (c.load value)
+        ( model, _ ) =
+            init config gadget
     in
-    case ( value, type_ ) of
-        ( UnitValue, UnitType _ ) ->
-            Unit
-
-        ( BoolValue _, BoolType metadata ) ->
-            loadMe PBool metadata .bool
-
-        ( CharValue _, CharType metadata ) ->
-            loadMe PChar metadata .char
-
-        ( StringValue _, StringType metadata ) ->
-            loadMe PString metadata .string
-
-        ( IntValue _, IntType metadata ) ->
-            loadMe PInt metadata .int
-
-        ( FloatValue _, FloatType metadata ) ->
-            loadMe PFloat metadata .float
-
-        ( RecordValue namedFieldValues, RecordType metadata namedFieldTypes ) ->
-            List.Extra.zip namedFieldValues namedFieldTypes
-                |> List.indexedMap (\idx ( ( name, fieldValue ), ( _, fieldType ) ) -> ( name, ( idx, loadHelp config fieldValue fieldType ) ))
-                |> Dict.fromList
-                |> Record metadata
-
-        ( CustomValue selected ( name, variantValue ), CustomType metadata firstNameAndVariantType restNamesAndVariantTypes ) ->
-            let
-                blank =
-                    initHelp config [] type_
-                        |> Tuple.first
-            in
-            case blank of
-                Sum _ _ variantModels ->
-                    let
-                        argValues =
-                            variantValueToArgsList variantValue
-
-                        argTypes =
-                            List.Extra.getAt selected (firstNameAndVariantType :: restNamesAndVariantTypes)
-                                |> Maybe.map Tuple.second
-                                |> Maybe.withDefault Variant0Type
-                                |> variantTypeToArgsList
-
-                        newArgsDict =
-                            List.map2
-                                (\( argName, argValue ) ( _, argType ) -> ( argName, loadHelp config argValue argType ))
-                                argValues
-                                argTypes
-                                |> Dict.fromList
-                    in
-                    Sum name metadata (Dict.insert name ( selected, newArgsDict ) variantModels)
-
-                _ ->
-                    blank
-
-        ( ListValue itemValues, ListType metadata itemType ) ->
-            List.indexedMap (\idx itemValue -> ( String.fromInt idx, loadHelp config itemValue itemType )) itemValues
-                |> Dict.fromList
-                |> Collection metadata itemType
-
-        ( TupleValue aValue bValue, TupleType metadata aType bType ) ->
-            Tuple metadata (loadHelp config aValue aType) (loadHelp config bValue bType)
-
-        ( TripleValue aValue bValue cValue, TripleType metadata aType bType cType ) ->
-            Triple metadata (loadHelp config aValue aType) (loadHelp config bValue bType) (loadHelp config cValue cType)
-
-        _ ->
-            Unit
+    respondHelp config [] toBackend model value
 
 
-int : Control Int
-int =
-    makeControl
-        { model = Gadget.string
-        , msg = Gadget.string
-        , output = Gadget.int
-        , init = ( "", Cmd.none )
-        , placeholder = 0
-        , load = String.fromInt
-        , update = \msg _ -> ( msg, Cmd.none )
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "number"
-                    , HA.attribute "inputmode" "numeric"
-                    , HE.onInput identity
-                    , HA.id id
-                    , HA.value model
-                    ]
-                    []
-        , subscriptions = \_ -> Sub.none
-        , submit =
-            \model ->
-                String.toInt model
-                    |> Result.fromMaybe "This must be an integer"
-        }
+respondHelp : InternalConfig frontendMsg broadcastMsg output -> Path -> Msg -> Model -> Value -> Msg
+respondHelp config modelPath ((Msg msgPath msgValue) as msg) model value =
+    case model of
+        Unit ->
+            Msg msgPath UnitValue
 
+        Primitive primitiveType _ _ ->
+            if modelPath == msgPath then
+                let
+                    respondFor getType =
+                        (getType config).respond msgValue value
 
-float : Control Float
-float =
-    makeControl
-        { model = Gadget.string
-        , msg = Gadget.string
-        , output = Gadget.float
-        , init = ( "", Cmd.none )
-        , placeholder = 0.0
-        , load = String.fromFloat
-        , update = \msg _ -> ( msg, Cmd.none )
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "number"
-                    , HA.attribute "inputmode" "decimal"
-                    , HE.onInput identity
-                    , HA.id id
-                    , HA.value model
-                    ]
-                    []
-        , subscriptions = \_ -> Sub.none
-        , submit =
-            \model ->
-                String.toFloat model
-                    |> Result.fromMaybe "This must be a decimal number"
-        }
+                    toFrontend =
+                        case primitiveType of
+                            PString ->
+                                respondFor .string
 
+                            PChar ->
+                                respondFor .char
 
-string : Control String
-string =
-    makeControl
-        { model = Gadget.string
-        , msg = Gadget.string
-        , output = Gadget.string
-        , init = ( "", Cmd.none )
-        , placeholder = ""
-        , load = identity
-        , update = \msg _ -> ( msg, Cmd.none )
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "text"
-                    , HE.onInput identity
-                    , HA.id id
-                    , HA.value model
-                    ]
-                    []
-        , subscriptions = \_ -> Sub.none
-        , submit = Ok
-        }
+                            PInt ->
+                                respondFor .int
 
+                            PFloat ->
+                                respondFor .float
 
-bool : Control Bool
-bool =
-    makeControl
-        { model = Gadget.bool
-        , msg = Gadget.bool
-        , output = Gadget.bool
-        , init = ( False, Cmd.none )
-        , placeholder = False
-        , load = identity
-        , update = \msg _ -> ( msg, Cmd.none )
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "checkbox"
-                    , HE.onCheck identity
-                    , HA.checked model
-                    , HA.id id
-                    ]
-                    []
-        , subscriptions = \_ -> Sub.none
-        , submit = Ok
-        }
-        |> withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
+                            PBool ->
+                                respondFor .bool
 
+                            POverride name ->
+                                case Dict.get name config.overrides of
+                                    Nothing ->
+                                        UnitValue
 
-char : Control Char
-char =
-    makeControl
-        { model = Gadget.string
-        , msg = Gadget.maybe Gadget.char
-        , output = Gadget.char
-        , init = ( "", Cmd.none )
-        , placeholder = 'a'
-        , load = String.fromChar
-        , update =
-            \msg _ ->
-                case msg of
-                    Nothing ->
-                        ( "", Cmd.none )
+                                    Just o ->
+                                        o.respond msgValue value
+                in
+                Msg modelPath toFrontend
 
-                    Just c ->
-                        ( String.fromChar c, Cmd.none )
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "text"
-                    , HE.onInput (\str -> String.uncons str |> Maybe.map Tuple.first)
-                    , HA.id id
-                    , HA.value model
-                    ]
-                    []
-        , subscriptions = \_ -> Sub.none
-        , submit =
-            \model ->
-                String.uncons model
-                    |> Maybe.map Tuple.first
-                    |> Result.fromMaybe "This must not be blank"
-        }
+            else
+                Msg [ "primitiveFailed" ] UnitValue
 
+        Record _ _ fields ->
+            case matchPath msgPath modelPath of
+                FullMatch ->
+                    Msg [] UnitValue
 
-argsListToVariantValue : List Value -> Result String IR.VariantValue
-argsListToVariantValue l =
-    case l of
-        [] ->
-            Ok IR.Variant0Value
+                PrefixMatch { next1 } ->
+                    case Dict.get next1 fields of
+                        Just ( _, oldField ) ->
+                            respondHelp config (next1 :: modelPath) msg oldField value
 
-        [ arg1 ] ->
-            Ok <| IR.Variant1Value arg1
+                        Nothing ->
+                            Msg [ "record no field" ] UnitValue
 
-        [ arg1, arg2 ] ->
-            Ok <| IR.Variant2Value arg1 arg2
+                NoMatch ->
+                    Msg [ "record no match" ] UnitValue
 
-        [ arg1, arg2, arg3 ] ->
-            Ok <| IR.Variant3Value arg1 arg2 arg3
+        Tuple _ a b ->
+            case matchPath msgPath modelPath of
+                FullMatch ->
+                    Msg [ "tuple full match" ] UnitValue
 
-        [ arg1, arg2, arg3, arg4 ] ->
-            Ok <| IR.Variant4Value arg1 arg2 arg3 arg4
+                PrefixMatch { next1 } ->
+                    case next1 of
+                        "0" ->
+                            respondHelp config ("0" :: modelPath) msg a value
 
-        [ arg1, arg2, arg3, arg4, arg5 ] ->
-            Ok <| IR.Variant5Value arg1 arg2 arg3 arg4 arg5
+                        "1" ->
+                            respondHelp config ("1" :: modelPath) msg b value
 
-        _ ->
-            Err "Variant has too many args"
+                        _ ->
+                            Msg [ "tuple field doesn't exist" ] UnitValue
 
+                NoMatch ->
+                    Msg [ "tuple no match" ] UnitValue
 
-variantTypeToArgsList : VariantType -> List ( String, Type )
-variantTypeToArgsList v =
-    List.indexedMap (\idx item -> ( String.fromInt idx, item )) <|
-        case v of
-            Variant0Type ->
-                []
+        Triple _ a b c ->
+            case matchPath msgPath modelPath of
+                FullMatch ->
+                    Msg [ "triple full match" ] UnitValue
 
-            Variant1Type arg1 ->
-                [ arg1 ]
+                PrefixMatch { next1 } ->
+                    case next1 of
+                        "0" ->
+                            respondHelp config ("0" :: modelPath) msg a value
 
-            Variant2Type arg1 arg2 ->
-                [ arg1, arg2 ]
+                        "1" ->
+                            respondHelp config ("1" :: modelPath) msg b value
 
-            Variant3Type arg1 arg2 arg3 ->
-                [ arg1, arg2, arg3 ]
+                        "2" ->
+                            respondHelp config ("2" :: modelPath) msg c value
 
-            Variant4Type arg1 arg2 arg3 arg4 ->
-                [ arg1, arg2, arg3, arg4 ]
+                        _ ->
+                            Msg [ "triple field doesn't exist" ] UnitValue
 
-            Variant5Type arg1 arg2 arg3 arg4 arg5 ->
-                [ arg1, arg2, arg3, arg4, arg5 ]
+                NoMatch ->
+                    Msg [ "triple no match" ] UnitValue
 
+        Collection _ itemType _ ->
+            case matchPath msgPath modelPath of
+                FullMatch ->
+                    Msg [ "collection full match" ] UnitValue
 
-variantValueToArgsList : VariantValue -> List ( String, Value )
-variantValueToArgsList v =
-    List.indexedMap (\idx item -> ( String.fromInt idx, item )) <|
-        case v of
-            Variant0Value ->
-                []
+                PrefixMatch { next1 } ->
+                    respondHelp
+                        config
+                        (next1 :: modelPath)
+                        msg
+                        (initHelp config (next1 :: modelPath) itemType |> Tuple.first)
+                        value
 
-            Variant1Value arg1 ->
-                [ arg1 ]
+                NoMatch ->
+                    Msg [ "collection no match" ] UnitValue
 
-            Variant2Value arg1 arg2 ->
-                [ arg1, arg2 ]
+        Sum _ _ variants ->
+            case matchPath msgPath modelPath of
+                FullMatch ->
+                    Msg [ "sum full match" ] UnitValue
 
-            Variant3Value arg1 arg2 arg3 ->
-                [ arg1, arg2, arg3 ]
+                PrefixMatch { next1, next2 } ->
+                    case Dict.get next1 variants of
+                        Just ( _, args ) ->
+                            case Dict.get next2 args of
+                                Just arg ->
+                                    respondHelp config (next2 :: next1 :: modelPath) msg arg value
 
-            Variant4Value arg1 arg2 arg3 arg4 ->
-                [ arg1, arg2, arg3, arg4 ]
+                                Nothing ->
+                                    Msg [ "sum arg not found" ] UnitValue
 
-            Variant5Value arg1 arg2 arg3 arg4 arg5 ->
-                [ arg1, arg2, arg3, arg4, arg5 ]
+                        Nothing ->
+                            Msg [ "sum variant not found" ] UnitValue
+
+                NoMatch ->
+                    Msg [ "sum no match" ] UnitValue
 
 
 
--- PATH
+{-
+   d8888b.  .d8b.  d888888b db   db
+   88  `8D d8' `8b `~~88~~' 88   88
+   88oodD' 88ooo88    88    88ooo88
+   88~~~   88~~~88    88    88~~~88
+   88      88   88    88    88   88
+   88      YP   YP    YP    YP   YP
+
+
+-}
 
 
 pathToString : Path -> String
@@ -1532,3 +2023,87 @@ type Match
     = FullMatch
     | PrefixMatch { next1 : String, next2 : String }
     | NoMatch
+
+
+
+{-
+   db   db d88888b db      d8888b. d88888b d8888b. .d8888.
+   88   88 88'     88      88  `8D 88'     88  `8D 88'  YP
+   88ooo88 88ooooo 88      88oodD' 88ooooo 88oobY' `8bo.
+   88~~~88 88~~~~~ 88      88~~~   88~~~~~ 88`8b     `Y8b.
+   88   88 88.     88booo. 88      88.     88 `88. db   8D
+   YP   YP Y88888P Y88888P 88      Y88888P 88   YD `8888Y'
+
+
+-}
+
+
+argsListToVariantValue : List Value -> Result String IR.VariantValue
+argsListToVariantValue l =
+    case l of
+        [] ->
+            Ok IR.Variant0Value
+
+        [ arg1 ] ->
+            Ok <| IR.Variant1Value arg1
+
+        [ arg1, arg2 ] ->
+            Ok <| IR.Variant2Value arg1 arg2
+
+        [ arg1, arg2, arg3 ] ->
+            Ok <| IR.Variant3Value arg1 arg2 arg3
+
+        [ arg1, arg2, arg3, arg4 ] ->
+            Ok <| IR.Variant4Value arg1 arg2 arg3 arg4
+
+        [ arg1, arg2, arg3, arg4, arg5 ] ->
+            Ok <| IR.Variant5Value arg1 arg2 arg3 arg4 arg5
+
+        _ ->
+            Err "Variant has too many args"
+
+
+variantTypeToArgsList : VariantType -> List ( String, Type )
+variantTypeToArgsList v =
+    List.indexedMap (\idx item -> ( String.fromInt idx, item )) <|
+        case v of
+            Variant0Type ->
+                []
+
+            Variant1Type arg1 ->
+                [ arg1 ]
+
+            Variant2Type arg1 arg2 ->
+                [ arg1, arg2 ]
+
+            Variant3Type arg1 arg2 arg3 ->
+                [ arg1, arg2, arg3 ]
+
+            Variant4Type arg1 arg2 arg3 arg4 ->
+                [ arg1, arg2, arg3, arg4 ]
+
+            Variant5Type arg1 arg2 arg3 arg4 arg5 ->
+                [ arg1, arg2, arg3, arg4, arg5 ]
+
+
+variantValueToArgsList : VariantValue -> List ( String, Value )
+variantValueToArgsList v =
+    List.indexedMap (\idx item -> ( String.fromInt idx, item )) <|
+        case v of
+            Variant0Value ->
+                []
+
+            Variant1Value arg1 ->
+                [ arg1 ]
+
+            Variant2Value arg1 arg2 ->
+                [ arg1, arg2 ]
+
+            Variant3Value arg1 arg2 arg3 ->
+                [ arg1, arg2, arg3 ]
+
+            Variant4Value arg1 arg2 arg3 arg4 ->
+                [ arg1, arg2, arg3, arg4 ]
+
+            Variant5Value arg1 arg2 arg3 arg4 arg5 ->
+                [ arg1, arg2, arg3, arg4, arg5 ]
