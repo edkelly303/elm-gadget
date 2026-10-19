@@ -426,6 +426,7 @@ intControl =
                 String.toInt model
                     |> Result.fromMaybe "This must be an integer"
         }
+        |> Control.build
 
 
 floatControl : Control backendModel broadcastMsg Float
@@ -453,6 +454,7 @@ floatControl =
                 String.toFloat model
                     |> Result.fromMaybe "This must be a decimal number"
         }
+        |> Control.build
 
 
 stringControl : Control backendModel broadcastMsg String
@@ -476,6 +478,7 @@ stringControl =
                     []
         , submit = Ok
         }
+        |> Control.build
 
 
 boolControl : Control backendModel broadcastMsg Bool
@@ -500,6 +503,7 @@ boolControl =
         , submit = Ok
         }
         |> Control.withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
+        |> Control.build
 
 
 charControl : Control backendModel broadcastMsg Char
@@ -534,6 +538,7 @@ charControl =
                     |> Maybe.map Tuple.first
                     |> Result.fromMaybe "This must not be blank"
         }
+        |> Control.build
 
 
 

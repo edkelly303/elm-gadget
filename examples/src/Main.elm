@@ -344,6 +344,7 @@ counter =
                     ]
         , submit = Ok
         }
+        |> Control.build
 
 
 type Broadcast
@@ -351,7 +352,7 @@ type Broadcast
 
 
 myFloat =
-    Control.define
+    Control.new
         { frontendModelGadget = Gadget.float
         , frontendMsgGadget = Gadget.unit
         , outputGadget = Gadget.float
@@ -378,6 +379,7 @@ myFloat =
         , submit = Ok
         , respond = \() { float } -> float
         }
+        |> Control.build
 
 
 myBoolBroadcaster =
@@ -398,22 +400,22 @@ myBoolBroadcaster =
                     , HA.id id
                     ]
                     []
-        , subscriptions = \model -> Sub.none
+        , subscriptions = always Sub.none
         , submit = Ok
         }
         |> Control.withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
+        |> Control.build
 
 
 myBoolReceiver =
-    Control.transceiver
+    Control.sandbox
         { modelGadget = Gadget.bool
         , msgGadget = Gadget.unit
         , outputGadget = Gadget.bool
-        , init = ( False, Control.noCommand )
+        , init = False
         , load = identity
         , placeholder = True
-        , update = \_ model -> ( not model, Control.noCommand )
-        , updateFromBroadcast = \Incremented model -> ( not model, Control.noCommand )
+        , update = \_ model -> not model
         , view =
             \id model ->
                 H.input
@@ -423,10 +425,11 @@ myBoolReceiver =
                     , HA.id id
                     ]
                     []
-        , subscriptions = \model -> Sub.none
         , submit = Ok
         }
         |> Control.withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
+        |> Control.withReceiver (\Incremented model -> ( not model, Control.noCommand ))
+        |> Control.build
 
 
 init _ =

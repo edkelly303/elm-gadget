@@ -4,27 +4,32 @@ import Gadget.IR as IR exposing (Error, Path, Value)
 import Html as H
 
 
-type Command frontendMsg broadcastMsg toBackend
-    = Command (List (Effect frontendMsg broadcastMsg toBackend))
+type Command msg broadcast request
+    = Command (List (Effect msg broadcast request))
 
 
-type Effect frontendMsg broadcastMsg toBackend
-    = Cmd (Cmd frontendMsg)
-    | Broadcast broadcastMsg
-    | ToBackend toBackend
+type Effect msg broadcast request
+    = Cmd (Cmd msg)
+    | Broadcast broadcast
+    | Request request
 
 
-batchCommands : List (Command frontendMsg broadcastMsg toBackend) -> Command frontendMsg broadcastMsg toBackend
+batchCommands : List (Command msg broadcast request) -> Command msg broadcast request
 batchCommands commands =
     List.foldl concatCommands (Command [ Cmd Cmd.none ]) commands
 
 
-concatCommands : Command frontendMsg broadcastMsg toBackend -> Command frontendMsg broadcastMsg toBackend -> Command frontendMsg broadcastMsg toBackend
+concatCommands : Command msg broadcast request -> Command msg broadcast request -> Command msg broadcast request
 concatCommands (Command cmdType1) (Command cmdType2) =
     Command (cmdType1 ++ cmdType2)
 
 
-mapCommand : (frontendMsgA -> frontendMsgB) -> (broadcastMsgA -> broadcastMsgB) -> (toBackendA -> toBackendB) -> Command frontendMsgA broadcastMsgA toBackendA -> Command frontendMsgB broadcastMsgB toBackendB
+mapCommand :
+    (msgA -> msgB)
+    -> (broadcastA -> broadcastB)
+    -> (requestA -> requestB)
+    -> Command msgA broadcastA requestA
+    -> Command msgB broadcastB requestB
 mapCommand cmdMapper broadcastMsgMapper toBackendMapper (Command commands) =
     List.map
         (\cmdType_ ->
@@ -35,14 +40,14 @@ mapCommand cmdMapper broadcastMsgMapper toBackendMapper (Command commands) =
                 Broadcast broadcastMsg ->
                     Broadcast (broadcastMsgMapper broadcastMsg)
 
-                ToBackend toBackend ->
-                    ToBackend (toBackendMapper toBackend)
+                Request toBackend ->
+                    Request (toBackendMapper toBackend)
         )
         commands
         |> Command
 
 
-extractBroadcasts : Command frontendMsg broadcastMsg toBackend -> ( List broadcastMsg, Command frontendMsg broadcastMsg toBackend )
+extractBroadcasts : Command msg broadcast request -> ( List broadcast, Command msg broadcast request )
 extractBroadcasts (Command commands) =
     List.foldl
         (\effect ( broadcastMsgs, command ) ->
@@ -57,19 +62,19 @@ extractBroadcasts (Command commands) =
         commands
 
 
-toCmd : (frontendMsg -> msg) -> (toBackend -> Cmd msg) -> Command frontendMsg broadcastMsg toBackend -> Cmd msg
-toCmd toFrontendMsg sendToBackend (Command command) =
+toCmd : (msg -> msg2) -> (request -> Cmd msg2) -> Command msg broadcast request -> Cmd msg2
+toCmd toMsg sendRequest (Command command) =
     List.map
         (\cmdType ->
             case cmdType of
                 Cmd cmd ->
-                    Cmd.map toFrontendMsg cmd
+                    Cmd.map toMsg cmd
 
-                Broadcast broadcastMsg ->
+                Broadcast _ ->
                     Cmd.none
 
-                ToBackend toBackend ->
-                    sendToBackend toBackend
+                Request r ->
+                    sendRequest r
         )
         command
         |> Cmd.batch
@@ -86,13 +91,13 @@ fail =
         }
 
 
-type alias InnerControl broadcastMsg =
-    { init : ( Value, Command Value broadcastMsg Value )
+type alias InnerControl broadcast =
+    { init : ( Value, Command Value broadcast Value )
     , load : Value -> Value
     , placeholder : Value
-    , update : Value -> Value -> ( Value, Command Value broadcastMsg Value )
-    , updateFromBackend : Value -> Value -> ( Value, Command Value broadcastMsg Value )
-    , updateFromBroadcast : broadcastMsg -> Value -> ( Value, Command Value broadcastMsg Value )
+    , update : Value -> Value -> ( Value, Command Value broadcast Value )
+    , updateFromBackend : Value -> Value -> ( Value, Command Value broadcast Value )
+    , updateFromBroadcast : broadcast -> Value -> ( Value, Command Value broadcast Value )
     , view : String -> Value -> H.Html Value
     , subscriptions : Value -> Sub Value
     , layout : List UI
