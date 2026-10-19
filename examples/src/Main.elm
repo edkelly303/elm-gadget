@@ -98,8 +98,8 @@ personGadget =
         |> Gadget.field "tuple"
             .tuple
             (Gadget.tuple
-                (Gadget.bool |> Form.label "one")
-                (Gadget.bool |> Form.label "two")
+                (Gadget.bool |> Form.label "one" |> Form.override "myBoolSender")
+                (Gadget.bool |> Form.label "two" |> Form.override "myBoolReceiver")
                 |> Form.label "What's your favourite pair of booleans?"
             )
         |> Gadget.field "triple"
@@ -249,6 +249,8 @@ form =
             }
         --|> Form.withTopLevelView wizardView
         |> Form.withOverride "heightInCentimetres" myFloat
+        |> Form.withOverride "myBoolSender" myBoolSender
+        |> Form.withOverride "myBoolReceiver" myBoolReceiver
         |> Form.withIntControl counter
         |> Form.endForm gadget
 
@@ -378,7 +380,7 @@ myFloat =
         }
 
 
-myBool =
+myBoolSender =
     Control.define
         { frontendModelGadget = Gadget.bool
         , frontendMsgGadget = Gadget.unit
@@ -389,6 +391,34 @@ myBool =
         , load = identity
         , placeholder = True
         , update = \_ model -> ( not model, Control.broadcastCommand Incremented )
+        , updateFromBackend = \_ model -> ( model, Control.noCommand )
+        , updateFromBroadcast = \_ model -> ( model, Control.noCommand )
+        , view =
+            \id model ->
+                H.input
+                    [ HA.type_ "checkbox"
+                    , HE.onCheck (always ())
+                    , HA.checked model
+                    , HA.id id
+                    ]
+                    []
+        , subscriptions = \model -> Sub.none
+        , submit = Ok
+        , respond = \_ _ -> ()
+        }
+
+
+myBoolReceiver =
+    Control.define
+        { frontendModelGadget = Gadget.bool
+        , frontendMsgGadget = Gadget.unit
+        , outputGadget = Gadget.bool
+        , toBackendGadget = Gadget.unit
+        , toFrontendGadget = Gadget.unit
+        , init = ( False, Control.noCommand )
+        , load = identity
+        , placeholder = True
+        , update = \_ model -> ( not model, Control.noCommand )
         , updateFromBackend = \_ model -> ( model, Control.noCommand )
         , updateFromBroadcast = \Incremented model -> ( not model, Control.noCommand )
         , view =
@@ -402,7 +432,7 @@ myBool =
                     []
         , subscriptions = \model -> Sub.none
         , submit = Ok
-        , respond = \() () -> ()
+        , respond = \_ _ -> ()
         }
 
 
