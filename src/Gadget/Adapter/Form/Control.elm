@@ -1,12 +1,12 @@
 module Gadget.Adapter.Form.Control exposing
-    ( Control(..), sandbox, element, broadcaster, receiver, define, withLayout
-    , Command, noCommand, toCommand, sendCommand, broadcastCommand
+    ( Control(..), sandbox, element, transmitter, transceiver, define, withLayout
+    , Command, noCommand, toCommand, request, broadcast
     )
 
 {-|
 
-@docs Control, sandbox, element, broadcaster, receiver, define, withLayout
-@docs Command, noCommand, toCommand, sendCommand, broadcastCommand
+@docs Control, sandbox, element, transmitter, transceiver, define, withLayout
+@docs Command, noCommand, toCommand, request, broadcast
 
 -}
 
@@ -36,13 +36,13 @@ toCommand cmd =
     Internal.Command [ Internal.Cmd cmd ]
 
 
-sendCommand : toBackend -> Command frontendMsg broadcastMsg toBackend
-sendCommand toBackend =
+request : toBackend -> Command frontendMsg broadcastMsg toBackend
+request toBackend =
     Internal.Command [ Internal.ToBackend toBackend ]
 
 
-broadcastCommand : broadcastMsg -> Command frontendMsg broadcastMsg toBackend
-broadcastCommand broadcastMsg =
+broadcast : broadcastMsg -> Command frontendMsg broadcastMsg toBackend
+broadcast broadcastMsg =
     Internal.Command [ Internal.Broadcast broadcastMsg ]
 
 
@@ -117,7 +117,7 @@ element { placeholder, init, load, update, view, subscriptions, submit, modelGad
         }
 
 
-broadcaster :
+transmitter :
     { modelGadget : IR.Gadget model
     , msgGadget : IR.Gadget msg
     , outputGadget : IR.Gadget output
@@ -130,7 +130,7 @@ broadcaster :
     , submit : model -> Result String output
     }
     -> Control backendModel broadcastMsg output
-broadcaster { placeholder, init, load, update, view, subscriptions, submit, modelGadget, msgGadget, outputGadget } =
+transmitter { placeholder, init, load, update, view, subscriptions, submit, modelGadget, msgGadget, outputGadget } =
     define
         { frontendModelGadget = modelGadget
         , frontendMsgGadget = msgGadget
@@ -150,7 +150,7 @@ broadcaster { placeholder, init, load, update, view, subscriptions, submit, mode
         }
 
 
-receiver :
+transceiver :
     { modelGadget : IR.Gadget model
     , msgGadget : IR.Gadget msg
     , outputGadget : IR.Gadget output
@@ -164,7 +164,7 @@ receiver :
     , submit : model -> Result String output
     }
     -> Control backendModel broadcastMsg output
-receiver { placeholder, init, load, update, updateFromBroadcast, view, subscriptions, submit, modelGadget, msgGadget, outputGadget } =
+transceiver { placeholder, init, load, update, updateFromBroadcast, view, subscriptions, submit, modelGadget, msgGadget, outputGadget } =
     define
         { frontendModelGadget = modelGadget
         , frontendMsgGadget = msgGadget

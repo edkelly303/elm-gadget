@@ -21,7 +21,7 @@ module Gadget.Adapter.Form exposing
 
 import Dict exposing (Dict)
 import Gadget
-import Gadget.Adapter.Form.Control as Control exposing (Command, Control(..), broadcastCommand, noCommand)
+import Gadget.Adapter.Form.Control as Control exposing (Command, Control(..), noCommand)
 import Gadget.Adapter.Form.Internal as Internal exposing (InnerControl, batchCommands, concatCommands, mapCommand, toCmd)
 import Gadget.IR as IR exposing (Error, Path, Type(..), Value(..), VariantType(..), VariantValue(..))
 import Html as H

@@ -360,7 +360,7 @@ myFloat =
         , init = ( 0.5, Control.noCommand )
         , load = identity
         , placeholder = 0.0
-        , update = \_ model -> ( model, Control.sendCommand () )
+        , update = \_ model -> ( model, Control.request () )
         , updateFromBackend = \float _ -> ( float, Control.noCommand )
         , updateFromBroadcast = \_ model -> ( model, Control.noCommand )
         , view =
@@ -381,14 +381,14 @@ myFloat =
 
 
 myBoolBroadcaster =
-    Control.broadcaster
+    Control.transmitter
         { modelGadget = Gadget.bool
         , msgGadget = Gadget.unit
         , outputGadget = Gadget.bool
         , init = ( False, Control.noCommand )
         , load = identity
         , placeholder = True
-        , update = \_ model -> ( not model, Control.broadcastCommand Incremented )
+        , update = \_ model -> ( not model, Control.broadcast Incremented )
         , view =
             \id model ->
                 H.input
@@ -405,7 +405,7 @@ myBoolBroadcaster =
 
 
 myBoolReceiver =
-    Control.receiver
+    Control.transceiver
         { modelGadget = Gadget.bool
         , msgGadget = Gadget.unit
         , outputGadget = Gadget.bool
