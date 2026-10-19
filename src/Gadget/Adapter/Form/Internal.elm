@@ -42,6 +42,21 @@ mapCommand cmdMapper broadcastMsgMapper toBackendMapper (Command commands) =
         |> Command
 
 
+extractBroadcasts : Command frontendMsg broadcastMsg toBackend -> ( List broadcastMsg, Command frontendMsg broadcastMsg toBackend )
+extractBroadcasts (Command commands) =
+    List.foldl
+        (\effect ( broadcastMsgs, command ) ->
+            case effect of
+                Broadcast b ->
+                    ( b :: broadcastMsgs, command )
+
+                _ ->
+                    ( broadcastMsgs, concatCommands (Command [ effect ]) command )
+        )
+        ( [], Command [] )
+        commands
+
+
 toCmd : (frontendMsg -> msg) -> (toBackend -> Cmd msg) -> Command frontendMsg broadcastMsg toBackend -> Cmd msg
 toCmd toFrontendMsg sendToBackend (Command command) =
     List.map

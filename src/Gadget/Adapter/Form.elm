@@ -21,7 +21,7 @@ module Gadget.Adapter.Form exposing
 
 import Dict exposing (Dict)
 import Gadget
-import Gadget.Adapter.Form.Control as Control exposing (Command, Control(..), noCommand)
+import Gadget.Adapter.Form.Control as Control exposing (Command, Control(..), broadcastCommand, noCommand)
 import Gadget.Adapter.Form.Internal as Internal exposing (InnerControl, batchCommands, concatCommands, mapCommand, toCmd)
 import Gadget.IR as IR exposing (Error, Path, Type(..), Value(..), VariantType(..), VariantValue(..))
 import Html as H
@@ -828,6 +828,168 @@ update :
     -> ( Model, Command Msg broadcastMsg Msg )
 update updater config msg model =
     updateHelp updater config [] msg model
+        |> updateFromBroadcast config
+
+
+updateFromBroadcast :
+    InternalConfig frontendMsg broadcastMsg output
+    -> ( Model, Command Msg broadcastMsg Msg )
+    -> ( Model, Command Msg broadcastMsg Msg )
+updateFromBroadcast config ( model, command ) =
+    let
+        ( broadcastMsgs, otherCommands ) =
+            Internal.extractBroadcasts command
+    in
+    List.foldl
+        (\broadcastMsg ( previousModel, previousCommand ) ->
+            let
+                ( newModel, newCommand ) =
+                    updateFromBroadcastHelp config [] broadcastMsg previousModel
+            in
+            ( newModel, concatCommands newCommand previousCommand )
+        )
+        ( model, otherCommands )
+        broadcastMsgs
+
+
+updateFromBroadcastHelp :
+    InternalConfig frontendMsg broadcastMsg output
+    -> Path
+    -> broadcastMsg
+    -> Model
+    -> ( Model, Command Msg broadcastMsg Msg )
+updateFromBroadcastHelp config path broadcastMsg model =
+    case model of
+        Unit ->
+            ( model, noCommand )
+
+        Primitive primitiveType metadata modelValue ->
+            let
+                updateFor getType =
+                    let
+                        c =
+                            getType config
+                    in
+                    c.updateFromBroadcast broadcastMsg modelValue
+
+                ( newModelValue, cmdType ) =
+                    case primitiveType of
+                        PString ->
+                            updateFor .string
+
+                        PChar ->
+                            updateFor .char
+
+                        PInt ->
+                            updateFor .int
+
+                        PFloat ->
+                            updateFor .float
+
+                        PBool ->
+                            updateFor .bool
+
+                        POverride overrideName ->
+                            case Dict.get overrideName config.overrides of
+                                Just overrideControl ->
+                                    overrideControl.updateFromBroadcast broadcastMsg modelValue
+
+                                Nothing ->
+                                    ( modelValue, noCommand )
+            in
+            ( Primitive primitiveType metadata newModelValue
+            , mapCommand (Msg path) identity (Msg path) cmdType
+            )
+
+        Record active metadata fields ->
+            let
+                ( newFields, cmd ) =
+                    Dict.foldl
+                        (\name ( idx, field ) ( outDict, outCommand ) ->
+                            let
+                                ( newField, fieldCommand ) =
+                                    updateFromBroadcastHelp config (name :: path) broadcastMsg field
+                            in
+                            ( Dict.insert name ( idx, newField ) outDict
+                            , concatCommands fieldCommand outCommand
+                            )
+                        )
+                        ( Dict.empty, noCommand )
+                        fields
+            in
+            ( Record active metadata newFields, cmd )
+
+        Tuple metadata a b ->
+            let
+                ( newA, cmdA ) =
+                    updateFromBroadcastHelp config ("0" :: path) broadcastMsg a
+
+                ( newB, cmdB ) =
+                    updateFromBroadcastHelp config ("1" :: path) broadcastMsg b
+            in
+            ( Tuple metadata newA newB, batchCommands [ cmdA, cmdB ] )
+
+        Triple metadata a b c ->
+            let
+                ( newA, cmdA ) =
+                    updateFromBroadcastHelp config ("0" :: path) broadcastMsg a
+
+                ( newB, cmdB ) =
+                    updateFromBroadcastHelp config ("1" :: path) broadcastMsg b
+
+                ( newC, cmdC ) =
+                    updateFromBroadcastHelp config ("2" :: path) broadcastMsg c
+            in
+            ( Triple metadata newA newB newC, batchCommands [ cmdA, cmdB, cmdC ] )
+
+        Collection metadata innerType itemModels ->
+            let
+                ( newItemModels, itemCmd ) =
+                    Dict.foldl
+                        (\name item ( outDict, outCommand ) ->
+                            let
+                                ( newField, itemCommand ) =
+                                    updateFromBroadcastHelp config (name :: path) broadcastMsg item
+                            in
+                            ( Dict.insert name newField outDict
+                            , concatCommands itemCommand outCommand
+                            )
+                        )
+                        ( Dict.empty, noCommand )
+                        itemModels
+            in
+            ( Collection metadata innerType newItemModels, itemCmd )
+
+        Sum selected metadata variants ->
+            let
+                ( newVariants, command ) =
+                    Dict.foldl
+                        (\variantName ( variantIdx, args ) ( previousVariantDict, previousVariantCommand ) ->
+                            let
+                                ( newArgs, newArgsCommand ) =
+                                    Dict.foldl
+                                        (\argName arg ( previousArgsDict, previousArgsCommand ) ->
+                                            let
+                                                ( newArg, newArgCommand ) =
+                                                    updateFromBroadcastHelp config (argName :: variantName :: path) broadcastMsg arg
+                                            in
+                                            ( Dict.insert argName newArg previousArgsDict
+                                            , concatCommands newArgCommand previousArgsCommand
+                                            )
+                                        )
+                                        ( Dict.empty, noCommand )
+                                        args
+                            in
+                            ( Dict.insert variantName ( variantIdx, newArgs ) previousVariantDict
+                            , concatCommands newArgsCommand previousVariantCommand
+                            )
+                        )
+                        ( Dict.empty, noCommand )
+                        variants
+            in
+            ( Sum selected metadata newVariants
+            , command
+            )
 
 
 updateHelp :
