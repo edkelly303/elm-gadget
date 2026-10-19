@@ -1,6 +1,6 @@
 module Gadget.Adapter.Form.Internal exposing (..)
 
-import Gadget.IR exposing (Error, Path, Value)
+import Gadget.IR as IR exposing (Error, Path, Value)
 import Html as H
 
 
@@ -73,6 +73,17 @@ toCmd toFrontendMsg sendToBackend (Command command) =
         )
         command
         |> Cmd.batch
+
+
+fail : IR.Gadget a
+fail =
+    IR.Gadget
+        { fromInput = \_ -> IR.UnitValue
+        , toOutput =
+            \path _ ->
+                Err [ { error = "failed", path = path } ]
+        , irType = IR.UnitType IR.emptyMetadata
+        }
 
 
 type alias InnerControl broadcastMsg =

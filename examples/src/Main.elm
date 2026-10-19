@@ -98,7 +98,7 @@ personGadget =
         |> Gadget.field "tuple"
             .tuple
             (Gadget.tuple
-                (Gadget.bool |> Form.label "one" |> Form.override "myBoolSender")
+                (Gadget.bool |> Form.label "one" |> Form.override "myBoolBroadcaster")
                 (Gadget.bool |> Form.label "two" |> Form.override "myBoolReceiver")
                 |> Form.label "What's your favourite pair of booleans?"
             )
@@ -247,9 +247,9 @@ form =
             , sendToFrontend = lamdera_sendToFrontend
             , backendModelGadget = backendModelGadget
             }
-        --|> Form.withTopLevelView wizardView
+        |> Form.withTopLevelView wizardView
         |> Form.withOverride "heightInCentimetres" myFloat
-        |> Form.withOverride "myBoolSender" myBoolSender
+        |> Form.withOverride "myBoolBroadcaster" myBoolBroadcaster
         |> Form.withOverride "myBoolReceiver" myBoolReceiver
         |> Form.withIntControl counter
         |> Form.endForm gadget
@@ -380,19 +380,15 @@ myFloat =
         }
 
 
-myBoolSender =
-    Control.define
-        { frontendModelGadget = Gadget.bool
-        , frontendMsgGadget = Gadget.unit
+myBoolBroadcaster =
+    Control.broadcaster
+        { modelGadget = Gadget.bool
+        , msgGadget = Gadget.unit
         , outputGadget = Gadget.bool
-        , toBackendGadget = Gadget.unit
-        , toFrontendGadget = Gadget.unit
         , init = ( False, Control.noCommand )
         , load = identity
         , placeholder = True
         , update = \_ model -> ( not model, Control.broadcastCommand Incremented )
-        , updateFromBackend = \_ model -> ( model, Control.noCommand )
-        , updateFromBroadcast = \_ model -> ( model, Control.noCommand )
         , view =
             \id model ->
                 H.input
@@ -404,22 +400,19 @@ myBoolSender =
                     []
         , subscriptions = \model -> Sub.none
         , submit = Ok
-        , respond = \_ _ -> ()
         }
+        |> Control.withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
 
 
 myBoolReceiver =
-    Control.define
-        { frontendModelGadget = Gadget.bool
-        , frontendMsgGadget = Gadget.unit
+    Control.receiver
+        { modelGadget = Gadget.bool
+        , msgGadget = Gadget.unit
         , outputGadget = Gadget.bool
-        , toBackendGadget = Gadget.unit
-        , toFrontendGadget = Gadget.unit
         , init = ( False, Control.noCommand )
         , load = identity
         , placeholder = True
         , update = \_ model -> ( not model, Control.noCommand )
-        , updateFromBackend = \_ model -> ( model, Control.noCommand )
         , updateFromBroadcast = \Incremented model -> ( not model, Control.noCommand )
         , view =
             \id model ->
@@ -432,8 +425,8 @@ myBoolReceiver =
                     []
         , subscriptions = \model -> Sub.none
         , submit = Ok
-        , respond = \_ _ -> ()
         }
+        |> Control.withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
 
 
 init _ =

@@ -1,13 +1,12 @@
 module Gadget.Adapter.Form.Control exposing
-    ( Control(..), sandbox, element, define, withLayout
-    , Command, noCommand, toCommand, sendCommand
-    , broadcastCommand
+    ( Control(..), sandbox, element, broadcaster, receiver, define, withLayout
+    , Command, noCommand, toCommand, sendCommand, broadcastCommand
     )
 
 {-|
 
-@docs Control, sandbox, element, define, withLayout
-@docs Command, noCommand, toCommand, sendCommand
+@docs Control, sandbox, element, broadcaster, receiver, define, withLayout
+@docs Command, noCommand, toCommand, sendCommand, broadcastCommand
 
 -}
 
@@ -103,14 +102,81 @@ element { placeholder, init, load, update, view, subscriptions, submit, modelGad
         { frontendModelGadget = modelGadget
         , frontendMsgGadget = msgGadget
         , outputGadget = outputGadget
-        , toBackendGadget = Gadget.unit
-        , toFrontendGadget = Gadget.unit
+        , toBackendGadget = Internal.fail
+        , toFrontendGadget = Internal.fail
         , placeholder = placeholder
         , init = init |> Tuple.mapSecond toCommand
         , load = load
         , update = \msg model -> update msg model |> Tuple.mapSecond toCommand
         , updateFromBackend = \_ model -> ( model, noCommand )
         , updateFromBroadcast = \_ model -> ( model, noCommand )
+        , view = view
+        , subscriptions = subscriptions
+        , submit = submit
+        , respond = \_ _ -> ()
+        }
+
+
+broadcaster :
+    { modelGadget : IR.Gadget model
+    , msgGadget : IR.Gadget msg
+    , outputGadget : IR.Gadget output
+    , placeholder : output
+    , init : ( model, Command msg broadcastMsg toBackend )
+    , load : output -> model
+    , update : msg -> model -> ( model, Command msg broadcastMsg toBackend )
+    , view : String -> model -> H.Html msg
+    , subscriptions : model -> Sub msg
+    , submit : model -> Result String output
+    }
+    -> Control backendModel broadcastMsg output
+broadcaster { placeholder, init, load, update, view, subscriptions, submit, modelGadget, msgGadget, outputGadget } =
+    define
+        { frontendModelGadget = modelGadget
+        , frontendMsgGadget = msgGadget
+        , outputGadget = outputGadget
+        , toBackendGadget = Internal.fail
+        , toFrontendGadget = Internal.fail
+        , placeholder = placeholder
+        , init = init
+        , load = load
+        , update = \msg model -> update msg model
+        , updateFromBackend = \_ model -> ( model, noCommand )
+        , updateFromBroadcast = \_ model -> ( model, noCommand )
+        , view = view
+        , subscriptions = subscriptions
+        , submit = submit
+        , respond = \_ _ -> ()
+        }
+
+
+receiver :
+    { modelGadget : IR.Gadget model
+    , msgGadget : IR.Gadget msg
+    , outputGadget : IR.Gadget output
+    , placeholder : output
+    , init : ( model, Command msg broadcastMsg toBackend )
+    , load : output -> model
+    , update : msg -> model -> ( model, Command msg broadcastMsg toBackend )
+    , updateFromBroadcast : broadcastMsg -> model -> ( model, Command msg broadcastMsg toBackend )
+    , view : String -> model -> H.Html msg
+    , subscriptions : model -> Sub msg
+    , submit : model -> Result String output
+    }
+    -> Control backendModel broadcastMsg output
+receiver { placeholder, init, load, update, updateFromBroadcast, view, subscriptions, submit, modelGadget, msgGadget, outputGadget } =
+    define
+        { frontendModelGadget = modelGadget
+        , frontendMsgGadget = msgGadget
+        , outputGadget = outputGadget
+        , toBackendGadget = Internal.fail
+        , toFrontendGadget = Internal.fail
+        , placeholder = placeholder
+        , init = init
+        , load = load
+        , update = update
+        , updateFromBackend = \_ model -> ( model, noCommand )
+        , updateFromBroadcast = updateFromBroadcast
         , view = view
         , subscriptions = subscriptions
         , submit = submit
