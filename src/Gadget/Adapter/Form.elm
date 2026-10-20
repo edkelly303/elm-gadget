@@ -57,15 +57,15 @@ type alias Path =
 {-| A record of functions that you can plumb into a standard Elm application to
 manage the lifecycle of a form.
 -}
-type alias Form backendModel backendMsg frontendMsg a =
-    { init : ( Model, Cmd frontendMsg )
+type alias Form backend response msg a =
+    { init : ( Model, Cmd msg )
     , load : a -> Model
-    , update : Msg -> Model -> ( Model, Cmd frontendMsg )
-    , updateFromBackend : Msg -> Model -> ( Model, Cmd frontendMsg )
-    , view : Model -> H.Html frontendMsg
-    , subscriptions : Model -> Sub frontendMsg
+    , update : Msg -> Model -> ( Model, Cmd msg )
+    , updateFromBackend : Msg -> Model -> ( Model, Cmd msg )
+    , view : Model -> H.Html msg
+    , subscriptions : Model -> Sub msg
     , submit : Model -> Result (List Error) a
-    , respond : String -> Msg -> backendModel -> Cmd backendMsg
+    , respond : String -> Msg -> backend -> Cmd response
     }
 
 
@@ -91,47 +91,47 @@ type PrimitiveType
     | POverride String
 
 
-type FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+type FormBuilder backend response broadcast msg output
     = FormBuilder
-        { bool : Control backendModel broadcastMsg Bool
-        , int : Control backendModel broadcastMsg Int
-        , float : Control backendModel broadcastMsg Float
-        , char : Control backendModel broadcastMsg Char
-        , string : Control backendModel broadcastMsg String
-        , viewFeedback : String -> H.Html frontendMsg
-        , viewControl : Bool -> List (H.Html frontendMsg) -> List (H.Html frontendMsg)
+        { bool : Control backend broadcast Bool
+        , int : Control backend broadcast Int
+        , float : Control backend broadcast Float
+        , char : Control backend broadcast Char
+        , string : Control backend broadcast String
+        , viewFeedback : String -> H.Html msg
+        , viewControl : Bool -> List (H.Html msg) -> List (H.Html msg)
         , viewTopLevel :
-            { switchActiveField : Int -> frontendMsg
+            { switchActiveField : Int -> msg
             , activeField : Int
-            , fieldViews : List (H.Html frontendMsg)
+            , fieldViews : List (H.Html msg)
             , result : Result (Set.Set Int) output
             }
-            -> List (H.Html frontendMsg)
-        , overrides : Dict String (IR.Gadget backendModel -> Internal.InnerControl broadcastMsg)
-        , toFrontendMsg : Msg -> frontendMsg
-        , sendToBackend : Msg -> Cmd frontendMsg
-        , sendToFrontend : String -> Msg -> Cmd backendMsg
-        , backendModelGadget : IR.Gadget backendModel
+            -> List (H.Html msg)
+        , overrides : Dict String (IR.Gadget backend -> Internal.InnerControl broadcast)
+        , toMsg : Msg -> msg
+        , sendRequest : Msg -> Cmd msg
+        , sendResponse : String -> Msg -> Cmd response
+        , backendGadget : IR.Gadget backend
         }
 
 
-type alias InternalConfig frontendMsg broadcastMsg output =
-    { bool : Internal.InnerControl broadcastMsg
-    , int : Internal.InnerControl broadcastMsg
-    , float : Internal.InnerControl broadcastMsg
-    , char : Internal.InnerControl broadcastMsg
-    , string : Internal.InnerControl broadcastMsg
-    , overrides : Dict String (Internal.InnerControl broadcastMsg)
-    , viewFeedback : String -> H.Html frontendMsg
-    , viewControl : Bool -> List (H.Html frontendMsg) -> List (H.Html frontendMsg)
+type alias InternalConfig msg broadcast output =
+    { bool : Internal.InnerControl broadcast
+    , int : Internal.InnerControl broadcast
+    , float : Internal.InnerControl broadcast
+    , char : Internal.InnerControl broadcast
+    , string : Internal.InnerControl broadcast
+    , overrides : Dict String (Internal.InnerControl broadcast)
+    , viewFeedback : String -> H.Html msg
+    , viewControl : Bool -> List (H.Html msg) -> List (H.Html msg)
     , viewTopLevel :
-        { switchActiveField : Int -> frontendMsg
+        { switchActiveField : Int -> msg
         , activeField : Int
-        , fieldViews : List (H.Html frontendMsg)
+        , fieldViews : List (H.Html msg)
         , result : Result (Set.Set Int) output
         }
-        -> List (H.Html frontendMsg)
-    , toFrontendMsg : Msg -> frontendMsg
+        -> List (H.Html msg)
+    , toMsg : Msg -> msg
     }
 
 
@@ -190,8 +190,8 @@ customLabels l ls gadget =
 -}
 
 
-newForm : (Msg -> frontendMsg) -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
-newForm toFrontendMsg =
+newForm : (Msg -> msg) -> FormBuilder backend response broadcast msg output
+newForm toMsg =
     FormBuilder
         { bool = boolControl
         , int = intControl
@@ -214,20 +214,20 @@ newForm toFrontendMsg =
                     inner
                 ]
         , overrides = Dict.empty
-        , toFrontendMsg = toFrontendMsg
-        , sendToBackend = \_ -> Cmd.none
-        , sendToFrontend = \_ _ -> Cmd.none
-        , backendModelGadget = Internal.fail
+        , toMsg = toMsg
+        , sendRequest = \_ -> Cmd.none
+        , sendResponse = \_ _ -> Cmd.none
+        , backendGadget = Internal.fail
         }
 
 
 withBackend :
-    { sendToBackend : Msg -> Cmd frontendMsg
-    , sendToFrontend : String -> Msg -> Cmd backendMsg
-    , backendModelGadget : IR.Gadget backendModel
+    { sendRequest : Msg -> Cmd msg
+    , sendResponse : String -> Msg -> Cmd response
+    , backendGadget : IR.Gadget backend
     }
-    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
-    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+    -> FormBuilder backend response broadcast msg output
+    -> FormBuilder backend response broadcast msg output
 withBackend args (FormBuilder builder) =
     FormBuilder
         { bool = builder.bool
@@ -239,26 +239,26 @@ withBackend args (FormBuilder builder) =
         , viewControl = builder.viewControl
         , viewTopLevel = builder.viewTopLevel
         , overrides = builder.overrides
-        , toFrontendMsg = builder.toFrontendMsg
-        , sendToBackend = args.sendToBackend
-        , sendToFrontend = args.sendToFrontend
-        , backendModelGadget = args.backendModelGadget
+        , toMsg = builder.toMsg
+        , sendRequest = args.sendRequest
+        , sendResponse = args.sendResponse
+        , backendGadget = args.backendGadget
         }
 
 
 endForm :
     IR.Gadget a
-    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg a
-    -> Form backendModel backendMsg frontendMsg a
+    -> FormBuilder backend response broadcast msg a
+    -> Form backend response msg a
 endForm gadget (FormBuilder builder) =
     let
         unwrapControl (Control toControl) =
-            toControl builder.backendModelGadget
+            toControl builder.backendGadget
 
         unwrappedOverrides =
-            Dict.map (\_ toControl -> toControl builder.backendModelGadget) builder.overrides
+            Dict.map (\_ toControl -> toControl builder.backendGadget) builder.overrides
 
-        config : InternalConfig frontendMsg broadcastMsg a
+        config : InternalConfig msg broadcast a
         config =
             { bool = unwrapControl builder.bool
             , int = unwrapControl builder.int
@@ -269,7 +269,7 @@ endForm gadget (FormBuilder builder) =
             , viewFeedback = builder.viewFeedback
             , viewControl = builder.viewControl
             , viewTopLevel = builder.viewTopLevel
-            , toFrontendMsg = builder.toFrontendMsg
+            , toMsg = builder.toMsg
             }
     in
     { init =
@@ -278,7 +278,7 @@ endForm gadget (FormBuilder builder) =
                 init config gadget
         in
         ( newModel
-        , toCmd builder.toFrontendMsg builder.sendToBackend cmdType
+        , toCmd builder.toMsg builder.sendRequest cmdType
         )
     , load = \output -> load config gadget output
     , update =
@@ -288,7 +288,7 @@ endForm gadget (FormBuilder builder) =
                     update .update config msg model
             in
             ( newModel
-            , toCmd builder.toFrontendMsg builder.sendToBackend cmdType
+            , toCmd builder.toMsg builder.sendRequest cmdType
             )
     , updateFromBackend =
         \msg model ->
@@ -297,93 +297,93 @@ endForm gadget (FormBuilder builder) =
                     update .updateFromBackend config msg model
             in
             ( newModel
-            , toCmd builder.toFrontendMsg builder.sendToBackend cmdType
+            , toCmd builder.toMsg builder.sendRequest cmdType
             )
     , view = \model -> view config gadget model
-    , subscriptions = \model -> subscriptions config model |> Sub.map builder.toFrontendMsg
+    , subscriptions = \model -> subscriptions config model |> Sub.map builder.toMsg
     , submit = \model -> submit config gadget model
     , respond =
         \sessionId toBackend value ->
-            respond config toBackend gadget (IR.fromInput builder.backendModelGadget value)
-                |> builder.sendToFrontend sessionId
+            respond config toBackend gadget (IR.fromInput builder.backendGadget value)
+                |> builder.sendResponse sessionId
     }
 
 
 withOverride :
     String
-    -> Control backendModel broadcastMsg a
-    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
-    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+    -> Control backend broadcast a
+    -> FormBuilder backend response broadcast msg output
+    -> FormBuilder backend response broadcast msg output
 withOverride id (Control toControl) (FormBuilder builder) =
     FormBuilder { builder | overrides = Dict.insert id toControl builder.overrides }
 
 
 withIntControl :
-    Control backendModel broadcastMsg Int
-    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
-    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+    Control backend broadcast Int
+    -> FormBuilder backend response broadcast msg output
+    -> FormBuilder backend response broadcast msg output
 withIntControl control (FormBuilder builder) =
     FormBuilder { builder | int = control }
 
 
 withFloatControl :
-    Control backendModel broadcastMsg Float
-    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
-    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+    Control backend broadcast Float
+    -> FormBuilder backend response broadcast msg output
+    -> FormBuilder backend response broadcast msg output
 withFloatControl control (FormBuilder builder) =
     FormBuilder { builder | float = control }
 
 
 withStringControl :
-    Control backendModel broadcastMsg String
-    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
-    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+    Control backend broadcast String
+    -> FormBuilder backend response broadcast msg output
+    -> FormBuilder backend response broadcast msg output
 withStringControl control (FormBuilder builder) =
     FormBuilder { builder | string = control }
 
 
 withCharControl :
-    Control backendModel broadcastMsg Char
-    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
-    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+    Control backend broadcast Char
+    -> FormBuilder backend response broadcast msg output
+    -> FormBuilder backend response broadcast msg output
 withCharControl control (FormBuilder builder) =
     FormBuilder { builder | char = control }
 
 
 withBoolControl :
-    Control backendModel broadcastMsg Bool
-    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
-    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+    Control backend broadcast Bool
+    -> FormBuilder backend response broadcast msg output
+    -> FormBuilder backend response broadcast msg output
 withBoolControl control (FormBuilder builder) =
     FormBuilder { builder | bool = control }
 
 
 withControlView :
-    (Bool -> List (H.Html frontendMsg) -> List (H.Html frontendMsg))
-    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
-    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+    (Bool -> List (H.Html msg) -> List (H.Html msg))
+    -> FormBuilder backend response broadcast msg output
+    -> FormBuilder backend response broadcast msg output
 withControlView f (FormBuilder builder) =
     FormBuilder { builder | viewControl = f }
 
 
 withFeedbackView :
-    (String -> H.Html frontendMsg)
-    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
-    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+    (String -> H.Html msg)
+    -> FormBuilder backend response broadcast msg output
+    -> FormBuilder backend response broadcast msg output
 withFeedbackView f (FormBuilder builder) =
     FormBuilder { builder | viewFeedback = f }
 
 
 withTopLevelView :
-    ({ switchActiveField : Int -> frontendMsg
+    ({ switchActiveField : Int -> msg
      , activeField : Int
-     , fieldViews : List (H.Html frontendMsg)
+     , fieldViews : List (H.Html msg)
      , result : Result (Set.Set Int) output
      }
-     -> List (H.Html frontendMsg)
+     -> List (H.Html msg)
     )
-    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
-    -> FormBuilder backendModel backendMsg broadcastMsg frontendMsg output
+    -> FormBuilder backend response broadcast msg output
+    -> FormBuilder backend response broadcast msg output
 withTopLevelView f (FormBuilder builder) =
     FormBuilder { builder | viewTopLevel = f }
 
@@ -401,7 +401,7 @@ withTopLevelView f (FormBuilder builder) =
 -}
 
 
-intControl : Control backendModel broadcastMsg Int
+intControl : Control backend broadcast Int
 intControl =
     Control.sandbox
         { modelGadget = Gadget.string
@@ -429,7 +429,7 @@ intControl =
         |> Control.build
 
 
-floatControl : Control backendModel broadcastMsg Float
+floatControl : Control backend broadcast Float
 floatControl =
     Control.sandbox
         { modelGadget = Gadget.string
@@ -457,7 +457,7 @@ floatControl =
         |> Control.build
 
 
-stringControl : Control backendModel broadcastMsg String
+stringControl : Control backend broadcast String
 stringControl =
     Control.sandbox
         { modelGadget = Gadget.string
@@ -481,7 +481,7 @@ stringControl =
         |> Control.build
 
 
-boolControl : Control backendModel broadcastMsg Bool
+boolControl : Control backend broadcast Bool
 boolControl =
     Control.sandbox
         { modelGadget = Gadget.bool
@@ -506,7 +506,7 @@ boolControl =
         |> Control.build
 
 
-charControl : Control backendModel broadcastMsg Char
+charControl : Control backend broadcast Char
 charControl =
     Control.sandbox
         { modelGadget = Gadget.string
@@ -554,12 +554,12 @@ charControl =
 -}
 
 
-init : InternalConfig frontendMsg broadcastMsg output -> IR.Gadget a -> ( Model, Command Msg broadcastMsg Msg )
+init : InternalConfig msg broadcast output -> IR.Gadget a -> ( Model, Command Msg broadcast Msg )
 init config gadget =
     initHelp config [] (IR.irType gadget)
 
 
-initHelp : InternalConfig frontendMsg broadcastMsg output -> Path -> Type -> ( Model, Command Msg broadcastMsg Msg )
+initHelp : InternalConfig msg broadcast output -> Path -> Type -> ( Model, Command Msg broadcast Msg )
 initHelp config path irType =
     let
         metadata =
@@ -708,12 +708,12 @@ initHelp config path irType =
 -}
 
 
-load : InternalConfig frontendMsg broadcastMsg output -> IR.Gadget a -> a -> Model
+load : InternalConfig msg broadcast output -> IR.Gadget a -> a -> Model
 load config gadget a =
     loadHelp config (IR.fromInput gadget a) (IR.irType gadget)
 
 
-loadHelp : InternalConfig frontendMsg broadcastMsg output -> Value -> Type -> Model
+loadHelp : InternalConfig msg broadcast output -> Value -> Type -> Model
 loadHelp config value type_ =
     let
         metadata =
@@ -826,30 +826,30 @@ loadHelp config value type_ =
 
 
 update :
-    (InnerControl broadcastMsg -> Value -> Value -> ( Value, Command Value broadcastMsg Value ))
-    -> InternalConfig frontendMsg broadcastMsg output
+    (InnerControl broadcast -> Value -> Value -> ( Value, Command Value broadcast Value ))
+    -> InternalConfig msg broadcast output
     -> Msg
     -> Model
-    -> ( Model, Command Msg broadcastMsg Msg )
+    -> ( Model, Command Msg broadcast Msg )
 update updater config msg model =
     updateHelp updater config [] msg model
         |> updateFromBroadcast config
 
 
 updateFromBroadcast :
-    InternalConfig frontendMsg broadcastMsg output
-    -> ( Model, Command Msg broadcastMsg Msg )
-    -> ( Model, Command Msg broadcastMsg Msg )
+    InternalConfig msg broadcast output
+    -> ( Model, Command Msg broadcast Msg )
+    -> ( Model, Command Msg broadcast Msg )
 updateFromBroadcast config ( model, command ) =
     let
         ( broadcastMsgs, otherCommands ) =
             Internal.extractBroadcasts command
     in
     List.foldl
-        (\broadcastMsg ( previousModel, previousCommand ) ->
+        (\broadcast ( previousModel, previousCommand ) ->
             let
                 ( newModel, newCommand ) =
-                    updateFromBroadcastHelp config [] broadcastMsg previousModel
+                    updateFromBroadcastHelp config [] broadcast previousModel
             in
             ( newModel, concatCommands newCommand previousCommand )
         )
@@ -858,12 +858,12 @@ updateFromBroadcast config ( model, command ) =
 
 
 updateFromBroadcastHelp :
-    InternalConfig frontendMsg broadcastMsg output
+    InternalConfig msg broadcast output
     -> Path
-    -> broadcastMsg
+    -> broadcast
     -> Model
-    -> ( Model, Command Msg broadcastMsg Msg )
-updateFromBroadcastHelp config path broadcastMsg model =
+    -> ( Model, Command Msg broadcast Msg )
+updateFromBroadcastHelp config path broadcast model =
     case model of
         Unit ->
             ( model, noCommand )
@@ -875,7 +875,7 @@ updateFromBroadcastHelp config path broadcastMsg model =
                         c =
                             getType config
                     in
-                    c.updateFromBroadcast broadcastMsg modelValue
+                    c.updateFromBroadcast broadcast modelValue
 
                 ( newModelValue, cmdType ) =
                     case primitiveType of
@@ -897,7 +897,7 @@ updateFromBroadcastHelp config path broadcastMsg model =
                         POverride overrideName ->
                             case Dict.get overrideName config.overrides of
                                 Just overrideControl ->
-                                    overrideControl.updateFromBroadcast broadcastMsg modelValue
+                                    overrideControl.updateFromBroadcast broadcast modelValue
 
                                 Nothing ->
                                     ( modelValue, noCommand )
@@ -913,7 +913,7 @@ updateFromBroadcastHelp config path broadcastMsg model =
                         (\name ( idx, field ) ( outDict, outCommand ) ->
                             let
                                 ( newField, fieldCommand ) =
-                                    updateFromBroadcastHelp config (name :: path) broadcastMsg field
+                                    updateFromBroadcastHelp config (name :: path) broadcast field
                             in
                             ( Dict.insert name ( idx, newField ) outDict
                             , concatCommands fieldCommand outCommand
@@ -927,23 +927,23 @@ updateFromBroadcastHelp config path broadcastMsg model =
         Tuple metadata a b ->
             let
                 ( newA, cmdA ) =
-                    updateFromBroadcastHelp config ("0" :: path) broadcastMsg a
+                    updateFromBroadcastHelp config ("0" :: path) broadcast a
 
                 ( newB, cmdB ) =
-                    updateFromBroadcastHelp config ("1" :: path) broadcastMsg b
+                    updateFromBroadcastHelp config ("1" :: path) broadcast b
             in
             ( Tuple metadata newA newB, batchCommands [ cmdA, cmdB ] )
 
         Triple metadata a b c ->
             let
                 ( newA, cmdA ) =
-                    updateFromBroadcastHelp config ("0" :: path) broadcastMsg a
+                    updateFromBroadcastHelp config ("0" :: path) broadcast a
 
                 ( newB, cmdB ) =
-                    updateFromBroadcastHelp config ("1" :: path) broadcastMsg b
+                    updateFromBroadcastHelp config ("1" :: path) broadcast b
 
                 ( newC, cmdC ) =
-                    updateFromBroadcastHelp config ("2" :: path) broadcastMsg c
+                    updateFromBroadcastHelp config ("2" :: path) broadcast c
             in
             ( Triple metadata newA newB newC, batchCommands [ cmdA, cmdB, cmdC ] )
 
@@ -954,7 +954,7 @@ updateFromBroadcastHelp config path broadcastMsg model =
                         (\name item ( outDict, outCommand ) ->
                             let
                                 ( newField, itemCommand ) =
-                                    updateFromBroadcastHelp config (name :: path) broadcastMsg item
+                                    updateFromBroadcastHelp config (name :: path) broadcast item
                             in
                             ( Dict.insert name newField outDict
                             , concatCommands itemCommand outCommand
@@ -976,7 +976,7 @@ updateFromBroadcastHelp config path broadcastMsg model =
                                         (\argName arg ( previousArgsDict, previousArgsCommand ) ->
                                             let
                                                 ( newArg, newArgCommand ) =
-                                                    updateFromBroadcastHelp config (argName :: variantName :: path) broadcastMsg arg
+                                                    updateFromBroadcastHelp config (argName :: variantName :: path) broadcast arg
                                             in
                                             ( Dict.insert argName newArg previousArgsDict
                                             , concatCommands newArgCommand previousArgsCommand
@@ -998,12 +998,12 @@ updateFromBroadcastHelp config path broadcastMsg model =
 
 
 updateHelp :
-    (InnerControl broadcastMsg -> Value -> Value -> ( Value, Command Value broadcastMsg Value ))
-    -> InternalConfig frontendMsg broadcastMsg output
+    (InnerControl broadcast -> Value -> Value -> ( Value, Command Value broadcast Value ))
+    -> InternalConfig msg broadcast output
     -> Path
     -> Msg
     -> Model
-    -> ( Model, Command Msg broadcastMsg Msg )
+    -> ( Model, Command Msg broadcast Msg )
 updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
     case model of
         Unit ->
@@ -1230,7 +1230,7 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
 -}
 
 
-view : InternalConfig frontendMsg broadcastMsg a -> IR.Gadget a -> Model -> H.Html frontendMsg
+view : InternalConfig msg broadcast a -> IR.Gadget a -> Model -> H.Html msg
 view config gadget model =
     let
         result =
@@ -1240,11 +1240,11 @@ view config gadget model =
 
 
 viewHelp :
-    InternalConfig frontendMsg broadcastMsg a
+    InternalConfig msg broadcast a
     -> Result (List Error) a
     -> Path
     -> Model
-    -> List (H.Html frontendMsg)
+    -> List (H.Html msg)
 viewHelp config result modelPath model =
     let
         id =
@@ -1291,7 +1291,7 @@ viewHelp config result modelPath model =
                                         H.label [ HA.for id ] [ H.text (maybeLabel metadata |> Maybe.withDefault id) ]
 
                                     Internal.Input ->
-                                        c.view id modelValue |> H.map (config.toFrontendMsg << Msg modelPath)
+                                        c.view id modelValue |> H.map (config.toMsg << Msg modelPath)
 
                                     Internal.Feedback ->
                                         H.output [] feedback
@@ -1325,7 +1325,7 @@ viewHelp config result modelPath model =
                                                 H.label [ HA.for id ] [ H.text (maybeLabel metadata |> Maybe.withDefault id) ]
 
                                             Internal.Input ->
-                                                overrideControl.view id modelValue |> H.map (config.toFrontendMsg << Msg modelPath)
+                                                overrideControl.view id modelValue |> H.map (config.toMsg << Msg modelPath)
 
                                             Internal.Feedback ->
                                                 H.output [] feedback
@@ -1358,7 +1358,7 @@ viewHelp config result modelPath model =
             in
             if isTopLevel then
                 config.viewTopLevel
-                    { switchActiveField = config.toFrontendMsg << Msg [] << IntValue
+                    { switchActiveField = config.toMsg << Msg [] << IntValue
                     , activeField = active
                     , fieldViews = fieldViews
                     , result =
@@ -1411,7 +1411,7 @@ viewHelp config result modelPath model =
                 (case maybeLabel metadata of
                     Nothing ->
                         List.concat
-                            [ [ H.input [ HA.type_ "button", HE.onClick (config.toFrontendMsg <| Msg modelPath UnitValue), HA.value "Add an item" ] [] ]
+                            [ [ H.input [ HA.type_ "button", HE.onClick (config.toMsg <| Msg modelPath UnitValue), HA.value "Add an item" ] [] ]
                             , childModels
                                 |> Dict.map (\idx childModel -> viewHelp config result (idx :: modelPath) childModel)
                                 |> Dict.values
@@ -1422,7 +1422,7 @@ viewHelp config result modelPath model =
                     Just legend ->
                         List.concat
                             [ [ H.legend [] [ H.text legend ] ]
-                            , [ H.input [ HA.type_ "button", HE.onClick (config.toFrontendMsg <| Msg modelPath UnitValue), HA.value "Add an item" ] [] ]
+                            , [ H.input [ HA.type_ "button", HE.onClick (config.toMsg <| Msg modelPath UnitValue), HA.value "Add an item" ] [] ]
                             , childModels
                                 |> Dict.map (\idx childModel -> viewHelp config result (idx :: modelPath) childModel)
                                 |> Dict.values
@@ -1467,7 +1467,7 @@ viewHelp config result modelPath model =
                                     [ HA.id childId
                                     , HA.name id
                                     , HA.type_ "radio"
-                                    , HE.onCheck (\_ -> config.toFrontendMsg (Msg modelPath (StringValue name)))
+                                    , HE.onCheck (\_ -> config.toMsg (Msg modelPath (StringValue name)))
                                     , HA.checked (selected == name)
                                     ]
                                     []
@@ -1499,12 +1499,12 @@ viewHelp config result modelPath model =
 -}
 
 
-subscriptions : InternalConfig frontendMsg broadcastMsg output -> Model -> Sub Msg
+subscriptions : InternalConfig msg broadcast output -> Model -> Sub Msg
 subscriptions config model =
     subscriptionsHelp config [] model
 
 
-subscriptionsHelp : InternalConfig frontendMsg broadcastMsg output -> Path -> Model -> Sub Msg
+subscriptionsHelp : InternalConfig msg broadcast output -> Path -> Model -> Sub Msg
 subscriptionsHelp config path model =
     case model of
         Unit ->
@@ -1597,7 +1597,7 @@ subscriptionsHelp config path model =
 -}
 
 
-submit : InternalConfig frontendMsg broadcastMsg output -> IR.Gadget a -> Model -> Result (List Error) a
+submit : InternalConfig msg broadcast output -> IR.Gadget a -> Model -> Result (List Error) a
 submit config gadget model =
     let
         ( parsedValue, parsingErrors ) =
@@ -1639,7 +1639,7 @@ submit config gadget model =
             Err (parsingErrors ++ filteredValidationErrors)
 
 
-parsePrimitiveControls : InternalConfig frontendMsg broadcastMsg output -> Path -> Model -> ( Value, List Error )
+parsePrimitiveControls : InternalConfig msg broadcast output -> Path -> Model -> ( Value, List Error )
 parsePrimitiveControls config path model =
     case model of
         Unit ->
@@ -1768,7 +1768,7 @@ parsePrimitiveControls config path model =
 -}
 
 
-respond : InternalConfig frontendMsg broadcastMsg output -> Msg -> IR.Gadget a -> Value -> Msg
+respond : InternalConfig msg broadcast output -> Msg -> IR.Gadget a -> Value -> Msg
 respond config toBackend gadget value =
     let
         ( model, _ ) =
@@ -1777,7 +1777,7 @@ respond config toBackend gadget value =
     respondHelp config [] toBackend model value
 
 
-respondHelp : InternalConfig frontendMsg broadcastMsg output -> Path -> Msg -> Model -> Value -> Msg
+respondHelp : InternalConfig msg broadcast output -> Path -> Msg -> Model -> Value -> Msg
 respondHelp config modelPath ((Msg msgPath msgValue) as msg) model value =
     case model of
         Unit ->

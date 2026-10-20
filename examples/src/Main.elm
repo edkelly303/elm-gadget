@@ -188,9 +188,9 @@ type Msg
     | UserChangedPrettyWidth String
     | NewSeed Int
     | FormReceivedMsg Form.Msg
-    | FormReceivedMsgFromBackend Form.Msg
+    | BackendReceivedRequest Form.Msg
+    | FormReceivedResponse Form.Msg
     | FormSubmitted
-    | SimulateBackend Form.Msg
 
 
 update msg model =
@@ -219,10 +219,10 @@ update msg model =
             , formCmd
             )
 
-        FormReceivedMsgFromBackend toFrontend ->
+        FormReceivedResponse response ->
             let
                 ( formModel, formCmd ) =
-                    form.updateFromBackend toFrontend model.form
+                    form.updateFromBackend response model.form
             in
             ( { model | form = formModel }
             , Cmd.none
@@ -234,18 +234,18 @@ update msg model =
                 , Cmd.none
                 )
 
-        SimulateBackend toBackend ->
+        BackendReceivedRequest request ->
             ( model
-            , form.respond "" toBackend { int = 1, float = 1.2 }
+            , form.respond "" request { int = 1, float = 1.2 }
             )
 
 
 form =
     Form.newForm FormReceivedMsg
         |> Form.withBackend
-            { sendToBackend = lamdera_sendToBackend
-            , sendToFrontend = lamdera_sendToFrontend
-            , backendModelGadget = backendModelGadget
+            { sendRequest = lamdera_sendToBackend
+            , sendResponse = lamdera_sendToFrontend
+            , backendGadget = backendModelGadget
             }
         |> Form.withTopLevelView wizardView
         |> Form.withOverride "heightInCentimetres" myFloat
@@ -256,23 +256,23 @@ form =
 
 
 lamdera_sendToBackend : Form.Msg -> Cmd Msg
-lamdera_sendToBackend toBackend =
+lamdera_sendToBackend request =
     let
         _ =
-            Debug.log "sendToBackend" toBackend
+            Debug.log "sendRequest" request
     in
-    Task.perform (\() -> SimulateBackend toBackend) (Process.sleep 0)
+    Task.perform (\() -> BackendReceivedRequest request) (Process.sleep 0)
 
 
 lamdera_sendToFrontend : sessionId -> Form.Msg -> Cmd Msg
-lamdera_sendToFrontend sessionId toFrontend =
+lamdera_sendToFrontend sessionId response =
     Task.perform
         (\() ->
             let
                 _ =
-                    Debug.log "sendToFrontend" toFrontend
+                    Debug.log "sendResponse" response
             in
-            FormReceivedMsgFromBackend toFrontend
+            FormReceivedResponse response
         )
         (Process.sleep 1000)
 
