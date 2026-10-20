@@ -353,16 +353,16 @@ type Broadcast
 
 myFloat =
     Control.new
-        { frontendModelGadget = Gadget.float
-        , frontendMsgGadget = Gadget.unit
+        { modelGadget = Gadget.float
+        , msgGadget = Gadget.unit
         , outputGadget = Gadget.float
-        , toBackendGadget = Gadget.unit
-        , toFrontendGadget = Gadget.float
+        , requestGadget = Gadget.unit
+        , responseGadget = Gadget.float
         , init = ( 0.5, Control.noCommand )
         , load = identity
         , placeholder = 0.0
         , update = \_ model -> ( model, Control.request () )
-        , updateFromBackend = \float _ -> ( float, Control.noCommand )
+        , updateFromResponse = \float _ -> ( float, Control.noCommand )
         , updateFromBroadcast = \_ model -> ( model, Control.noCommand )
         , view =
             \id model ->
