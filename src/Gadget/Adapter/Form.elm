@@ -2,6 +2,8 @@ module Gadget.Adapter.Form exposing
     ( Form
     , Model
     , Msg
+    , Request
+    , Response
     , customLabels
     , endForm
     , label
@@ -48,6 +50,14 @@ type Msg
     = Msg Path Value
 
 
+type Response
+    = Response Msg
+
+
+type Request
+    = Request Msg
+
+
 {-| A type used within `Error` to specify _where_ something went wrong.
 -}
 type alias Path =
@@ -57,15 +67,15 @@ type alias Path =
 {-| A record of functions that you can plumb into a standard Elm application to
 manage the lifecycle of a form.
 -}
-type alias Form backend response msg a =
+type alias Form backendModel backendMsg msg a =
     { init : ( Model, Cmd msg )
     , load : a -> Model
     , update : Msg -> Model -> ( Model, Cmd msg )
-    , updateFromBackend : Msg -> Model -> ( Model, Cmd msg )
+    , updateFromResponse : Response -> Model -> ( Model, Cmd msg )
     , view : Model -> H.Html msg
     , subscriptions : Model -> Sub msg
     , submit : Model -> Result (List Error) a
-    , respond : String -> Msg -> backend -> Cmd response
+    , respond : String -> Request -> backendModel -> Cmd backendMsg
     }
 
 
@@ -91,13 +101,13 @@ type PrimitiveType
     | POverride String
 
 
-type FormBuilder backend response broadcast msg output
+type FormBuilder backendModel backendMsg broadcast msg output
     = FormBuilder
-        { bool : Control backend broadcast Bool
-        , int : Control backend broadcast Int
-        , float : Control backend broadcast Float
-        , char : Control backend broadcast Char
-        , string : Control backend broadcast String
+        { bool : Control backendModel broadcast Bool
+        , int : Control backendModel broadcast Int
+        , float : Control backendModel broadcast Float
+        , char : Control backendModel broadcast Char
+        , string : Control backendModel broadcast String
         , viewFeedback : String -> H.Html msg
         , viewControl : Bool -> List (H.Html msg) -> List (H.Html msg)
         , viewTopLevel :
@@ -107,11 +117,11 @@ type FormBuilder backend response broadcast msg output
             , result : Result (Set.Set Int) output
             }
             -> List (H.Html msg)
-        , overrides : Dict String (IR.Gadget backend -> Internal.InnerControl broadcast)
+        , overrides : Dict String (IR.Gadget backendModel -> Internal.InnerControl broadcast)
         , toMsg : Msg -> msg
         , sendRequest : Msg -> Cmd msg
-        , sendResponse : String -> Msg -> Cmd response
-        , backendGadget : IR.Gadget backend
+        , sendResponse : String -> Response -> Cmd backendMsg
+        , backendModelGadget : IR.Gadget backendModel
         }
 
 
@@ -190,7 +200,7 @@ customLabels l ls gadget =
 -}
 
 
-newForm : (Msg -> msg) -> FormBuilder backend response broadcast msg output
+newForm : (Msg -> msg) -> FormBuilder backendModel backendMsg broadcast msg output
 newForm toMsg =
     FormBuilder
         { bool = boolControl
@@ -217,46 +227,21 @@ newForm toMsg =
         , toMsg = toMsg
         , sendRequest = \_ -> Cmd.none
         , sendResponse = \_ _ -> Cmd.none
-        , backendGadget = Internal.fail
-        }
-
-
-withBackend :
-    { sendRequest : Msg -> Cmd msg
-    , sendResponse : String -> Msg -> Cmd response
-    , backendGadget : IR.Gadget backend
-    }
-    -> FormBuilder backend response broadcast msg output
-    -> FormBuilder backend response broadcast msg output
-withBackend args (FormBuilder builder) =
-    FormBuilder
-        { bool = builder.bool
-        , int = builder.int
-        , float = builder.float
-        , char = builder.char
-        , string = builder.string
-        , viewFeedback = builder.viewFeedback
-        , viewControl = builder.viewControl
-        , viewTopLevel = builder.viewTopLevel
-        , overrides = builder.overrides
-        , toMsg = builder.toMsg
-        , sendRequest = args.sendRequest
-        , sendResponse = args.sendResponse
-        , backendGadget = args.backendGadget
+        , backendModelGadget = Internal.fail
         }
 
 
 endForm :
     IR.Gadget a
-    -> FormBuilder backend response broadcast msg a
-    -> Form backend response msg a
+    -> FormBuilder backendModel backendMsg broadcast msg a
+    -> Form backendModel backendMsg msg a
 endForm gadget (FormBuilder builder) =
     let
         unwrapControl (Control toControl) =
-            toControl builder.backendGadget
+            toControl builder.backendModelGadget
 
         unwrappedOverrides =
-            Dict.map (\_ toControl -> toControl builder.backendGadget) builder.overrides
+            Dict.map (\_ toControl -> toControl builder.backendModelGadget) builder.overrides
 
         config : InternalConfig msg broadcast a
         config =
@@ -290,11 +275,11 @@ endForm gadget (FormBuilder builder) =
             ( newModel
             , toCmd builder.toMsg builder.sendRequest cmdType
             )
-    , updateFromBackend =
-        \msg model ->
+    , updateFromResponse =
+        \(Response msg) model ->
             let
                 ( newModel, cmdType ) =
-                    update .updateFromBackend config msg model
+                    update .updateFromResponse config msg model
             in
             ( newModel
             , toCmd builder.toMsg builder.sendRequest cmdType
@@ -303,73 +288,98 @@ endForm gadget (FormBuilder builder) =
     , subscriptions = \model -> subscriptions config model |> Sub.map builder.toMsg
     , submit = \model -> submit config gadget model
     , respond =
-        \sessionId toBackend value ->
-            respond config toBackend gadget (IR.fromInput builder.backendGadget value)
+        \sessionId (Request request) value ->
+            respond config request gadget (IR.fromInput builder.backendModelGadget value)
                 |> builder.sendResponse sessionId
     }
 
 
+withBackend :
+    { sendRequest : Request -> Cmd msg
+    , sendResponse : String -> Response -> Cmd backendMsg
+    , backendModelGadget : IR.Gadget backendModel
+    }
+    -> FormBuilder backendModel backendMsg broadcast msg output
+    -> FormBuilder backendModel backendMsg broadcast msg output
+withBackend args (FormBuilder builder) =
+    FormBuilder
+        { bool = builder.bool
+        , int = builder.int
+        , float = builder.float
+        , char = builder.char
+        , string = builder.string
+        , viewFeedback = builder.viewFeedback
+        , viewControl = builder.viewControl
+        , viewTopLevel = builder.viewTopLevel
+        , overrides = builder.overrides
+        , toMsg = builder.toMsg
+        , sendRequest = \request -> args.sendRequest (Request request)
+        , sendResponse = args.sendResponse
+        , backendModelGadget = args.backendModelGadget
+        }
+
+
 withOverride :
     String
-    -> Control backend broadcast a
-    -> FormBuilder backend response broadcast msg output
-    -> FormBuilder backend response broadcast msg output
+    -> Control backendModel broadcast a
+    -> FormBuilder backendModel backendMsg broadcast msg output
+    -> FormBuilder backendModel backendMsg broadcast msg output
 withOverride id (Control toControl) (FormBuilder builder) =
     FormBuilder { builder | overrides = Dict.insert id toControl builder.overrides }
 
 
 withIntControl :
-    Control backend broadcast Int
-    -> FormBuilder backend response broadcast msg output
-    -> FormBuilder backend response broadcast msg output
+    Control backendModel broadcast Int
+    -> FormBuilder backendModel backendMsg broadcast msg output
+    -> FormBuilder backendModel backendMsg broadcast msg output
 withIntControl control (FormBuilder builder) =
     FormBuilder { builder | int = control }
 
 
 withFloatControl :
-    Control backend broadcast Float
-    -> FormBuilder backend response broadcast msg output
-    -> FormBuilder backend response broadcast msg output
+    Control backendModel broadcast Float
+    -> FormBuilder backendModel backendMsg broadcast msg output
+    -> FormBuilder backendModel backendMsg broadcast msg output
 withFloatControl control (FormBuilder builder) =
     FormBuilder { builder | float = control }
 
 
 withStringControl :
-    Control backend broadcast String
-    -> FormBuilder backend response broadcast msg output
-    -> FormBuilder backend response broadcast msg output
+    Control backendModel broadcast String
+    -> FormBuilder backendModel backendMsg broadcast msg output
+    -> FormBuilder backendModel backendMsg broadcast msg output
 withStringControl control (FormBuilder builder) =
     FormBuilder { builder | string = control }
 
 
 withCharControl :
-    Control backend broadcast Char
-    -> FormBuilder backend response broadcast msg output
-    -> FormBuilder backend response broadcast msg output
+    Control backendModel broadcast Char
+    -> FormBuilder backendModel backendMsg broadcast msg output
+    -> FormBuilder backendModel backendMsg broadcast msg output
 withCharControl control (FormBuilder builder) =
     FormBuilder { builder | char = control }
 
 
 withBoolControl :
-    Control backend broadcast Bool
-    -> FormBuilder backend response broadcast msg output
-    -> FormBuilder backend response broadcast msg output
+    Control backendModel broadcast Bool
+    -> FormBuilder backendModel backendMsg broadcast msg output
+    -> FormBuilder backendModel backendMsg broadcast msg output
 withBoolControl control (FormBuilder builder) =
     FormBuilder { builder | bool = control }
 
 
 withControlView :
     (Bool -> List (H.Html msg) -> List (H.Html msg))
-    -> FormBuilder backend response broadcast msg output
-    -> FormBuilder backend response broadcast msg output
+    -> FormBuilder backendModel backendMsg broadcast msg output
+    -> FormBuilder backendModel backendMsg broadcast msg output
 withControlView f (FormBuilder builder) =
     FormBuilder { builder | viewControl = f }
 
 
 withFeedbackView :
     (String -> H.Html msg)
-    -> FormBuilder backend response broadcast msg output
-    -> FormBuilder backend response broadcast msg output
+    -> FormBuilder backendModel backendMsg broadcast msg output
+    -> FormBuilder backendModel backendMsg broadcast msg output
 withFeedbackView f (FormBuilder builder) =
     FormBuilder { builder | viewFeedback = f }
 
@@ -382,8 +392,8 @@ withTopLevelView :
      }
      -> List (H.Html msg)
     )
-    -> FormBuilder backend response broadcast msg output
-    -> FormBuilder backend response broadcast msg output
+    -> FormBuilder backendModel backendMsg broadcast msg output
+    -> FormBuilder backendModel backendMsg broadcast msg output
 withTopLevelView f (FormBuilder builder) =
     FormBuilder { builder | viewTopLevel = f }
 
@@ -401,7 +411,7 @@ withTopLevelView f (FormBuilder builder) =
 -}
 
 
-intControl : Control backend broadcast Int
+intControl : Control backendModel broadcast Int
 intControl =
     Control.sandbox
         { modelGadget = Gadget.string
@@ -429,7 +439,7 @@ intControl =
         |> Control.build
 
 
-floatControl : Control backend broadcast Float
+floatControl : Control backendModel broadcast Float
 floatControl =
     Control.sandbox
         { modelGadget = Gadget.string
@@ -457,7 +467,7 @@ floatControl =
         |> Control.build
 
 
-stringControl : Control backend broadcast String
+stringControl : Control backendModel broadcast String
 stringControl =
     Control.sandbox
         { modelGadget = Gadget.string
@@ -481,7 +491,7 @@ stringControl =
         |> Control.build
 
 
-boolControl : Control backend broadcast Bool
+boolControl : Control backendModel broadcast Bool
 boolControl =
     Control.sandbox
         { modelGadget = Gadget.bool
@@ -506,7 +516,7 @@ boolControl =
         |> Control.build
 
 
-charControl : Control backend broadcast Char
+charControl : Control backendModel broadcast Char
 charControl =
     Control.sandbox
         { modelGadget = Gadget.string
@@ -1768,13 +1778,14 @@ parsePrimitiveControls config path model =
 -}
 
 
-respond : InternalConfig msg broadcast output -> Msg -> IR.Gadget a -> Value -> Msg
+respond : InternalConfig msg broadcast output -> Msg -> IR.Gadget a -> Value -> Response
 respond config toBackend gadget value =
     let
         ( model, _ ) =
             init config gadget
     in
     respondHelp config [] toBackend model value
+        |> Response
 
 
 respondHelp : InternalConfig msg broadcast output -> Path -> Msg -> Model -> Value -> Msg

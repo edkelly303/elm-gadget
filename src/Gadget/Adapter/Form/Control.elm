@@ -50,27 +50,27 @@ broadcast broadcastMsg =
 
 {-| A custom form control.
 -}
-type Control backend broadcast output
-    = Control (IR.Gadget backend -> Internal.InnerControl broadcast)
+type Control backendModel broadcast output
+    = Control (IR.Gadget backendModel -> Internal.InnerControl broadcast)
 
 
-type Builder request response backend broadcast model msg output
+type Builder request backendMsg backendModel broadcast model msg output
     = Builder
         { modelGadget : IR.Gadget model
         , msgGadget : IR.Gadget msg
         , outputGadget : IR.Gadget output
         , requestGadget : IR.Gadget request
-        , responseGadget : IR.Gadget response
+        , responseGadget : IR.Gadget backendMsg
         , placeholder : output
         , init : ( model, Command msg broadcast request )
         , load : output -> model
         , update : msg -> model -> ( model, Command msg broadcast request )
-        , updateFromBackend : response -> model -> ( model, Command msg broadcast request )
+        , updateFromBackend : backendMsg -> model -> ( model, Command msg broadcast request )
         , updateFromBroadcast : broadcast -> model -> ( model, Command msg broadcast request )
         , view : String -> model -> H.Html msg
         , subscriptions : model -> Sub msg
         , submit : model -> Result String output
-        , respond : request -> backend -> response
+        , respond : request -> backendModel -> backendMsg
         , layout : List Internal.UI
         }
 
@@ -80,19 +80,19 @@ new :
     , msgGadget : IR.Gadget msg
     , outputGadget : IR.Gadget output
     , requestGadget : IR.Gadget request
-    , responseGadget : IR.Gadget response
+    , responseGadget : IR.Gadget backendMsg
     , placeholder : output
     , init : ( model, Command msg broadcast request )
     , load : output -> model
     , update : msg -> model -> ( model, Command msg broadcast request )
-    , updateFromResponse : response -> model -> ( model, Command msg broadcast request )
+    , updateFromResponse : backendMsg -> model -> ( model, Command msg broadcast request )
     , updateFromBroadcast : broadcast -> model -> ( model, Command msg broadcast request )
     , view : String -> model -> H.Html msg
     , subscriptions : model -> Sub msg
     , submit : model -> Result String output
-    , respond : request -> backend -> response
+    , respond : request -> backendModel -> backendMsg
     }
-    -> Builder request response backend broadcast model msg output
+    -> Builder request backendMsg backendModel broadcast model msg output
 new args =
     Builder
         { modelGadget = args.modelGadget
@@ -125,7 +125,7 @@ sandbox :
     , msgGadget : IR.Gadget msg
     , outputGadget : IR.Gadget output
     }
-    -> Builder () () backend broadcast model msg output
+    -> Builder () () backendModel broadcast model msg output
 sandbox { placeholder, init, load, update, view, submit, modelGadget, msgGadget, outputGadget } =
     new
         { modelGadget = modelGadget
@@ -158,7 +158,7 @@ element :
     , msgGadget : IR.Gadget msg
     , outputGadget : IR.Gadget output
     }
-    -> Builder request () backend broadcast model msg output
+    -> Builder request () backendModel broadcast model msg output
 element { placeholder, init, load, update, view, subscriptions, submit, modelGadget, msgGadget, outputGadget } =
     new
         { modelGadget = modelGadget
@@ -191,7 +191,7 @@ transmitter :
     , msgGadget : IR.Gadget msg
     , outputGadget : IR.Gadget output
     }
-    -> Builder request () backend broadcast model msg output
+    -> Builder request () backendModel broadcast model msg output
 transmitter { placeholder, init, load, update, view, subscriptions, submit, modelGadget, msgGadget, outputGadget } =
     new
         { modelGadget = modelGadget
@@ -215,8 +215,8 @@ transmitter { placeholder, init, load, update, view, subscriptions, submit, mode
 {-| Turn a `Builder` into a `Control`.
 -}
 build :
-    Builder request response backend broadcast model msg output
-    -> Control backend broadcast output
+    Builder request backendMsg backendModel broadcast model msg output
+    -> Control backendModel broadcast output
 build (Builder builder) =
     let
         placeholderValue =
@@ -265,7 +265,7 @@ build (Builder builder) =
                             ( modelValue
                             , noCommand
                             )
-            , updateFromBackend =
+            , updateFromResponse =
                 \msg modelValue ->
                     let
                         result =
@@ -330,8 +330,8 @@ build (Builder builder) =
 
 withReceiver :
     (broadcast -> model -> ( model, Command msg broadcast request ))
-    -> Builder request toFrontend backend broadcast model msg output
-    -> Builder request toFrontend backend broadcast model msg output
+    -> Builder request backendMsg backendModel broadcast model msg output
+    -> Builder request backendMsg backendModel broadcast model msg output
 withReceiver updateFromBroadcast (Builder builder) =
     Builder
         { modelGadget = builder.modelGadget
@@ -355,8 +355,8 @@ withReceiver updateFromBroadcast (Builder builder) =
 
 withLayout :
     ({ label : UI, input : UI, feedback : UI } -> List UI)
-    -> Builder request response backend broadcast model msg output
-    -> Builder request response backend broadcast model msg output
+    -> Builder request backendMsg backendModel broadcast model msg output
+    -> Builder request backendMsg backendModel broadcast model msg output
 withLayout f (Builder builder) =
     Builder
         { builder

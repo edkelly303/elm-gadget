@@ -188,8 +188,8 @@ type Msg
     | UserChangedPrettyWidth String
     | NewSeed Int
     | FormReceivedMsg Form.Msg
-    | BackendReceivedRequest Form.Msg
-    | FormReceivedResponse Form.Msg
+    | BackendReceivedRequest Form.Request
+    | FormReceivedResponse Form.Response
     | FormSubmitted
 
 
@@ -222,7 +222,7 @@ update msg model =
         FormReceivedResponse response ->
             let
                 ( formModel, formCmd ) =
-                    form.updateFromBackend response model.form
+                    form.updateFromResponse response model.form
             in
             ( { model | form = formModel }
             , Cmd.none
@@ -245,7 +245,7 @@ form =
         |> Form.withBackend
             { sendRequest = lamdera_sendToBackend
             , sendResponse = lamdera_sendToFrontend
-            , backendGadget = backendModelGadget
+            , backendModelGadget = backendModelGadget
             }
         |> Form.withTopLevelView wizardView
         |> Form.withOverride "heightInCentimetres" myFloat
@@ -255,7 +255,7 @@ form =
         |> Form.endForm gadget
 
 
-lamdera_sendToBackend : Form.Msg -> Cmd Msg
+lamdera_sendToBackend : Form.Request -> Cmd Msg
 lamdera_sendToBackend request =
     let
         _ =
@@ -264,7 +264,7 @@ lamdera_sendToBackend request =
     Task.perform (\() -> BackendReceivedRequest request) (Process.sleep 0)
 
 
-lamdera_sendToFrontend : sessionId -> Form.Msg -> Cmd Msg
+lamdera_sendToFrontend : sessionId -> Form.Response -> Cmd Msg
 lamdera_sendToFrontend sessionId response =
     Task.perform
         (\() ->

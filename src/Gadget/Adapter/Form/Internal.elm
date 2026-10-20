@@ -96,7 +96,7 @@ type alias InnerControl broadcast =
     , load : Value -> Value
     , placeholder : Value
     , update : Value -> Value -> ( Value, Command Value broadcast Value )
-    , updateFromBackend : Value -> Value -> ( Value, Command Value broadcast Value )
+    , updateFromResponse : Value -> Value -> ( Value, Command Value broadcast Value )
     , updateFromBroadcast : broadcast -> Value -> ( Value, Command Value broadcast Value )
     , view : String -> Value -> H.Html Value
     , subscriptions : Value -> Sub Value
