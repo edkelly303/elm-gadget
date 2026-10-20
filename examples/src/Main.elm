@@ -243,8 +243,8 @@ update msg model =
 form =
     Form.newForm FormReceivedMsg
         |> Form.withBackend
-            { sendRequest = lamdera_sendToBackend
-            , sendResponse = lamdera_sendToFrontend
+            { sendRequest = \request -> lamdera_sendToBackend (BackendReceivedRequest request)
+            , sendResponse = \sessionId response -> lamdera_sendToFrontend sessionId (FormReceivedResponse response)
             , backendModelGadget = backendModelGadget
             }
         |> Form.withTopLevelView wizardView
@@ -255,16 +255,16 @@ form =
         |> Form.endForm gadget
 
 
-lamdera_sendToBackend : Form.Request -> Cmd Msg
+lamdera_sendToBackend : Msg -> Cmd Msg
 lamdera_sendToBackend request =
     let
         _ =
             Debug.log "sendRequest" request
     in
-    Task.perform (\() -> BackendReceivedRequest request) (Process.sleep 0)
+    Task.perform (\() -> request) (Process.sleep 0)
 
 
-lamdera_sendToFrontend : sessionId -> Form.Response -> Cmd Msg
+lamdera_sendToFrontend : sessionId -> Msg -> Cmd Msg
 lamdera_sendToFrontend sessionId response =
     Task.perform
         (\() ->
@@ -272,7 +272,7 @@ lamdera_sendToFrontend sessionId response =
                 _ =
                     Debug.log "sendResponse" response
             in
-            FormReceivedResponse response
+            response
         )
         (Process.sleep 1000)
 
