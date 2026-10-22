@@ -14,6 +14,42 @@ type Effect msg broadcast request
     | Request request
 
 
+type Control backendModel request response broadcast model msg output
+    = Control
+        { modelGadget : IR.Gadget model
+        , msgGadget : IR.Gadget msg
+        , outputGadget : IR.Gadget output
+        , requestGadget : IR.Gadget request
+        , responseGadget : IR.Gadget response
+        , placeholder : output
+        , init : ( model, Command msg broadcast request )
+        , load : output -> model
+        , update : msg -> model -> ( model, Command msg broadcast request )
+        , updateFromBackend : response -> model -> ( model, Command msg broadcast request )
+        , updateFromBroadcast : broadcast -> model -> ( model, Command msg broadcast request )
+        , view : String -> model -> H.Html msg
+        , subscriptions : model -> Sub msg
+        , submit : model -> Result String output
+        , respond : request -> backendModel -> response
+        , layout : List UI
+        }
+
+
+type alias IRControl broadcast =
+    { init : ( Value, Command Value broadcast Value )
+    , load : Value -> Value
+    , placeholder : Value
+    , update : Value -> Value -> ( Value, Command Value broadcast Value )
+    , updateFromResponse : Value -> Value -> ( Value, Command Value broadcast Value )
+    , updateFromBroadcast : broadcast -> Value -> ( Value, Command Value broadcast Value )
+    , view : String -> Value -> H.Html Value
+    , subscriptions : Value -> Sub Value
+    , layout : List UI
+    , submit : Path -> Value -> Result (List Error) Value
+    , respond : Value -> Value -> Value
+    }
+
+
 batchCommands : List (Command msg broadcast request) -> Command msg broadcast request
 batchCommands commands =
     List.foldl concatCommands (Command [ Cmd Cmd.none ]) commands
@@ -89,21 +125,6 @@ fail =
                 Err [ { error = "failed", path = path } ]
         , irType = IR.UnitType IR.emptyMetadata
         }
-
-
-type alias InnerControl broadcast =
-    { init : ( Value, Command Value broadcast Value )
-    , load : Value -> Value
-    , placeholder : Value
-    , update : Value -> Value -> ( Value, Command Value broadcast Value )
-    , updateFromResponse : Value -> Value -> ( Value, Command Value broadcast Value )
-    , updateFromBroadcast : broadcast -> Value -> ( Value, Command Value broadcast Value )
-    , view : String -> Value -> H.Html Value
-    , subscriptions : Value -> Sub Value
-    , layout : List UI
-    , submit : Path -> Value -> Result (List Error) Value
-    , respond : Value -> Value -> Value
-    }
 
 
 type UI

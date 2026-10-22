@@ -4,6 +4,7 @@ module Gadget.Adapter.Form exposing
     , Msg
     , Request
     , Response
+    , buildControl
     , customLabels
     , endForm
     , label
@@ -23,13 +24,14 @@ module Gadget.Adapter.Form exposing
 
 import Dict exposing (Dict)
 import Gadget
-import Gadget.Adapter.Form.Control as Control exposing (Command, Control(..), noCommand)
-import Gadget.Adapter.Form.Internal as Internal exposing (InnerControl, batchCommands, concatCommands, mapCommand, toCmd)
+import Gadget.Adapter.Form.Control as Control exposing (Command, noCommand)
+import Gadget.Adapter.Form.Internal as Internal exposing (IRControl, batchCommands, concatCommands, mapCommand, toCmd)
 import Gadget.IR as IR exposing (Error, Path, Type(..), Value(..), VariantType(..), VariantValue(..))
 import Html as H
 import Html.Attributes as HA
 import Html.Events as HE
 import List.Extra
+import Result.Extra
 import Set
 
 
@@ -103,11 +105,11 @@ type PrimitiveType
 
 type FormBuilder backendModel backendMsg broadcast msg output
     = FormBuilder
-        { bool : Control backendModel broadcast Bool
-        , int : Control backendModel broadcast Int
-        , float : Control backendModel broadcast Float
-        , char : Control backendModel broadcast Char
-        , string : Control backendModel broadcast String
+        { bool : Gadget.Gadget backendModel -> Internal.IRControl broadcast
+        , int : Gadget.Gadget backendModel -> Internal.IRControl broadcast
+        , float : Gadget.Gadget backendModel -> Internal.IRControl broadcast
+        , char : Gadget.Gadget backendModel -> Internal.IRControl broadcast
+        , string : Gadget.Gadget backendModel -> Internal.IRControl broadcast
         , viewFeedback : String -> H.Html msg
         , viewControl : Bool -> List (H.Html msg) -> List (H.Html msg)
         , viewTopLevel :
@@ -117,7 +119,7 @@ type FormBuilder backendModel backendMsg broadcast msg output
             , result : Result (Set.Set Int) output
             }
             -> List (H.Html msg)
-        , overrides : Dict String (IR.Gadget backendModel -> Internal.InnerControl broadcast)
+        , overrides : Dict String (IR.Gadget backendModel -> Internal.IRControl broadcast)
         , toMsg : Msg -> msg
         , sendRequest : Msg -> Cmd msg
         , sendResponse : String -> Response -> Cmd backendMsg
@@ -126,12 +128,12 @@ type FormBuilder backendModel backendMsg broadcast msg output
 
 
 type alias InternalConfig msg broadcast output =
-    { bool : Internal.InnerControl broadcast
-    , int : Internal.InnerControl broadcast
-    , float : Internal.InnerControl broadcast
-    , char : Internal.InnerControl broadcast
-    , string : Internal.InnerControl broadcast
-    , overrides : Dict String (Internal.InnerControl broadcast)
+    { bool : Internal.IRControl broadcast
+    , int : Internal.IRControl broadcast
+    , float : Internal.IRControl broadcast
+    , char : Internal.IRControl broadcast
+    , string : Internal.IRControl broadcast
+    , overrides : Dict String (Internal.IRControl broadcast)
     , viewFeedback : String -> H.Html msg
     , viewControl : Bool -> List (H.Html msg) -> List (H.Html msg)
     , viewTopLevel :
@@ -203,11 +205,11 @@ customLabels l ls gadget =
 newForm : (Msg -> msg) -> FormBuilder backendModel backendMsg broadcast msg output
 newForm toMsg =
     FormBuilder
-        { bool = boolControl
-        , int = intControl
-        , float = floatControl
-        , char = charControl
-        , string = stringControl
+        { bool = buildControl boolControl
+        , int = buildControl intControl
+        , float = buildControl floatControl
+        , char = buildControl charControl
+        , string = buildControl stringControl
         , viewFeedback = \error -> H.span [] [ H.text error ]
         , viewTopLevel = \{ fieldViews } -> fieldViews
         , viewControl =
@@ -237,19 +239,16 @@ endForm :
     -> Form backendModel backendMsg msg a
 endForm gadget (FormBuilder builder) =
     let
-        unwrapControl (Control toControl) =
-            toControl builder.backendModelGadget
-
         unwrappedOverrides =
             Dict.map (\_ toControl -> toControl builder.backendModelGadget) builder.overrides
 
         config : InternalConfig msg broadcast a
         config =
-            { bool = unwrapControl builder.bool
-            , int = unwrapControl builder.int
-            , float = unwrapControl builder.float
-            , char = unwrapControl builder.char
-            , string = unwrapControl builder.string
+            { bool = builder.bool builder.backendModelGadget
+            , int = builder.int builder.backendModelGadget
+            , float = builder.float builder.backendModelGadget
+            , char = builder.char builder.backendModelGadget
+            , string = builder.string builder.backendModelGadget
             , overrides = unwrappedOverrides
             , viewFeedback = builder.viewFeedback
             , viewControl = builder.viewControl
@@ -321,51 +320,55 @@ withBackend args (FormBuilder builder) =
 
 withOverride :
     String
-    -> Control backendModel broadcast a
+    -> Control.Control backendModel request response broadcast controlModel controlMsg controlOutput
     -> FormBuilder backendModel backendMsg broadcast msg output
     -> FormBuilder backendModel backendMsg broadcast msg output
-withOverride id (Control toControl) (FormBuilder builder) =
+withOverride id controlBuilder (FormBuilder builder) =
+    let
+        toControl =
+            buildControl controlBuilder
+    in
     FormBuilder { builder | overrides = Dict.insert id toControl builder.overrides }
 
 
 withIntControl :
-    Control backendModel broadcast Int
+    Control.Control backendModel request response broadcast controlModel controlMsg Int
     -> FormBuilder backendModel backendMsg broadcast msg output
     -> FormBuilder backendModel backendMsg broadcast msg output
 withIntControl control (FormBuilder builder) =
-    FormBuilder { builder | int = control }
+    FormBuilder { builder | int = buildControl control }
 
 
 withFloatControl :
-    Control backendModel broadcast Float
+    Control.Control backendModel request response broadcast controlModel controlMsg Float
     -> FormBuilder backendModel backendMsg broadcast msg output
     -> FormBuilder backendModel backendMsg broadcast msg output
 withFloatControl control (FormBuilder builder) =
-    FormBuilder { builder | float = control }
+    FormBuilder { builder | float = buildControl control }
 
 
 withStringControl :
-    Control backendModel broadcast String
+    Control.Control backendModel request response broadcast controlModel controlMsg String
     -> FormBuilder backendModel backendMsg broadcast msg output
     -> FormBuilder backendModel backendMsg broadcast msg output
 withStringControl control (FormBuilder builder) =
-    FormBuilder { builder | string = control }
+    FormBuilder { builder | string = buildControl control }
 
 
 withCharControl :
-    Control backendModel broadcast Char
+    Control.Control backendModel request response broadcast controlModel controlMsg Char
     -> FormBuilder backendModel backendMsg broadcast msg output
     -> FormBuilder backendModel backendMsg broadcast msg output
 withCharControl control (FormBuilder builder) =
-    FormBuilder { builder | char = control }
+    FormBuilder { builder | char = buildControl control }
 
 
 withBoolControl :
-    Control backendModel broadcast Bool
+    Control.Control backendModel request response broadcast model msg Bool
     -> FormBuilder backendModel backendMsg broadcast msg output
     -> FormBuilder backendModel backendMsg broadcast msg output
 withBoolControl control (FormBuilder builder) =
-    FormBuilder { builder | bool = control }
+    FormBuilder { builder | bool = buildControl control }
 
 
 withControlView :
@@ -411,7 +414,120 @@ withTopLevelView f (FormBuilder builder) =
 -}
 
 
-intControl : Control backendModel broadcast Int
+buildControl :
+    Internal.Control backendModel request backendMsg broadcast model msg output
+    -> Gadget.Gadget backendModel
+    -> Internal.IRControl broadcast
+buildControl (Internal.Control builder) backendModelGadget =
+    let
+        placeholderValue =
+            builder.placeholder
+                |> builder.load
+                |> IR.fromInput builder.modelGadget
+
+        mapCommand =
+            Internal.mapCommand
+                (IR.fromInput builder.msgGadget)
+                identity
+                (IR.fromInput builder.requestGadget)
+    in
+    { init =
+        let
+            ( model, command ) =
+                builder.init
+        in
+        ( IR.fromInput builder.modelGadget model
+        , mapCommand command
+        )
+    , load =
+        \outputValue ->
+            IR.toOutput builder.outputGadget outputValue
+                |> Result.map (\output -> builder.load output)
+                |> Result.map (IR.fromInput builder.modelGadget)
+                |> Result.withDefault placeholderValue
+    , placeholder = IR.fromInput builder.outputGadget builder.placeholder
+    , update =
+        \msg modelValue ->
+            let
+                result =
+                    Result.map2 builder.update
+                        (IR.toOutput builder.msgGadget msg)
+                        (IR.toOutput builder.modelGadget modelValue)
+            in
+            case result of
+                Ok ( model, command ) ->
+                    ( IR.fromInput builder.modelGadget model
+                    , mapCommand command
+                    )
+
+                Err _ ->
+                    ( modelValue
+                    , noCommand
+                    )
+    , updateFromResponse =
+        \msg modelValue ->
+            let
+                result =
+                    Result.map2 builder.updateFromBackend
+                        (IR.toOutput builder.responseGadget msg)
+                        (IR.toOutput builder.modelGadget modelValue)
+            in
+            case result of
+                Ok ( model, command ) ->
+                    ( IR.fromInput builder.modelGadget model
+                    , mapCommand command
+                    )
+
+                Err _ ->
+                    ( modelValue
+                    , noCommand
+                    )
+    , updateFromBroadcast =
+        \broadcastMsg modelValue ->
+            let
+                result =
+                    Result.map
+                        (builder.updateFromBroadcast broadcastMsg)
+                        (IR.toOutput builder.modelGadget modelValue)
+            in
+            case result of
+                Ok ( model, command ) ->
+                    ( IR.fromInput builder.modelGadget model
+                    , mapCommand command
+                    )
+
+                Err _ ->
+                    ( modelValue
+                    , noCommand
+                    )
+    , view =
+        \id modelValue ->
+            Result.map (builder.view id) (IR.toOutput builder.modelGadget modelValue)
+                |> Result.Extra.extract (List.map (.error >> H.text) >> H.div [])
+                |> H.map (\msg -> IR.fromInput builder.msgGadget msg)
+    , layout =
+        builder.layout
+    , subscriptions = \_ -> Sub.none
+    , submit =
+        \path modelValue ->
+            IR.toOutput builder.modelGadget modelValue
+                |> Result.andThen
+                    (\model ->
+                        builder.submit model
+                            |> Result.mapError (\error -> [ { error = error, path = path } ])
+                            |> Result.map (IR.fromInput builder.outputGadget)
+                    )
+    , respond =
+        \toBackend backend ->
+            Result.map2 builder.respond
+                (IR.toOutput builder.requestGadget toBackend)
+                (IR.toOutput backendModelGadget backend)
+                |> Result.map (IR.fromInput builder.responseGadget)
+                |> Result.withDefault IR.UnitValue
+    }
+
+
+intControl : Control.Control backendModel () () broadcast String String Int
 intControl =
     Control.sandbox
         { modelGadget = Gadget.string
@@ -436,10 +552,9 @@ intControl =
                 String.toInt model
                     |> Result.fromMaybe "This must be an integer"
         }
-        |> Control.build
 
 
-floatControl : Control backendModel broadcast Float
+floatControl : Control.Control backendModel () () broadcast String String Float
 floatControl =
     Control.sandbox
         { modelGadget = Gadget.string
@@ -464,10 +579,9 @@ floatControl =
                 String.toFloat model
                     |> Result.fromMaybe "This must be a decimal number"
         }
-        |> Control.build
 
 
-stringControl : Control backendModel broadcast String
+stringControl : Control.Control backendModel () () broadcast String String String
 stringControl =
     Control.sandbox
         { modelGadget = Gadget.string
@@ -488,10 +602,9 @@ stringControl =
                     []
         , submit = Ok
         }
-        |> Control.build
 
 
-boolControl : Control backendModel broadcast Bool
+boolControl : Control.Control backendModel () () broadcast Bool Bool Bool
 boolControl =
     Control.sandbox
         { modelGadget = Gadget.bool
@@ -513,10 +626,9 @@ boolControl =
         , submit = Ok
         }
         |> Control.withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
-        |> Control.build
 
 
-charControl : Control backendModel broadcast Char
+charControl : Control.Control backendModel () () broadcast String (Maybe Char) Char
 charControl =
     Control.sandbox
         { modelGadget = Gadget.string
@@ -548,7 +660,6 @@ charControl =
                     |> Maybe.map Tuple.first
                     |> Result.fromMaybe "This must not be blank"
         }
-        |> Control.build
 
 
 
@@ -836,7 +947,7 @@ loadHelp config value type_ =
 
 
 update :
-    (InnerControl broadcast -> Value -> Value -> ( Value, Command Value broadcast Value ))
+    (IRControl broadcast -> Value -> Value -> ( Value, Command Value broadcast Value ))
     -> InternalConfig msg broadcast output
     -> Msg
     -> Model
@@ -1008,7 +1119,7 @@ updateFromBroadcastHelp config path broadcast model =
 
 
 updateHelp :
-    (InnerControl broadcast -> Value -> Value -> ( Value, Command Value broadcast Value ))
+    (IRControl broadcast -> Value -> Value -> ( Value, Command Value broadcast Value ))
     -> InternalConfig msg broadcast output
     -> Path
     -> Msg

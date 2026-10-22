@@ -344,7 +344,6 @@ counter =
                     ]
         , submit = Ok
         }
-        |> Control.build
 
 
 type Broadcast
@@ -379,7 +378,6 @@ myFloat =
         , submit = Ok
         , respond = \() { float } -> float
         }
-        |> Control.build
 
 
 myBoolBroadcaster =
@@ -404,7 +402,6 @@ myBoolBroadcaster =
         , submit = Ok
         }
         |> Control.withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
-        |> Control.build
 
 
 myBoolReceiver =
@@ -429,7 +426,6 @@ myBoolReceiver =
         }
         |> Control.withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
         |> Control.withReceiver (\Incremented model -> ( not model, Control.noCommand ))
-        |> Control.build
 
 
 init _ =
