@@ -527,7 +527,7 @@ buildControl (Internal.Control builder) backendModelGadget =
     }
 
 
-intControl : Control.Control backendModel () () broadcast String String Int
+intControl : Control.Control backendModel Never Never broadcast String String Int
 intControl =
     Control.sandbox
         { modelGadget = Gadget.string
@@ -554,7 +554,7 @@ intControl =
         }
 
 
-floatControl : Control.Control backendModel () () broadcast String String Float
+floatControl : Control.Control backendModel Never Never broadcast String String Float
 floatControl =
     Control.sandbox
         { modelGadget = Gadget.string
@@ -581,7 +581,7 @@ floatControl =
         }
 
 
-stringControl : Control.Control backendModel () () broadcast String String String
+stringControl : Control.Control backendModel Never Never broadcast String String String
 stringControl =
     Control.sandbox
         { modelGadget = Gadget.string
@@ -604,7 +604,7 @@ stringControl =
         }
 
 
-boolControl : Control.Control backendModel () () broadcast Bool Bool Bool
+boolControl : Control.Control backendModel Never Never broadcast Bool Bool Bool
 boolControl =
     Control.sandbox
         { modelGadget = Gadget.bool
@@ -628,7 +628,7 @@ boolControl =
         |> Control.withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
 
 
-charControl : Control.Control backendModel () () broadcast String (Maybe Char) Char
+charControl : Control.Control backendModel Never Never broadcast String (Maybe Char) Char
 charControl =
     Control.sandbox
         { modelGadget = Gadget.string

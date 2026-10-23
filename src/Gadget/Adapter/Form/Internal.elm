@@ -122,7 +122,18 @@ fail =
         { fromInput = \_ -> IR.UnitValue
         , toOutput =
             \path _ ->
-                Err [ { error = "failed", path = path } ]
+                Err [ { error = "fail failed", path = path } ]
+        , irType = IR.UnitType IR.emptyMetadata
+        }
+
+
+never : IR.Gadget Never
+never =
+    IR.Gadget
+        { fromInput = \ever -> Basics.never ever
+        , toOutput =
+            \path _ ->
+                Err [ { error = "never say never", path = path } ]
         , irType = IR.UnitType IR.emptyMetadata
         }
 

@@ -101,14 +101,12 @@ sandbox :
     , msgGadget : IR.Gadget msg
     , outputGadget : IR.Gadget output
     }
-    -> Control backendModel () () broadcast model msg output
+    -> Control backendModel Never Never broadcast model msg output
 sandbox { placeholder, init, load, update, view, submit, modelGadget, msgGadget, outputGadget } =
     new
         { modelGadget = modelGadget
         , msgGadget = msgGadget
         , outputGadget = outputGadget
-        , requestGadget = Gadget.unit
-        , responseGadget = Gadget.unit
         , placeholder = placeholder
         , init = ( init, noCommand )
         , load = load
@@ -118,7 +116,9 @@ sandbox { placeholder, init, load, update, view, submit, modelGadget, msgGadget,
         , view = view
         , subscriptions = \_ -> Sub.none
         , submit = submit
-        , respond = \_ _ -> ()
+        , requestGadget = Internal.never
+        , responseGadget = Internal.never
+        , respond = \ever _ -> never ever
         }
 
 
@@ -134,14 +134,12 @@ element :
     , msgGadget : IR.Gadget msg
     , outputGadget : IR.Gadget output
     }
-    -> Control backendModel request () broadcast model msg output
+    -> Control backendModel Never Never broadcast model msg output
 element { placeholder, init, load, update, view, subscriptions, submit, modelGadget, msgGadget, outputGadget } =
     new
         { modelGadget = modelGadget
         , msgGadget = msgGadget
         , outputGadget = outputGadget
-        , requestGadget = Internal.fail
-        , responseGadget = Internal.fail
         , placeholder = placeholder
         , init = init |> Tuple.mapSecond toCommand
         , load = load
@@ -151,15 +149,17 @@ element { placeholder, init, load, update, view, subscriptions, submit, modelGad
         , view = view
         , subscriptions = subscriptions
         , submit = submit
-        , respond = \_ _ -> ()
+        , requestGadget = Internal.never
+        , responseGadget = Internal.never
+        , respond = \ever _ -> never ever
         }
 
 
 transmitter :
     { placeholder : output
-    , init : ( model, Command msg broadcast request )
+    , init : ( model, Command msg broadcast Never )
     , load : output -> model
-    , update : msg -> model -> ( model, Command msg broadcast request )
+    , update : msg -> model -> ( model, Command msg broadcast Never )
     , view : String -> model -> H.Html msg
     , subscriptions : model -> Sub msg
     , submit : model -> Result String output
@@ -167,14 +167,14 @@ transmitter :
     , msgGadget : IR.Gadget msg
     , outputGadget : IR.Gadget output
     }
-    -> Control backendModel request () broadcast model msg output
+    -> Control backendModel Never Never broadcast model msg output
 transmitter { placeholder, init, load, update, view, subscriptions, submit, modelGadget, msgGadget, outputGadget } =
     new
         { modelGadget = modelGadget
         , msgGadget = msgGadget
         , outputGadget = outputGadget
-        , requestGadget = Internal.fail
-        , responseGadget = Internal.fail
+        , requestGadget = Internal.never
+        , responseGadget = Internal.never
         , placeholder = placeholder
         , init = init
         , load = load
@@ -184,7 +184,7 @@ transmitter { placeholder, init, load, update, view, subscriptions, submit, mode
         , view = view
         , subscriptions = subscriptions
         , submit = submit
-        , respond = \_ _ -> ()
+        , respond = \ever _ -> never ever
         }
 
 
