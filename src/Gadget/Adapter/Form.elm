@@ -677,7 +677,7 @@ charControl =
 -}
 
 
-init : InternalConfig msg broadcast output -> IR.Gadget a -> ( Model, Command Msg broadcast Msg )
+init : InternalConfig msg broadcast output -> IR.Gadget output -> ( Model, Command Msg broadcast Msg )
 init config gadget =
     initHelp config [] (IR.irType gadget)
 
@@ -1891,7 +1891,7 @@ parsePrimitiveControls config path model =
 -}
 
 
-respond : InternalConfig msg broadcast output -> Msg -> IR.Gadget a -> Value -> Response
+respond : InternalConfig msg broadcast output -> Msg -> IR.Gadget output -> Value -> Response
 respond config toBackend gadget value =
     let
         ( model, _ ) =
