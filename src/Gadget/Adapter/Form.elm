@@ -73,7 +73,7 @@ type alias Form backendModel msg output =
     { init : ( Model, Cmd msg, List Request )
     , load : output -> Model
     , update : Msg -> Model -> ( Model, Cmd msg, List Request )
-    , respond : String -> Request -> backendModel -> Response
+    , respond : Request -> backendModel -> Response
     , updateFromResponse : Response -> Model -> ( Model, Cmd msg, List Request )
     , view : Model -> H.Html msg
     , subscriptions : Model -> Sub msg
@@ -295,7 +295,7 @@ endForm gadget (FormBuilder builder) =
     , subscriptions = \model -> subscriptions config model |> Sub.map builder.toMsg
     , submit = \model -> submit config gadget model
     , respond =
-        \sessionId (Request request) value ->
+        \(Request request) value ->
             respond config request gadget (IR.fromInput builder.backendModelGadget value)
     }
 

@@ -227,7 +227,7 @@ update msg model =
         BackendReceivedRequest request ->
             let
                 response =
-                    form.respond "" request { int = 1, float = 1.2 }
+                    form.respond request { int = 1, float = 1.2 }
             in
             ( model
             , lamdera_sendToFrontend "" (FormReceivedResponse response)
