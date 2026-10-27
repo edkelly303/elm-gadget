@@ -14,7 +14,7 @@ type Effect msg broadcast request
     | Request request
 
 
-type Control backendModel request response broadcast model msg output
+type Control context request response broadcast model msg output
     = Control
         { modelGadget : IR.Gadget model
         , msgGadget : IR.Gadget msg
@@ -30,7 +30,7 @@ type Control backendModel request response broadcast model msg output
         , view : String -> model -> H.Html msg
         , subscriptions : model -> Sub msg
         , submit : model -> Result String output
-        , respond : request -> backendModel -> response
+        , respond : request -> context -> response
         , layout : List UI
         }
 

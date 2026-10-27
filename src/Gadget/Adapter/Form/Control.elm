@@ -47,8 +47,8 @@ broadcast broadcastMsg =
     Internal.Command [ Internal.Broadcast broadcastMsg ]
 
 
-type alias Control backendModel request response broadcast model msg output =
-    Internal.Control backendModel request response broadcast model msg output
+type alias Control context request response broadcast model msg output =
+    Internal.Control context request response broadcast model msg output
 
 
 new :
@@ -66,9 +66,9 @@ new :
     , view : String -> model -> H.Html msg
     , subscriptions : model -> Sub msg
     , submit : model -> Result String output
-    , respond : request -> backendModel -> response
+    , respond : request -> context -> response
     }
-    -> Control backendModel request response broadcast model msg output
+    -> Control context request response broadcast model msg output
 new args =
     Internal.Control
         { modelGadget = args.modelGadget
@@ -101,7 +101,7 @@ sandbox :
     , msgGadget : IR.Gadget msg
     , outputGadget : IR.Gadget output
     }
-    -> Control backendModel Never Never broadcast model msg output
+    -> Control context Never Never broadcast model msg output
 sandbox { placeholder, init, load, update, view, submit, modelGadget, msgGadget, outputGadget } =
     new
         { modelGadget = modelGadget
@@ -134,7 +134,7 @@ element :
     , msgGadget : IR.Gadget msg
     , outputGadget : IR.Gadget output
     }
-    -> Control backendModel Never Never broadcast model msg output
+    -> Control context Never Never broadcast model msg output
 element { placeholder, init, load, update, view, subscriptions, submit, modelGadget, msgGadget, outputGadget } =
     new
         { modelGadget = modelGadget
@@ -167,7 +167,7 @@ transmitter :
     , msgGadget : IR.Gadget msg
     , outputGadget : IR.Gadget output
     }
-    -> Control backendModel Never Never broadcast model msg output
+    -> Control context Never Never broadcast model msg output
 transmitter { placeholder, init, load, update, view, subscriptions, submit, modelGadget, msgGadget, outputGadget } =
     new
         { modelGadget = modelGadget
@@ -190,8 +190,8 @@ transmitter { placeholder, init, load, update, view, subscriptions, submit, mode
 
 withReceiver :
     (broadcast -> model -> ( model, Command msg broadcast request ))
-    -> Control backendModel request response broadcast model msg output
-    -> Control backendModel request response broadcast model msg output
+    -> Control context request response broadcast model msg output
+    -> Control context request response broadcast model msg output
 withReceiver updateFromBroadcast (Internal.Control builder) =
     Internal.Control
         { modelGadget = builder.modelGadget
@@ -215,8 +215,8 @@ withReceiver updateFromBroadcast (Internal.Control builder) =
 
 withLayout :
     ({ label : UI, input : UI, feedback : UI } -> List UI)
-    -> Control backendModel request response broadcast model msg output
-    -> Control backendModel request response broadcast model msg output
+    -> Control context request response broadcast model msg output
+    -> Control context request response broadcast model msg output
 withLayout f (Internal.Control builder) =
     Internal.Control
         { builder
