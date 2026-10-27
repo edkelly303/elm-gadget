@@ -249,7 +249,6 @@ cmdify model ( formModel, formCmd, requests ) =
 
 form =
     Form.newForm FormReceivedMsg
-        |> Form.withContext contextGadget
         |> Form.withTopLevelView wizardView
         |> Form.withOverride "heightInCentimetres" myFloat
         |> Form.withOverride "myBoolBroadcaster" myBoolBroadcaster
@@ -278,13 +277,6 @@ lamdera_sendToFrontend sessionId response =
             response
         )
         (Process.sleep 1000)
-
-
-contextGadget =
-    Gadget.record (\int float -> { int = int, float = float })
-        |> Gadget.field "int" .int Gadget.int
-        |> Gadget.field "float" .float Gadget.float
-        |> Gadget.endRecord
 
 
 type CounterMsg

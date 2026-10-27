@@ -35,7 +35,7 @@ type Control context request response broadcast model msg output
         }
 
 
-type alias IRControl broadcast =
+type alias IRControl context broadcast =
     { init : ( Value, Command Value broadcast Value )
     , load : Value -> Value
     , placeholder : Value
@@ -46,7 +46,7 @@ type alias IRControl broadcast =
     , subscriptions : Value -> Sub Value
     , layout : List UI
     , submit : Path -> Value -> Result (List Error) Value
-    , respond : Value -> Value -> Value
+    , respond : Value -> context -> Value
     }
 
 

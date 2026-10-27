@@ -12,7 +12,6 @@ module Gadget.Adapter.Form exposing
     , override
     , withBoolControl
     , withCharControl
-    , withContext
     , withControlView
     , withFeedbackView
     , withFloatControl
@@ -107,11 +106,11 @@ type PrimitiveType
 
 type FormBuilder context backendMsg broadcast msg output
     = FormBuilder
-        { bool : Gadget.Gadget context -> Internal.IRControl broadcast
-        , int : Gadget.Gadget context -> Internal.IRControl broadcast
-        , float : Gadget.Gadget context -> Internal.IRControl broadcast
-        , char : Gadget.Gadget context -> Internal.IRControl broadcast
-        , string : Gadget.Gadget context -> Internal.IRControl broadcast
+        { bool : Internal.IRControl context broadcast
+        , int : Internal.IRControl context broadcast
+        , float : Internal.IRControl context broadcast
+        , char : Internal.IRControl context broadcast
+        , string : Internal.IRControl context broadcast
         , viewFeedback : String -> H.Html msg
         , viewControl : Bool -> List (H.Html msg) -> List (H.Html msg)
         , viewTopLevel :
@@ -121,19 +120,18 @@ type FormBuilder context backendMsg broadcast msg output
             , result : Result (Set.Set Int) output
             }
             -> List (H.Html msg)
-        , overrides : Dict String (IR.Gadget context -> Internal.IRControl broadcast)
+        , overrides : Dict String (Internal.IRControl context broadcast)
         , toMsg : Msg -> msg
-        , contextGadget : IR.Gadget context
         }
 
 
-type alias InternalConfig msg broadcast output =
-    { bool : Internal.IRControl broadcast
-    , int : Internal.IRControl broadcast
-    , float : Internal.IRControl broadcast
-    , char : Internal.IRControl broadcast
-    , string : Internal.IRControl broadcast
-    , overrides : Dict String (Internal.IRControl broadcast)
+type alias InternalConfig context msg broadcast output =
+    { bool : Internal.IRControl context broadcast
+    , int : Internal.IRControl context broadcast
+    , float : Internal.IRControl context broadcast
+    , char : Internal.IRControl context broadcast
+    , string : Internal.IRControl context broadcast
+    , overrides : Dict String (Internal.IRControl context broadcast)
     , viewFeedback : String -> H.Html msg
     , viewControl : Bool -> List (H.Html msg) -> List (H.Html msg)
     , viewTopLevel :
@@ -227,7 +225,6 @@ newForm toMsg =
                 ]
         , overrides = Dict.empty
         , toMsg = toMsg
-        , contextGadget = Internal.fail
         }
 
 
@@ -237,17 +234,14 @@ endForm :
     -> Form context msg a
 endForm gadget (FormBuilder builder) =
     let
-        unwrappedOverrides =
-            Dict.map (\_ toControl -> toControl builder.contextGadget) builder.overrides
-
-        config : InternalConfig msg broadcast a
+        config : InternalConfig context msg broadcast a
         config =
-            { bool = builder.bool builder.contextGadget
-            , int = builder.int builder.contextGadget
-            , float = builder.float builder.contextGadget
-            , char = builder.char builder.contextGadget
-            , string = builder.string builder.contextGadget
-            , overrides = unwrappedOverrides
+            { bool = builder.bool
+            , int = builder.int
+            , float = builder.float
+            , char = builder.char
+            , string = builder.string
+            , overrides = builder.overrides
             , viewFeedback = builder.viewFeedback
             , viewControl = builder.viewControl
             , viewTopLevel = builder.viewTopLevel
@@ -284,7 +278,7 @@ endForm gadget (FormBuilder builder) =
 
         respond_ =
             \(Request request) value ->
-                respond config request gadget (IR.fromInput builder.contextGadget value)
+                respond config request gadget value
 
         run gas context ( m, c, r ) =
             if List.isEmpty r || gas == 0 then
@@ -342,26 +336,6 @@ endForm gadget (FormBuilder builder) =
     , submit = \model -> submit config gadget model
     , respond = respond_
     }
-
-
-withContext :
-    IR.Gadget context
-    -> FormBuilder context backendMsg broadcast msg output
-    -> FormBuilder context backendMsg broadcast msg output
-withContext contextGadget (FormBuilder builder) =
-    FormBuilder
-        { bool = builder.bool
-        , int = builder.int
-        , float = builder.float
-        , char = builder.char
-        , string = builder.string
-        , viewFeedback = builder.viewFeedback
-        , viewControl = builder.viewControl
-        , viewTopLevel = builder.viewTopLevel
-        , overrides = builder.overrides
-        , toMsg = builder.toMsg
-        , contextGadget = contextGadget
-        }
 
 
 withOverride :
@@ -462,9 +436,8 @@ withTopLevelView f (FormBuilder builder) =
 
 buildControl :
     Internal.Control context request backendMsg broadcast model msg output
-    -> Gadget.Gadget context
-    -> Internal.IRControl broadcast
-buildControl (Internal.Control builder) contextGadget =
+    -> Internal.IRControl context broadcast
+buildControl (Internal.Control builder) =
     let
         placeholderValue =
             builder.placeholder
@@ -565,9 +538,8 @@ buildControl (Internal.Control builder) contextGadget =
                     )
     , respond =
         \toBackend backend ->
-            Result.map2 builder.respond
+            Result.map (\toBackendValue -> builder.respond toBackendValue backend)
                 (IR.toOutput builder.requestGadget toBackend)
-                (IR.toOutput contextGadget backend)
                 |> Result.map (IR.fromInput builder.responseGadget)
                 |> Result.withDefault IR.UnitValue
     }
@@ -721,12 +693,12 @@ charControl =
 -}
 
 
-init : InternalConfig msg broadcast output -> IR.Gadget output -> ( Model, Command Msg broadcast Msg )
+init : InternalConfig context msg broadcast output -> IR.Gadget output -> ( Model, Command Msg broadcast Msg )
 init config gadget =
     initHelp config [] (IR.irType gadget)
 
 
-initHelp : InternalConfig msg broadcast output -> Path -> Type -> ( Model, Command Msg broadcast Msg )
+initHelp : InternalConfig context msg broadcast output -> Path -> Type -> ( Model, Command Msg broadcast Msg )
 initHelp config path irType =
     let
         metadata =
@@ -875,12 +847,12 @@ initHelp config path irType =
 -}
 
 
-load : InternalConfig msg broadcast output -> IR.Gadget a -> a -> Model
+load : InternalConfig context msg broadcast output -> IR.Gadget a -> a -> Model
 load config gadget a =
     loadHelp config (IR.fromInput gadget a) (IR.irType gadget)
 
 
-loadHelp : InternalConfig msg broadcast output -> Value -> Type -> Model
+loadHelp : InternalConfig context msg broadcast output -> Value -> Type -> Model
 loadHelp config value type_ =
     let
         metadata =
@@ -993,8 +965,8 @@ loadHelp config value type_ =
 
 
 update :
-    (IRControl broadcast -> Value -> Value -> ( Value, Command Value broadcast Value ))
-    -> InternalConfig msg broadcast output
+    (IRControl context broadcast -> Value -> Value -> ( Value, Command Value broadcast Value ))
+    -> InternalConfig context msg broadcast output
     -> Msg
     -> Model
     -> ( Model, Command Msg broadcast Msg )
@@ -1004,7 +976,7 @@ update updater config msg model =
 
 
 updateFromBroadcast :
-    InternalConfig msg broadcast output
+    InternalConfig context msg broadcast output
     -> ( Model, Command Msg broadcast Msg )
     -> ( Model, Command Msg broadcast Msg )
 updateFromBroadcast config ( model, command ) =
@@ -1025,7 +997,7 @@ updateFromBroadcast config ( model, command ) =
 
 
 updateFromBroadcastHelp :
-    InternalConfig msg broadcast output
+    InternalConfig context msg broadcast output
     -> Path
     -> broadcast
     -> Model
@@ -1165,8 +1137,8 @@ updateFromBroadcastHelp config path broadcast model =
 
 
 updateHelp :
-    (IRControl broadcast -> Value -> Value -> ( Value, Command Value broadcast Value ))
-    -> InternalConfig msg broadcast output
+    (IRControl context broadcast -> Value -> Value -> ( Value, Command Value broadcast Value ))
+    -> InternalConfig context msg broadcast output
     -> Path
     -> Msg
     -> Model
@@ -1397,7 +1369,7 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
 -}
 
 
-view : InternalConfig msg broadcast a -> IR.Gadget a -> Model -> H.Html msg
+view : InternalConfig context msg broadcast a -> IR.Gadget a -> Model -> H.Html msg
 view config gadget model =
     let
         result =
@@ -1407,7 +1379,7 @@ view config gadget model =
 
 
 viewHelp :
-    InternalConfig msg broadcast a
+    InternalConfig context msg broadcast a
     -> Result (List Error) a
     -> Path
     -> Model
@@ -1666,12 +1638,12 @@ viewHelp config result modelPath model =
 -}
 
 
-subscriptions : InternalConfig msg broadcast output -> Model -> Sub Msg
+subscriptions : InternalConfig context msg broadcast output -> Model -> Sub Msg
 subscriptions config model =
     subscriptionsHelp config [] model
 
 
-subscriptionsHelp : InternalConfig msg broadcast output -> Path -> Model -> Sub Msg
+subscriptionsHelp : InternalConfig context msg broadcast output -> Path -> Model -> Sub Msg
 subscriptionsHelp config path model =
     case model of
         Unit ->
@@ -1764,7 +1736,7 @@ subscriptionsHelp config path model =
 -}
 
 
-submit : InternalConfig msg broadcast output -> IR.Gadget a -> Model -> Result (List Error) a
+submit : InternalConfig context msg broadcast output -> IR.Gadget a -> Model -> Result (List Error) a
 submit config gadget model =
     let
         ( parsedValue, parsingErrors ) =
@@ -1806,7 +1778,7 @@ submit config gadget model =
             Err (parsingErrors ++ filteredValidationErrors)
 
 
-parsePrimitiveControls : InternalConfig msg broadcast output -> Path -> Model -> ( Value, List Error )
+parsePrimitiveControls : InternalConfig context msg broadcast output -> Path -> Model -> ( Value, List Error )
 parsePrimitiveControls config path model =
     case model of
         Unit ->
@@ -1935,7 +1907,7 @@ parsePrimitiveControls config path model =
 -}
 
 
-respond : InternalConfig msg broadcast output -> Msg -> IR.Gadget output -> Value -> Response
+respond : InternalConfig context msg broadcast output -> Msg -> IR.Gadget output -> context -> Response
 respond config toBackend gadget value =
     let
         ( model, _ ) =
@@ -1945,7 +1917,7 @@ respond config toBackend gadget value =
         |> Response
 
 
-respondHelp : InternalConfig msg broadcast output -> Path -> Msg -> Model -> Value -> Msg
+respondHelp : InternalConfig context msg broadcast output -> Path -> Msg -> Model -> context -> Msg
 respondHelp config modelPath ((Msg msgPath msgValue) as msg) model value =
     case model of
         Unit ->
