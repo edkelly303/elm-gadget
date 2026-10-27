@@ -10,7 +10,6 @@ module Gadget.Adapter.Form.Control exposing
 
 -}
 
-import Gadget
 import Gadget.Adapter.Form.Internal as Internal
 import Gadget.IR as IR
 import Html as H

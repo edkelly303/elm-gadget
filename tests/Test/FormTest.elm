@@ -32,8 +32,10 @@ suite =
 
                     errors =
                         form.init
-                            |> Tuple.first
-                            |> form.submit
+                            |> (\( model, _, _ ) ->
+                                    model
+                                        |> form.submit
+                               )
                 in
                 errors
                     |> Expect.equal
@@ -64,8 +66,10 @@ suite =
 
                     errors =
                         form.init
-                            |> Tuple.first
-                            |> form.submit
+                            |> (\( model, _, _ ) ->
+                                    model
+                                        |> form.submit
+                               )
                 in
                 errors
                     |> Expect.equal
