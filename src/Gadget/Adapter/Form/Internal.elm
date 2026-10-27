@@ -98,22 +98,23 @@ extractBroadcasts (Command commands) =
         commands
 
 
-toCmd : (msg -> msg2) -> (request -> Cmd msg2) -> Command msg broadcast request -> Cmd msg2
-toCmd toMsg sendRequest (Command command) =
-    List.map
-        (\cmdType ->
+splitCommand : Command msg broadcast request -> ( Cmd msg, List request )
+splitCommand (Command command) =
+    List.foldl
+        (\cmdType ( outCmds, outRequests ) ->
             case cmdType of
                 Cmd cmd ->
-                    Cmd.map toMsg cmd
+                    ( cmd :: outCmds, outRequests )
 
                 Broadcast _ ->
-                    Cmd.none
+                    ( outCmds, outRequests )
 
                 Request r ->
-                    sendRequest r
+                    ( outCmds, r :: outRequests )
         )
+        ( [], [] )
         command
-        |> Cmd.batch
+        |> Tuple.mapFirst Cmd.batch
 
 
 fail : IR.Gadget a

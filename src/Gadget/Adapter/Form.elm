@@ -25,7 +25,7 @@ module Gadget.Adapter.Form exposing
 import Dict exposing (Dict)
 import Gadget
 import Gadget.Adapter.Form.Control as Control exposing (Command, noCommand)
-import Gadget.Adapter.Form.Internal as Internal exposing (IRControl, batchCommands, concatCommands, mapCommand, toCmd)
+import Gadget.Adapter.Form.Internal as Internal exposing (IRControl, batchCommands, concatCommands, mapCommand, splitCommand)
 import Gadget.IR as IR exposing (Error, Path, Type(..), Value(..), VariantType(..), VariantValue(..))
 import Html as H
 import Html.Attributes as HA
@@ -52,12 +52,12 @@ type Msg
     = Msg Path Value
 
 
-type Response
-    = Response Msg
-
-
 type Request
     = Request Msg
+
+
+type Response
+    = Response Msg
 
 
 {-| A type used within `Error` to specify _where_ something went wrong.
@@ -69,15 +69,15 @@ type alias Path =
 {-| A record of functions that you can plumb into a standard Elm application to
 manage the lifecycle of a form.
 -}
-type alias Form backendModel backendMsg msg a =
-    { init : ( Model, Cmd msg )
-    , load : a -> Model
-    , update : Msg -> Model -> ( Model, Cmd msg )
-    , updateFromResponse : Response -> Model -> ( Model, Cmd msg )
+type alias Form backendModel msg output =
+    { init : ( Model, Cmd msg, List Request )
+    , load : output -> Model
+    , update : Msg -> Model -> ( Model, Cmd msg, List Request )
+    , respond : String -> Request -> backendModel -> Response
+    , updateFromResponse : Response -> Model -> ( Model, Cmd msg, List Request )
     , view : Model -> H.Html msg
     , subscriptions : Model -> Sub msg
-    , submit : Model -> Result (List Error) a
-    , respond : String -> Request -> backendModel -> Cmd backendMsg
+    , submit : Model -> Result (List Error) output
     }
 
 
@@ -121,8 +121,6 @@ type FormBuilder backendModel backendMsg broadcast msg output
             -> List (H.Html msg)
         , overrides : Dict String (IR.Gadget backendModel -> Internal.IRControl broadcast)
         , toMsg : Msg -> msg
-        , sendRequest : Msg -> Cmd msg
-        , sendResponse : String -> Response -> Cmd backendMsg
         , backendModelGadget : IR.Gadget backendModel
         }
 
@@ -227,8 +225,6 @@ newForm toMsg =
                 ]
         , overrides = Dict.empty
         , toMsg = toMsg
-        , sendRequest = \_ -> Cmd.none
-        , sendResponse = \_ _ -> Cmd.none
         , backendModelGadget = Internal.fail
         }
 
@@ -236,7 +232,7 @@ newForm toMsg =
 endForm :
     IR.Gadget a
     -> FormBuilder backendModel backendMsg broadcast msg a
-    -> Form backendModel backendMsg msg a
+    -> Form backendModel msg a
 endForm gadget (FormBuilder builder) =
     let
         unwrappedOverrides =
@@ -260,9 +256,13 @@ endForm gadget (FormBuilder builder) =
         let
             ( newModel, cmdType ) =
                 init config gadget
+
+            ( cmd, reqs ) =
+                splitCommand cmdType
         in
         ( newModel
-        , toCmd builder.toMsg builder.sendRequest cmdType
+        , Cmd.map builder.toMsg cmd
+        , List.map Request reqs
         )
     , load = \output -> load config gadget output
     , update =
@@ -270,18 +270,26 @@ endForm gadget (FormBuilder builder) =
             let
                 ( newModel, cmdType ) =
                     update .update config msg model
+
+                ( cmd, reqs ) =
+                    splitCommand cmdType
             in
             ( newModel
-            , toCmd builder.toMsg builder.sendRequest cmdType
+            , Cmd.map builder.toMsg cmd
+            , List.map Request reqs
             )
     , updateFromResponse =
         \(Response msg) model ->
             let
                 ( newModel, cmdType ) =
                     update .updateFromResponse config msg model
+
+                ( cmd, reqs ) =
+                    splitCommand cmdType
             in
             ( newModel
-            , toCmd builder.toMsg builder.sendRequest cmdType
+            , Cmd.map builder.toMsg cmd
+            , List.map Request reqs
             )
     , view = \model -> view config gadget model
     , subscriptions = \model -> subscriptions config model |> Sub.map builder.toMsg
@@ -289,18 +297,14 @@ endForm gadget (FormBuilder builder) =
     , respond =
         \sessionId (Request request) value ->
             respond config request gadget (IR.fromInput builder.backendModelGadget value)
-                |> builder.sendResponse sessionId
     }
 
 
 withBackend :
-    { sendRequest : Request -> Cmd msg
-    , sendResponse : String -> Response -> Cmd backendMsg
-    , backendModelGadget : IR.Gadget backendModel
-    }
+    IR.Gadget backendModel
     -> FormBuilder backendModel backendMsg broadcast msg output
     -> FormBuilder backendModel backendMsg broadcast msg output
-withBackend args (FormBuilder builder) =
+withBackend backendModelGadget (FormBuilder builder) =
     FormBuilder
         { bool = builder.bool
         , int = builder.int
@@ -312,9 +316,7 @@ withBackend args (FormBuilder builder) =
         , viewTopLevel = builder.viewTopLevel
         , overrides = builder.overrides
         , toMsg = builder.toMsg
-        , sendRequest = \request -> args.sendRequest (Request request)
-        , sendResponse = args.sendResponse
-        , backendModelGadget = args.backendModelGadget
+        , backendModelGadget = backendModelGadget
         }
 
 

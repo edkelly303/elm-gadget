@@ -211,22 +211,12 @@ update msg model =
             )
 
         FormReceivedMsg formMsg ->
-            let
-                ( formModel, formCmd ) =
-                    form.update formMsg model.form
-            in
-            ( { model | form = formModel }
-            , formCmd
-            )
+            form.update formMsg model.form
+                |> cmdify model
 
         FormReceivedResponse response ->
-            let
-                ( formModel, formCmd ) =
-                    form.updateFromResponse response model.form
-            in
-            ( { model | form = formModel }
-            , Cmd.none
-            )
+            form.updateFromResponse response model.form
+                |> cmdify model
 
         FormSubmitted ->
             Debug.log "Submitted!"
@@ -235,18 +225,31 @@ update msg model =
                 )
 
         BackendReceivedRequest request ->
+            let
+                response =
+                    form.respond "" request { int = 1, float = 1.2 }
+            in
             ( model
-            , form.respond "" request { int = 1, float = 1.2 }
+            , lamdera_sendToFrontend "" (FormReceivedResponse response)
             )
+
+
+cmdify model ( formModel, formCmd, requests ) =
+    let
+        cmd =
+            requests
+                |> List.map (lamdera_sendToBackend << BackendReceivedRequest)
+                |> (::) formCmd
+                |> Cmd.batch
+    in
+    ( { model | form = formModel }
+    , cmd
+    )
 
 
 form =
     Form.newForm FormReceivedMsg
-        |> Form.withBackend
-            { sendRequest = \request -> lamdera_sendToBackend (BackendReceivedRequest request)
-            , sendResponse = \sessionId response -> lamdera_sendToFrontend sessionId (FormReceivedResponse response)
-            , backendModelGadget = backendModelGadget
-            }
+        |> Form.withBackend backendModelGadget
         |> Form.withTopLevelView wizardView
         |> Form.withOverride "heightInCentimetres" myFloat
         |> Form.withOverride "myBoolBroadcaster" myBoolBroadcaster
@@ -430,8 +433,14 @@ myBoolReceiver =
 
 init _ =
     let
-        ( formModel, formCmd ) =
+        ( formModel, formCmd, requests ) =
             form.init
+
+        cmd =
+            requests
+                |> List.map (lamdera_sendToBackend << BackendReceivedRequest)
+                |> (::) formCmd
+                |> Cmd.batch
 
         loadedFormModel =
             form.load
@@ -446,7 +455,7 @@ init _ =
       , prettyWidth = 120
       , form = loadedFormModel
       }
-    , formCmd
+    , cmd
     )
 
 
