@@ -10,9 +10,9 @@ module Gadget.Adapter.Form exposing
     , label
     , newForm
     , override
-    , withBackend
     , withBoolControl
     , withCharControl
+    , withContext
     , withControlView
     , withFeedbackView
     , withFloatControl
@@ -123,7 +123,7 @@ type FormBuilder context backendMsg broadcast msg output
             -> List (H.Html msg)
         , overrides : Dict String (IR.Gadget context -> Internal.IRControl broadcast)
         , toMsg : Msg -> msg
-        , backendModelGadget : IR.Gadget context
+        , contextGadget : IR.Gadget context
         }
 
 
@@ -227,7 +227,7 @@ newForm toMsg =
                 ]
         , overrides = Dict.empty
         , toMsg = toMsg
-        , backendModelGadget = Internal.fail
+        , contextGadget = Internal.fail
         }
 
 
@@ -238,15 +238,15 @@ endForm :
 endForm gadget (FormBuilder builder) =
     let
         unwrappedOverrides =
-            Dict.map (\_ toControl -> toControl builder.backendModelGadget) builder.overrides
+            Dict.map (\_ toControl -> toControl builder.contextGadget) builder.overrides
 
         config : InternalConfig msg broadcast a
         config =
-            { bool = builder.bool builder.backendModelGadget
-            , int = builder.int builder.backendModelGadget
-            , float = builder.float builder.backendModelGadget
-            , char = builder.char builder.backendModelGadget
-            , string = builder.string builder.backendModelGadget
+            { bool = builder.bool builder.contextGadget
+            , int = builder.int builder.contextGadget
+            , float = builder.float builder.contextGadget
+            , char = builder.char builder.contextGadget
+            , string = builder.string builder.contextGadget
             , overrides = unwrappedOverrides
             , viewFeedback = builder.viewFeedback
             , viewControl = builder.viewControl
@@ -284,7 +284,7 @@ endForm gadget (FormBuilder builder) =
 
         respond_ =
             \(Request request) value ->
-                respond config request gadget (IR.fromInput builder.backendModelGadget value)
+                respond config request gadget (IR.fromInput builder.contextGadget value)
 
         run gas context ( m, c, r ) =
             if List.isEmpty r || gas == 0 then
@@ -344,11 +344,11 @@ endForm gadget (FormBuilder builder) =
     }
 
 
-withBackend :
+withContext :
     IR.Gadget context
     -> FormBuilder context backendMsg broadcast msg output
     -> FormBuilder context backendMsg broadcast msg output
-withBackend backendModelGadget (FormBuilder builder) =
+withContext contextGadget (FormBuilder builder) =
     FormBuilder
         { bool = builder.bool
         , int = builder.int
@@ -360,7 +360,7 @@ withBackend backendModelGadget (FormBuilder builder) =
         , viewTopLevel = builder.viewTopLevel
         , overrides = builder.overrides
         , toMsg = builder.toMsg
-        , backendModelGadget = backendModelGadget
+        , contextGadget = contextGadget
         }
 
 
@@ -464,7 +464,7 @@ buildControl :
     Internal.Control context request backendMsg broadcast model msg output
     -> Gadget.Gadget context
     -> Internal.IRControl broadcast
-buildControl (Internal.Control builder) backendModelGadget =
+buildControl (Internal.Control builder) contextGadget =
     let
         placeholderValue =
             builder.placeholder
@@ -567,7 +567,7 @@ buildControl (Internal.Control builder) backendModelGadget =
         \toBackend backend ->
             Result.map2 builder.respond
                 (IR.toOutput builder.requestGadget toBackend)
-                (IR.toOutput backendModelGadget backend)
+                (IR.toOutput contextGadget backend)
                 |> Result.map (IR.fromInput builder.responseGadget)
                 |> Result.withDefault IR.UnitValue
     }
