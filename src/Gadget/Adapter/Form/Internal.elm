@@ -62,11 +62,10 @@ concatCommands (Command cmdType1) (Command cmdType2) =
 
 mapCommand :
     (msgA -> msgB)
-    -> (broadcastA -> broadcastB)
     -> (requestA -> requestB)
-    -> Command msgA broadcastA requestA
-    -> Command msgB broadcastB requestB
-mapCommand cmdMapper broadcastMsgMapper toBackendMapper (Command commands) =
+    -> Command msgA broadcast requestA
+    -> Command msgB broadcast requestB
+mapCommand cmdMapper toBackendMapper (Command commands) =
     List.map
         (\cmdType_ ->
             case cmdType_ of
@@ -74,7 +73,7 @@ mapCommand cmdMapper broadcastMsgMapper toBackendMapper (Command commands) =
                     Cmd (Cmd.map cmdMapper cmd)
 
                 Broadcast broadcastMsg ->
-                    Broadcast (broadcastMsgMapper broadcastMsg)
+                    Broadcast broadcastMsg
 
                 Request toBackend ->
                     Request (toBackendMapper toBackend)

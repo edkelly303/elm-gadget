@@ -24,7 +24,7 @@ module Gadget.Adapter.Form exposing
 import Dict exposing (Dict)
 import Gadget
 import Gadget.Adapter.Form.Control as Control exposing (Command, noCommand)
-import Gadget.Adapter.Form.Internal as Internal exposing (IRControl, batchCommands, concatCommands, mapCommand, splitCommand)
+import Gadget.Adapter.Form.Internal as Internal exposing (IRControl, batchCommands, concatCommands, splitCommand)
 import Gadget.IR as IR exposing (Error, Path, Type(..), Value(..), VariantType(..), VariantValue(..))
 import Html as H
 import Html.Attributes as HA
@@ -447,7 +447,6 @@ buildControl (Internal.Control builder) =
         mapCommand =
             Internal.mapCommand
                 (IR.fromInput builder.msgGadget)
-                identity
                 (IR.fromInput builder.requestGadget)
     in
     { init =
@@ -710,7 +709,7 @@ initHelp config path irType =
                 |> .init
                 |> Tuple.mapBoth
                     (Primitive primitiveType metadata)
-                    (mapCommand (Msg path) identity (Msg path))
+                    (Internal.mapCommand (Msg path) (Msg path))
 
         noOverride =
             case irType of
@@ -828,7 +827,7 @@ initHelp config path irType =
                             overrideControl.init
                                 |> Tuple.mapBoth
                                     (Primitive (POverride overrideName) metadata)
-                                    (mapCommand (Msg path) identity (Msg path))
+                                    (Internal.mapCommand (Msg path) (Msg path))
                         )
             )
         |> Maybe.withDefault noOverride
@@ -1042,7 +1041,7 @@ updateFromBroadcastHelp config path broadcast model =
                                     ( modelValue, noCommand )
             in
             ( Primitive primitiveType metadata newModelValue
-            , mapCommand (Msg path) identity (Msg path) cmdType
+            , Internal.mapCommand (Msg path) (Msg path) cmdType
             )
 
         Record active metadata fields ->
@@ -1184,7 +1183,7 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
                                         ( modelValue, noCommand )
                 in
                 ( Primitive primitiveType metadata newModelValue
-                , mapCommand (Msg modelPath) identity (Msg modelPath) cmdType
+                , Internal.mapCommand (Msg modelPath) (Msg modelPath) cmdType
                 )
 
             else
