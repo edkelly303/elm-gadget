@@ -125,7 +125,7 @@ type FormBuilder context backendMsg broadcast msg output
         }
 
 
-type alias InternalConfig context msg broadcast output =
+type alias InternalConfig context broadcast msg output =
     { bool : Internal.IRControl context broadcast
     , int : Internal.IRControl context broadcast
     , float : Internal.IRControl context broadcast
@@ -234,7 +234,7 @@ endForm :
     -> Form context msg a
 endForm gadget (FormBuilder builder) =
     let
-        config : InternalConfig context msg broadcast a
+        config : InternalConfig context broadcast msg a
         config =
             { bool = builder.bool
             , int = builder.int
@@ -693,12 +693,12 @@ charControl =
 -}
 
 
-init : InternalConfig context msg broadcast output -> IR.Gadget output -> ( Model, Command Msg broadcast Msg )
+init : InternalConfig context broadcast msg output -> IR.Gadget output -> ( Model, Command Msg broadcast Msg )
 init config gadget =
     initHelp config [] (IR.irType gadget)
 
 
-initHelp : InternalConfig context msg broadcast output -> Path -> Type -> ( Model, Command Msg broadcast Msg )
+initHelp : InternalConfig context broadcast msg output -> Path -> Type -> ( Model, Command Msg broadcast Msg )
 initHelp config path irType =
     let
         metadata =
@@ -847,12 +847,12 @@ initHelp config path irType =
 -}
 
 
-load : InternalConfig context msg broadcast output -> IR.Gadget a -> a -> Model
+load : InternalConfig context broadcast msg output -> IR.Gadget a -> a -> Model
 load config gadget a =
     loadHelp config (IR.fromInput gadget a) (IR.irType gadget)
 
 
-loadHelp : InternalConfig context msg broadcast output -> Value -> Type -> Model
+loadHelp : InternalConfig context broadcast msg output -> Value -> Type -> Model
 loadHelp config value type_ =
     let
         metadata =
@@ -966,7 +966,7 @@ loadHelp config value type_ =
 
 update :
     (IRControl context broadcast -> Value -> Value -> ( Value, Command Value broadcast Value ))
-    -> InternalConfig context msg broadcast output
+    -> InternalConfig context broadcast msg output
     -> Msg
     -> Model
     -> ( Model, Command Msg broadcast Msg )
@@ -976,7 +976,7 @@ update updater config msg model =
 
 
 updateFromBroadcast :
-    InternalConfig context msg broadcast output
+    InternalConfig context broadcast msg output
     -> ( Model, Command Msg broadcast Msg )
     -> ( Model, Command Msg broadcast Msg )
 updateFromBroadcast config ( model, command ) =
@@ -997,7 +997,7 @@ updateFromBroadcast config ( model, command ) =
 
 
 updateFromBroadcastHelp :
-    InternalConfig context msg broadcast output
+    InternalConfig context broadcast msg output
     -> Path
     -> broadcast
     -> Model
@@ -1138,7 +1138,7 @@ updateFromBroadcastHelp config path broadcast model =
 
 updateHelp :
     (IRControl context broadcast -> Value -> Value -> ( Value, Command Value broadcast Value ))
-    -> InternalConfig context msg broadcast output
+    -> InternalConfig context broadcast msg output
     -> Path
     -> Msg
     -> Model
@@ -1369,7 +1369,7 @@ updateHelp updater config modelPath ((Msg msgPath msgValue) as msg) model =
 -}
 
 
-view : InternalConfig context msg broadcast a -> IR.Gadget a -> Model -> H.Html msg
+view : InternalConfig context broadcast msg a -> IR.Gadget a -> Model -> H.Html msg
 view config gadget model =
     let
         result =
@@ -1379,7 +1379,7 @@ view config gadget model =
 
 
 viewHelp :
-    InternalConfig context msg broadcast a
+    InternalConfig context broadcast msg a
     -> Result (List Error) a
     -> Path
     -> Model
@@ -1638,12 +1638,12 @@ viewHelp config result modelPath model =
 -}
 
 
-subscriptions : InternalConfig context msg broadcast output -> Model -> Sub Msg
+subscriptions : InternalConfig context broadcast msg output -> Model -> Sub Msg
 subscriptions config model =
     subscriptionsHelp config [] model
 
 
-subscriptionsHelp : InternalConfig context msg broadcast output -> Path -> Model -> Sub Msg
+subscriptionsHelp : InternalConfig context broadcast msg output -> Path -> Model -> Sub Msg
 subscriptionsHelp config path model =
     case model of
         Unit ->
@@ -1736,7 +1736,7 @@ subscriptionsHelp config path model =
 -}
 
 
-submit : InternalConfig context msg broadcast output -> IR.Gadget a -> Model -> Result (List Error) a
+submit : InternalConfig context broadcast msg output -> IR.Gadget a -> Model -> Result (List Error) a
 submit config gadget model =
     let
         ( parsedValue, parsingErrors ) =
@@ -1778,7 +1778,7 @@ submit config gadget model =
             Err (parsingErrors ++ filteredValidationErrors)
 
 
-parsePrimitiveControls : InternalConfig context msg broadcast output -> Path -> Model -> ( Value, List Error )
+parsePrimitiveControls : InternalConfig context broadcast msg output -> Path -> Model -> ( Value, List Error )
 parsePrimitiveControls config path model =
     case model of
         Unit ->
@@ -1907,7 +1907,7 @@ parsePrimitiveControls config path model =
 -}
 
 
-respond : InternalConfig context msg broadcast output -> Msg -> IR.Gadget output -> context -> Response
+respond : InternalConfig context broadcast msg output -> Msg -> IR.Gadget output -> context -> Response
 respond config toBackend gadget value =
     let
         ( model, _ ) =
@@ -1917,7 +1917,7 @@ respond config toBackend gadget value =
         |> Response
 
 
-respondHelp : InternalConfig context msg broadcast output -> Path -> Msg -> Model -> context -> Msg
+respondHelp : InternalConfig context broadcast msg output -> Path -> Msg -> Model -> context -> Msg
 respondHelp config modelPath ((Msg msgPath msgValue) as msg) model value =
     case model of
         Unit ->
