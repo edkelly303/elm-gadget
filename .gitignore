@@ -1,2 +1,2 @@
 elm-stuff
-examples/build/main.js
+examples/build/*.js
