@@ -75,7 +75,7 @@ type Control model controlMsg formMsg appMsg output
         , init : ( model, Cmd (Send controlMsg formMsg appMsg) )
         , load : output -> model
         , update : controlMsg -> model -> ( model, Cmd (Send controlMsg formMsg appMsg) )
-        , inject : formMsg -> model -> model
+        , receive : formMsg -> model -> model
         , view : String -> model -> H.Html (Send controlMsg formMsg appMsg)
         , subscriptions : model -> Sub (Send controlMsg formMsg appMsg)
         , submit : model -> Result String output
@@ -88,7 +88,7 @@ type alias InternalControl formMsg appMsg =
     , load : Value -> Value
     , placeholder : Value
     , update : Value -> Value -> ( Value, Cmd (Send Value formMsg appMsg) )
-    , inject : formMsg -> Value -> Value
+    , receive : formMsg -> Value -> Value
     , view : String -> Value -> H.Html (Send Value formMsg appMsg)
     , subscriptions : Value -> Sub (Send Value formMsg appMsg)
     , layout : List UI
@@ -231,8 +231,8 @@ endForm gadget (FormBuilder builder) =
         load_ output =
             load config path type_ output
 
-        inject_ formMsg model =
-            inject config path formMsg model
+        receive_ formMsg model =
+            receive config path formMsg model
 
         view_ model =
             view config path type_ model
@@ -247,7 +247,7 @@ endForm gadget (FormBuilder builder) =
     { init = init_
     , load = load_
     , update = update_
-    , inject = inject_
+    , inject = receive_
     , view = view_
     , subscriptions = subscriptions_
     , submit = submit_
@@ -329,7 +329,7 @@ update config modelPath type_ msg model =
         ( Primitive IntPrimitive controlModel, _ ) ->
             case msg of
                 FormMsg formMsg ->
-                    ( Primitive IntPrimitive (config.int.inject formMsg controlModel)
+                    ( Primitive IntPrimitive (config.int.receive formMsg controlModel)
                     , Cmd.none
                     )
 
@@ -370,7 +370,7 @@ update config modelPath type_ msg model =
             Debug.todo "update"
 
 
-inject config path formMsg model =
+receive config path formMsg model =
     Debug.todo "inject"
 
 
@@ -597,7 +597,7 @@ buildControl (Control builder) =
                     ( modelValue
                     , Cmd.none
                     )
-    , inject =
+    , receive =
         \formMsg modelValue ->
             Debug.log "TODO" modelValue
     , view =
@@ -810,7 +810,7 @@ new args =
         , init = args.init
         , load = args.load
         , update = args.update
-        , inject = args.inject
+        , receive = args.inject
         , view = args.view
         , subscriptions = args.subscriptions
         , submit = args.submit
