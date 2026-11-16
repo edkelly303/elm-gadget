@@ -301,13 +301,14 @@ load config path type_ output =
     Debug.todo "load"
 
 
+msgMapper : Config inMsg appMsg output -> Path -> Send Value inMsg appMsg -> appMsg
 msgMapper config path msg =
     case msg of
         ToSelf toSelf ->
             config.msgToAppMsg (ControlMsg path toSelf)
 
         ToAll toAll ->
-            config.inMsgToAppMsg toAll
+            config.msgToAppMsg (AllMsg toAll)
 
         ToApp toApp ->
             toApp
