@@ -11,8 +11,7 @@ type alias Model =
 
 
 type Msg
-    = FormUpdated Form.ControlMsg
-    | Blah ()
+    = FormUpdated (Form.Msg ())
     | OtherMsg
 
 
@@ -38,7 +37,7 @@ fooGadget =
 
 
 form =
-    Form.newForm FormUpdated Blah
+    Form.newForm FormUpdated
         |> Form.endForm fooGadget
 
 
@@ -60,9 +59,6 @@ update msg model =
                     form.update formMsg model.form
             in
             ( { form = formModel }, formCmd )
-
-        Blah () ->
-            ( model, Cmd.none )
 
         OtherMsg ->
             ( model, Cmd.none )

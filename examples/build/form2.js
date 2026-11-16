@@ -955,7 +955,7 @@ ${indent.repeat(level)}}`;
   var WEBSOCKET_TOKEN = "a9153c31-9f26-4c9c-8dfb-76d7e6f9b3c3";
   var TARGET_NAME = "form2";
   var INITIAL_ELM_COMPILED_TIMESTAMP = Number(
-    "1794835123987"
+    "1794836152952"
   );
   var ORIGINAL_COMPILATION_MODE = "standard";
   var ORIGINAL_BROWSER_UI_POSITION = "BottomLeft";
@@ -8753,8 +8753,8 @@ var $author$project$Gadget$Adapter$Form2$init = F3(
 				return _Debug_todo(
 					'Gadget.Adapter.Form2',
 					{
-						start: {line: 300, column: 13},
-						end: {line: 300, column: 23}
+						start: {line: 301, column: 13},
+						end: {line: 301, column: 23}
 					})('init');
 		}
 	});
@@ -8763,8 +8763,8 @@ var $author$project$Gadget$Adapter$Form2$load = F4(
 		return _Debug_todo(
 			'Gadget.Adapter.Form2',
 			{
-				start: {line: 304, column: 5},
-				end: {line: 304, column: 15}
+				start: {line: 305, column: 5},
+				end: {line: 305, column: 15}
 			})('load');
 	});
 var $elm$json$Json$Encode$string = _Json_wrap;
@@ -9727,8 +9727,8 @@ var $author$project$Gadget$Adapter$Form2$view = F4(
 						return _Debug_todo(
 							'Gadget.Adapter.Form2',
 							{
-								start: {line: 402, column: 21},
-								end: {line: 402, column: 31}
+								start: {line: 408, column: 21},
+								end: {line: 408, column: 31}
 							})('view primitive');
 					}
 				case 'Record':
@@ -9783,8 +9783,8 @@ var $author$project$Gadget$Adapter$Form2$view = F4(
 		return _Debug_todo(
 			'Gadget.Adapter.Form2',
 			{
-				start: {line: 421, column: 13},
-				end: {line: 421, column: 23}
+				start: {line: 427, column: 13},
+				end: {line: 427, column: 23}
 			})('view');
 	});
 var $author$project$Gadget$Adapter$Form2$inject = F4(
@@ -9792,8 +9792,8 @@ var $author$project$Gadget$Adapter$Form2$inject = F4(
 		return _Debug_todo(
 			'Gadget.Adapter.Form2',
 			{
-				start: {line: 369, column: 5},
-				end: {line: 369, column: 15}
+				start: {line: 375, column: 5},
+				end: {line: 375, column: 15}
 			})('inject');
 	});
 var $author$project$Gadget$IR$irType = function (_v0) {
@@ -9805,101 +9805,106 @@ var $author$project$Gadget$Adapter$Form2$submit = F4(
 		return _Debug_todo(
 			'Gadget.Adapter.Form2',
 			{
-				start: {line: 429, column: 5},
-				end: {line: 429, column: 15}
+				start: {line: 435, column: 5},
+				end: {line: 435, column: 15}
 			})('submit');
 	});
 var $author$project$Gadget$Adapter$Form2$update = F5(
 	function (config, modelPath, type_, msg, model) {
-		var msgPath = msg.a;
-		var controlMsg = msg.b;
-		var _v0 = _Utils_Tuple2(model, type_);
-		_v0$3:
-		while (true) {
-			switch (_v0.a.$) {
-				case 'Unit':
-					var _v1 = _v0.a;
-					return _Utils_Tuple2($author$project$Gadget$Adapter$Form2$Unit, $elm$core$Platform$Cmd$none);
-				case 'Primitive':
-					if (_v0.a.a.$ === 'IntPrimitive') {
-						var _v2 = _v0.a;
-						var _v3 = _v2.a;
-						var controlModel = _v2.b;
-						if (_Utils_eq(msgPath, modelPath)) {
-							var _v4 = A2(config._int.update, controlMsg, controlModel);
-							var newControlModel = _v4.a;
-							var controlCmd = _v4.b;
-							return _Utils_Tuple2(
-								A2($author$project$Gadget$Adapter$Form2$Primitive, $author$project$Gadget$Adapter$Form2$IntPrimitive, newControlModel),
-								A2(
-									$elm$core$Platform$Cmd$map,
-									A2($author$project$Gadget$Adapter$Form2$msgMapper, config, modelPath),
-									controlCmd));
+		if (msg.$ === 'AllMsg') {
+			var inMsg = msg.a;
+			return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+		} else {
+			var msgPath = msg.a;
+			var controlMsg = msg.b;
+			var _v1 = _Utils_Tuple2(model, type_);
+			_v1$3:
+			while (true) {
+				switch (_v1.a.$) {
+					case 'Unit':
+						var _v2 = _v1.a;
+						return _Utils_Tuple2($author$project$Gadget$Adapter$Form2$Unit, $elm$core$Platform$Cmd$none);
+					case 'Primitive':
+						if (_v1.a.a.$ === 'IntPrimitive') {
+							var _v3 = _v1.a;
+							var _v4 = _v3.a;
+							var controlModel = _v3.b;
+							if (_Utils_eq(msgPath, modelPath)) {
+								var _v5 = A2(config._int.update, controlMsg, controlModel);
+								var newControlModel = _v5.a;
+								var controlCmd = _v5.b;
+								return _Utils_Tuple2(
+									A2($author$project$Gadget$Adapter$Form2$Primitive, $author$project$Gadget$Adapter$Form2$IntPrimitive, newControlModel),
+									A2(
+										$elm$core$Platform$Cmd$map,
+										A2($author$project$Gadget$Adapter$Form2$msgMapper, config, modelPath),
+										controlCmd));
+							} else {
+								return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+							}
 						} else {
-							return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+							break _v1$3;
 						}
-					} else {
-						break _v0$3;
-					}
-				case 'Record':
-					if (_v0.b.$ === 'RecordType') {
-						var _v5 = _v0.a;
-						var selected = _v5.a;
-						var fields = _v5.b;
-						var _v6 = _v0.b;
-						var metadata = _v6.a;
-						var fieldTypes = _v6.b;
-						var _v7 = A3(
-							$elm$core$List$foldr,
-							F2(
-								function (_v8, _v10) {
-									var _v9 = _v8.a;
-									var fieldName = _v9.a;
-									var fieldType = _v9.b;
-									var fieldModel = _v8.b;
-									var prevFields = _v10.a;
-									var prevCmds = _v10.b;
-									var _v11 = A5(
-										$author$project$Gadget$Adapter$Form2$update,
-										config,
-										A2($elm$core$List$cons, fieldName, modelPath),
-										fieldType,
-										msg,
-										fieldModel);
-									var newFieldModel = _v11.a;
-									var fieldCmd = _v11.b;
-									return _Utils_Tuple2(
-										A2($elm$core$List$cons, newFieldModel, prevFields),
-										A2($elm$core$List$cons, fieldCmd, prevCmds));
-								}),
-							_Utils_Tuple2(_List_Nil, _List_Nil),
-							A2($elmcraft$core_extra$List$Extra$zip, fieldTypes, fields));
-						var newFields = _v7.a;
-						var cmds = _v7.b;
-						return _Utils_Tuple2(
-							A2($author$project$Gadget$Adapter$Form2$Record, selected, newFields),
-							$elm$core$Platform$Cmd$batch(cmds));
-					} else {
-						break _v0$3;
-					}
-				default:
-					break _v0$3;
+					case 'Record':
+						if (_v1.b.$ === 'RecordType') {
+							var _v6 = _v1.a;
+							var selected = _v6.a;
+							var fields = _v6.b;
+							var _v7 = _v1.b;
+							var metadata = _v7.a;
+							var fieldTypes = _v7.b;
+							var _v8 = A3(
+								$elm$core$List$foldr,
+								F2(
+									function (_v9, _v11) {
+										var _v10 = _v9.a;
+										var fieldName = _v10.a;
+										var fieldType = _v10.b;
+										var fieldModel = _v9.b;
+										var prevFields = _v11.a;
+										var prevCmds = _v11.b;
+										var _v12 = A5(
+											$author$project$Gadget$Adapter$Form2$update,
+											config,
+											A2($elm$core$List$cons, fieldName, modelPath),
+											fieldType,
+											msg,
+											fieldModel);
+										var newFieldModel = _v12.a;
+										var fieldCmd = _v12.b;
+										return _Utils_Tuple2(
+											A2($elm$core$List$cons, newFieldModel, prevFields),
+											A2($elm$core$List$cons, fieldCmd, prevCmds));
+									}),
+								_Utils_Tuple2(_List_Nil, _List_Nil),
+								A2($elmcraft$core_extra$List$Extra$zip, fieldTypes, fields));
+							var newFields = _v8.a;
+							var cmds = _v8.b;
+							return _Utils_Tuple2(
+								A2($author$project$Gadget$Adapter$Form2$Record, selected, newFields),
+								$elm$core$Platform$Cmd$batch(cmds));
+						} else {
+							break _v1$3;
+						}
+					default:
+						break _v1$3;
+				}
 			}
+			return _Debug_todo(
+				'Gadget.Adapter.Form2',
+				{
+					start: {line: 371, column: 21},
+					end: {line: 371, column: 31}
+				})('update');
 		}
-		return _Debug_todo(
-			'Gadget.Adapter.Form2',
-			{
-				start: {line: 365, column: 13},
-				end: {line: 365, column: 23}
-			})('update');
 	});
 var $author$project$Gadget$Adapter$Form2$subscriptions = F3(
 	function (config, path, model) {
 		return _Debug_todo(
 			'Gadget.Adapter.Form2',
 			{
-				start: {line: 425, column: 5},
-				end: {line: 425, column: 15}
+				start: {line: 431, column: 5},
+				end: {line: 431, column: 15}
 			})('subscriptions');
 	});
 var $author$project$Gadget$Adapter$Form2$endForm = F2(

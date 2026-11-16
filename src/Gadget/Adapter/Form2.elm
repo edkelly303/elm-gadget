@@ -21,11 +21,12 @@ label l gadget =
     tools.attach "label" Gadget.string l gadget
 
 
-type ControlMsg
+type Msg inMsg
     = ControlMsg Path Value
+    | AllMsg inMsg
 
 
-type Msg controlMsg inMsg appMsg
+type Send controlMsg inMsg appMsg
     = ToSelf controlMsg
     | ToAll inMsg
     | ToApp appMsg
@@ -57,7 +58,7 @@ type PrimitiveType
 type alias Form inMsg appMsg output =
     { init : ( Model, Cmd appMsg )
     , load : output -> Model
-    , update : ControlMsg -> Model -> ( Model, Cmd appMsg )
+    , update : Msg inMsg -> Model -> ( Model, Cmd appMsg )
     , inject : inMsg -> Model -> Model
     , view : Model -> H.Html appMsg
     , subscriptions : Model -> Sub appMsg
@@ -71,25 +72,25 @@ type Control model msg inMsg appMsg output
         , msgGadget : IR.Gadget msg
         , outputGadget : IR.Gadget output
         , placeholder : output
-        , init : ( model, Cmd (Msg msg inMsg appMsg) )
+        , init : ( model, Cmd (Send msg inMsg appMsg) )
         , load : output -> model
-        , update : msg -> model -> ( model, Cmd (Msg msg inMsg appMsg) )
+        , update : msg -> model -> ( model, Cmd (Send msg inMsg appMsg) )
         , inject : inMsg -> model -> model
-        , view : String -> model -> H.Html (Msg msg inMsg appMsg)
-        , subscriptions : model -> Sub (Msg msg inMsg appMsg)
+        , view : String -> model -> H.Html (Send msg inMsg appMsg)
+        , subscriptions : model -> Sub (Send msg inMsg appMsg)
         , submit : model -> Result String output
         , layout : List UI
         }
 
 
 type alias InternalControl inMsg appMsg =
-    { init : ( Value, Cmd (Msg Value inMsg appMsg) )
+    { init : ( Value, Cmd (Send Value inMsg appMsg) )
     , load : Value -> Value
     , placeholder : Value
-    , update : Value -> Value -> ( Value, Cmd (Msg Value inMsg appMsg) )
+    , update : Value -> Value -> ( Value, Cmd (Send Value inMsg appMsg) )
     , inject : inMsg -> Value -> Value
-    , view : String -> Value -> H.Html (Msg Value inMsg appMsg)
-    , subscriptions : Value -> Sub (Msg Value inMsg appMsg)
+    , view : String -> Value -> H.Html (Send Value inMsg appMsg)
+    , subscriptions : Value -> Sub (Send Value inMsg appMsg)
     , layout : List UI
     , submit : Path -> Value -> Result (List Error) Value
     }
@@ -111,8 +112,7 @@ type alias Config inMsg appMsg output =
         , result : Result (Set Int) output
         }
         -> List (H.Html appMsg)
-    , msgToAppMsg : ControlMsg -> appMsg
-    , inMsgToAppMsg : inMsg -> appMsg
+    , msgToAppMsg : Msg inMsg -> appMsg
     }
 
 
@@ -133,8 +133,7 @@ type FormBuilder inMsg appMsg output
             }
             -> List (H.Html appMsg)
         , overrides : Dict String (InternalControl inMsg appMsg)
-        , msgToAppMsg : ControlMsg -> appMsg
-        , inMsgToAppMsg : inMsg -> appMsg
+        , msgToAppMsg : Msg inMsg -> appMsg
         }
 
 
@@ -157,8 +156,8 @@ type UI
 -}
 
 
-newForm : (ControlMsg -> appMsg) -> (inMsg -> appMsg) -> FormBuilder inMsg appMsg output
-newForm msgToAppMsg inMsgToAppMsg =
+newForm : (Msg inMsg -> appMsg) -> FormBuilder inMsg appMsg output
+newForm msgToAppMsg =
     FormBuilder
         { bool = buildControl boolControl
         , int = buildControl intControl
@@ -182,14 +181,13 @@ newForm msgToAppMsg inMsgToAppMsg =
                 ]
         , overrides = Dict.empty
         , msgToAppMsg = msgToAppMsg
-        , inMsgToAppMsg = inMsgToAppMsg
         }
 
 
 endForm :
     IR.Gadget output
     -> FormBuilder inMsg appMsg output
-    -> Form context appMsg output
+    -> Form inMsg appMsg output
 endForm gadget (FormBuilder builder) =
     let
         config : Config inMsg appMsg output
@@ -204,7 +202,6 @@ endForm gadget (FormBuilder builder) =
             , viewControl = builder.viewControl
             , viewTopLevel = builder.viewTopLevel
             , msgToAppMsg = builder.msgToAppMsg
-            , inMsgToAppMsg = builder.inMsgToAppMsg
             }
 
         type_ =
@@ -320,49 +317,54 @@ update :
     Config inMsg appMsg output
     -> Path
     -> Type
-    -> ControlMsg
+    -> Msg inMsg
     -> Model
     -> ( Model, Cmd appMsg )
-update config modelPath type_ ((ControlMsg msgPath controlMsg) as msg) model =
-    case ( model, type_ ) of
-        ( Unit, _ ) ->
-            ( Unit, Cmd.none )
+update config modelPath type_ msg model =
+    case msg of
+        AllMsg inMsg ->
+            ( model, Cmd.none )
 
-        ( Primitive IntPrimitive controlModel, _ ) ->
-            if msgPath == modelPath then
-                let
-                    ( newControlModel, controlCmd ) =
-                        config.int.update controlMsg controlModel
-                in
-                ( Primitive IntPrimitive newControlModel
-                , Cmd.map (msgMapper config modelPath) controlCmd
-                )
+        ControlMsg msgPath controlMsg ->
+            case ( model, type_ ) of
+                ( Unit, _ ) ->
+                    ( Unit, Cmd.none )
 
-            else
-                ( model, Cmd.none )
+                ( Primitive IntPrimitive controlModel, _ ) ->
+                    if msgPath == modelPath then
+                        let
+                            ( newControlModel, controlCmd ) =
+                                config.int.update controlMsg controlModel
+                        in
+                        ( Primitive IntPrimitive newControlModel
+                        , Cmd.map (msgMapper config modelPath) controlCmd
+                        )
 
-        ( Record selected fields, RecordType metadata fieldTypes ) ->
-            let
-                ( newFields, cmds ) =
-                    List.Extra.zip fieldTypes fields
-                        |> List.foldr
-                            (\( ( fieldName, fieldType ), fieldModel ) ( prevFields, prevCmds ) ->
-                                let
-                                    ( newFieldModel, fieldCmd ) =
-                                        update config (fieldName :: modelPath) fieldType msg fieldModel
-                                in
-                                ( newFieldModel :: prevFields
-                                , fieldCmd :: prevCmds
-                                )
-                            )
-                            ( [], [] )
-            in
-            ( Record selected newFields
-            , Cmd.batch cmds
-            )
+                    else
+                        ( model, Cmd.none )
 
-        _ ->
-            Debug.todo "update"
+                ( Record selected fields, RecordType metadata fieldTypes ) ->
+                    let
+                        ( newFields, cmds ) =
+                            List.Extra.zip fieldTypes fields
+                                |> List.foldr
+                                    (\( ( fieldName, fieldType ), fieldModel ) ( prevFields, prevCmds ) ->
+                                        let
+                                            ( newFieldModel, fieldCmd ) =
+                                                update config (fieldName :: modelPath) fieldType msg fieldModel
+                                        in
+                                        ( newFieldModel :: prevFields
+                                        , fieldCmd :: prevCmds
+                                        )
+                                    )
+                                    ( [], [] )
+                    in
+                    ( Record selected newFields
+                    , Cmd.batch cmds
+                    )
+
+                _ ->
+                    Debug.todo "update"
 
 
 inject config path inMsg model =
@@ -787,12 +789,12 @@ new :
     , msgGadget : IR.Gadget msg
     , outputGadget : IR.Gadget output
     , placeholder : output
-    , init : ( model, Cmd (Msg msg inMsg appMsg) )
+    , init : ( model, Cmd (Send msg inMsg appMsg) )
     , load : output -> model
-    , update : msg -> model -> ( model, Cmd (Msg msg inMsg appMsg) )
+    , update : msg -> model -> ( model, Cmd (Send msg inMsg appMsg) )
     , inject : inMsg -> model -> model
-    , view : String -> model -> H.Html (Msg msg inMsg appMsg)
-    , subscriptions : model -> Sub (Msg msg inMsg appMsg)
+    , view : String -> model -> H.Html (Send msg inMsg appMsg)
+    , subscriptions : model -> Sub (Send msg inMsg appMsg)
     , submit : model -> Result String output
     }
     -> Control model msg inMsg appMsg output
