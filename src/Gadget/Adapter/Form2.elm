@@ -49,31 +49,31 @@ type alias Form inMsg appMsg output =
     }
 
 
-type Control model inMsg appMsg output
+type Control model msg inMsg appMsg output
     = Control
         { modelGadget : IR.Gadget model
-        , msgGadget : IR.Gadget appMsg
+        , msgGadget : IR.Gadget msg
         , outputGadget : IR.Gadget output
         , placeholder : output
-        , init : ( model, Cmd appMsg )
+        , init : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> ( model, Cmd appMsg )
         , load : output -> model
         , update : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> appMsg -> model -> ( model, Cmd appMsg )
         , inject : inMsg -> model -> model
-        , view : String -> model -> H.Html appMsg
-        , subscriptions : model -> Sub appMsg
+        , view : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> String -> model -> H.Html appMsg
+        , subscriptions : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> model -> Sub appMsg
         , submit : model -> Result String output
         , layout : List UI
         }
 
 
 type alias InternalControl inMsg appMsg =
-    { init : ( Value, Cmd appMsg )
+    { init : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> ( Value, Cmd appMsg )
     , load : Value -> Value
     , placeholder : Value
-    , update : Value -> Value -> ( Value, Cmd appMsg )
+    , update : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> Value -> Value -> ( Value, Cmd appMsg )
     , inject : inMsg -> Value -> Value
-    , view : String -> Value -> H.Html appMsg
-    , subscriptions : Value -> Sub appMsg
+    , view : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> String -> Value -> H.Html appMsg
+    , subscriptions : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> Value -> Sub appMsg
     , layout : List UI
     , submit : Path -> Value -> Result (List Error) Value
     }
@@ -142,7 +142,7 @@ type UI
 
 
 newForm : (Msg -> appMsg) -> (inMsg -> appMsg) -> FormBuilder inMsg appMsg output
-newForm fromMsg fromInMsg =
+newForm msgToAppMsg inMsgToAppMsg =
     FormBuilder
         { bool = buildControl boolControl
         , int = buildControl intControl
@@ -165,8 +165,8 @@ newForm fromMsg fromInMsg =
                     inner
                 ]
         , overrides = Dict.empty
-        , msgToAppMsg = fromMsg
-        , inMsgToAppMsg = fromInMsg
+        , msgToAppMsg = msgToAppMsg
+        , inMsgToAppMsg = inMsgToAppMsg
         }
 
 
@@ -194,10 +194,10 @@ endForm gadget (FormBuilder builder) =
         init_ =
             let
                 ( model, cmd ) =
-                    init config gadget
+                    init config (IR.irType gadget)
             in
             ( model
-            , Cmd.map builder.toMsg cmd
+            , Cmd.map builder.msgToAppMsg cmd
             )
 
         update_ msg model =
@@ -206,7 +206,7 @@ endForm gadget (FormBuilder builder) =
                     update config msg model
             in
             ( newModel
-            , Cmd.map builder.toMsg cmd
+            , Cmd.map builder.msgToAppMsg cmd
             )
 
         load_ output =
@@ -217,11 +217,11 @@ endForm gadget (FormBuilder builder) =
 
         view_ model =
             view config gadget gadget
-                |> H.map builder.toMsg
+                |> H.map builder.msgToAppMsg
 
         subscriptions_ model =
             subscriptions config model
-                |> Sub.map builder.toMsg
+                |> Sub.map builder.msgToAppMsg
 
         submit_ model =
             submit config gadget model
@@ -236,57 +236,126 @@ endForm gadget (FormBuilder builder) =
     }
 
 
+init config type_ =
+    case type_ of
+        UnitType m ->
+            ( Unit, Cmd.none )
+
+        RecordType m fields ->
+            let
+                ( out, cmds ) =
+                    List.foldl
+                        (\( thisFieldName, thisField ) ( prevFields, prevCmds ) ->
+                            ( prevFields, prevCmds )
+                        )
+                        ( Dict.empty, [] )
+                        fields
+            in
+            ( Record 0 out
+            , Cmd.batch cmds
+            )
+
+        _ ->
+            Debug.todo "others"
+
+
+load =
+    Debug.todo "load"
+
+
+update =
+    Debug.todo "update"
+
+
+view =
+    Debug.todo "view"
+
+
+subscriptions =
+    Debug.todo "subscriptions"
+
+
+submit =
+    Debug.todo "submit"
+
+
 withOverride :
     String
-    -> Control model inMsg controlMsg controlOutput
+    -> Control model msg inMsg appMsg controlOutput
     -> FormBuilder inMsg appMsg output
     -> FormBuilder inMsg appMsg output
 withOverride id controlBuilder (FormBuilder builder) =
     let
         toControl =
-            buildControl controlBuilder
+            buildControl
+                controlBuilder
     in
     FormBuilder { builder | overrides = Dict.insert id toControl builder.overrides }
 
 
 withIntControl :
-    Control model inMsg controlMsg Int
+    Control model msg inMsg appMsg Int
     -> FormBuilder inMsg appMsg output
     -> FormBuilder inMsg appMsg output
 withIntControl control (FormBuilder builder) =
-    FormBuilder { builder | int = buildControl control }
+    FormBuilder
+        { builder
+            | int =
+                buildControl
+                    control
+        }
 
 
 withFloatControl :
-    Control model inMsg controlMsg Float
+    Control model msg inMsg appMsg Float
     -> FormBuilder inMsg appMsg output
     -> FormBuilder inMsg appMsg output
 withFloatControl control (FormBuilder builder) =
-    FormBuilder { builder | float = buildControl control }
+    FormBuilder
+        { builder
+            | float =
+                buildControl
+                    control
+        }
 
 
 withStringControl :
-    Control model inMsg controlMsg String
+    Control model msg inMsg appMsg String
     -> FormBuilder inMsg appMsg output
     -> FormBuilder inMsg appMsg output
 withStringControl control (FormBuilder builder) =
-    FormBuilder { builder | string = buildControl control }
+    FormBuilder
+        { builder
+            | string =
+                buildControl
+                    control
+        }
 
 
 withCharControl :
-    Control model inMsg controlMsg Char
+    Control model msg inMsg appMsg Char
     -> FormBuilder inMsg appMsg output
     -> FormBuilder inMsg appMsg output
 withCharControl control (FormBuilder builder) =
-    FormBuilder { builder | char = buildControl control }
+    FormBuilder
+        { builder
+            | char =
+                buildControl
+                    control
+        }
 
 
 withBoolControl :
-    Control model inMsg controlMsg Bool
+    Control model msg inMsg appMsg Bool
     -> FormBuilder inMsg appMsg output
     -> FormBuilder inMsg appMsg output
 withBoolControl control (FormBuilder builder) =
-    FormBuilder { builder | bool = buildControl control }
+    FormBuilder
+        { builder
+            | bool =
+                buildControl
+                    control
+        }
 
 
 withControlView :
@@ -320,7 +389,7 @@ withTopLevelView f (FormBuilder builder) =
 
 
 buildControl :
-    Control model inMsg controlMsg output
+    Control model msg inMsg appMsg output
     -> InternalControl inMsg appMsg
 buildControl (Control builder) =
     let
@@ -330,13 +399,14 @@ buildControl (Control builder) =
                 |> IR.fromInput builder.modelGadget
     in
     { init =
-        let
-            ( model, command ) =
-                builder.init
-        in
-        ( IR.fromInput builder.modelGadget model
-        , command
-        )
+        \msgs ->
+            let
+                ( model, command ) =
+                    builder.init msgs
+            in
+            ( IR.fromInput builder.modelGadget model
+            , command
+            )
     , load =
         \outputValue ->
             IR.toOutput builder.outputGadget outputValue
@@ -345,10 +415,10 @@ buildControl (Control builder) =
                 |> Result.withDefault placeholderValue
     , placeholder = IR.fromInput builder.outputGadget builder.placeholder
     , update =
-        \msg modelValue ->
+        \msgs msg modelValue ->
             let
                 result =
-                    Result.map2 builder.update
+                    Result.map2 (builder.update msgs)
                         (IR.toOutput builder.msgGadget msg)
                         (IR.toOutput builder.modelGadget modelValue)
             in
@@ -366,13 +436,13 @@ buildControl (Control builder) =
         \inMsg modelValue ->
             Debug.log "TODO" modelValue
     , view =
-        \id modelValue ->
-            Result.map (builder.view id) (IR.toOutput builder.modelGadget modelValue)
+        \msgs id modelValue ->
+            Result.map (builder.view msgs id) (IR.toOutput builder.modelGadget modelValue)
                 |> Result.Extra.extract (List.map (.error >> H.text) >> H.div [])
                 |> H.map (\msg -> IR.fromInput builder.msgGadget msg)
     , layout =
         builder.layout
-    , subscriptions = \_ -> Sub.none
+    , subscriptions = \_ _ -> Sub.none
     , submit =
         \path modelValue ->
             IR.toOutput builder.modelGadget modelValue
@@ -385,7 +455,6 @@ buildControl (Control builder) =
     }
 
 
-intControl : Control String inMsg appMsg Int
 intControl =
     sandbox
         { modelGadget = Gadget.string
@@ -412,7 +481,6 @@ intControl =
         }
 
 
-floatControl : Control String inMsg appMsg Float
 floatControl =
     sandbox
         { modelGadget = Gadget.string
@@ -439,7 +507,6 @@ floatControl =
         }
 
 
-stringControl : Control String inMsg appMsg String
 stringControl =
     sandbox
         { modelGadget = Gadget.string
@@ -462,7 +529,6 @@ stringControl =
         }
 
 
-boolControl : Control Bool inMsg appMsg Bool
 boolControl =
     sandbox
         { modelGadget = Gadget.bool
@@ -495,7 +561,6 @@ withLayout f (Control builder) =
         }
 
 
-charControl : Control String inMsg appMsg Char
 charControl =
     sandbox
         { modelGadget = Gadget.string
@@ -533,44 +598,44 @@ sandbox :
     { placeholder : output
     , init : model
     , load : output -> model
-    , update : msg -> model -> model
-    , view : String -> model -> H.Html msg
+    , update : appMsg -> model -> model
+    , view : String -> model -> H.Html appMsg
     , submit : model -> Result String output
     , modelGadget : IR.Gadget model
     , msgGadget : IR.Gadget msg
     , outputGadget : IR.Gadget output
     }
-    -> Control model inMsg appMsg output
-sandbox { placeholder, init, load, update, view, submit, modelGadget, msgGadget, outputGadget } =
+    -> Control model msg inMsg appMsg output
+sandbox args =
     new
-        { modelGadget = modelGadget
-        , msgGadget = msgGadget
-        , outputGadget = outputGadget
-        , placeholder = placeholder
-        , init = ( init, Cmd.none )
-        , load = load
-        , update = \_ msg model -> ( update msg model, Cmd.none )
+        { modelGadget = args.modelGadget
+        , msgGadget = args.msgGadget
+        , outputGadget = args.outputGadget
+        , placeholder = args.placeholder
+        , init = \_ -> ( args.init, Cmd.none )
+        , load = args.load
+        , update = \_ msg model -> ( args.update msg model, Cmd.none )
         , inject = \_ model -> model
-        , view = view
-        , subscriptions = \_ -> Sub.none
-        , submit = submit
+        , view = \_ -> args.view
+        , subscriptions = \_ _ -> Sub.none
+        , submit = args.submit
         }
 
 
 new :
     { modelGadget : IR.Gadget model
-    , msgGadget : IR.Gadget appMsg
+    , msgGadget : IR.Gadget msg
     , outputGadget : IR.Gadget output
     , placeholder : output
-    , init : ( model, Cmd appMsg )
+    , init : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> ( model, Cmd appMsg )
     , load : output -> model
     , update : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> appMsg -> model -> ( model, Cmd appMsg )
     , inject : inMsg -> model -> model
-    , view : String -> model -> H.Html appMsg
-    , subscriptions : model -> Sub appMsg
+    , view : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> String -> model -> H.Html appMsg
+    , subscriptions : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> model -> Sub appMsg
     , submit : model -> Result String output
     }
-    -> Control model inMsg appMsg output
+    -> Control model msg inMsg appMsg output
 new args =
     Control
         { modelGadget = args.modelGadget
