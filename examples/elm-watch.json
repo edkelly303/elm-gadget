@@ -5,7 +5,14 @@
                 "src/Main.elm"
             ],
             "output": "build/main.js"
+        },
+        "form2": {
+            "inputs": [
+                "src/Form2.elm"
+            ],
+            "output": "build/form2.js"
         }
     },
-    "serve": "./build", "port": 8007
+    "serve": "./build",
+    "port": 8007
 }

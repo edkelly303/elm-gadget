@@ -11,8 +11,24 @@ import Result.Extra
 import Set exposing (Set)
 
 
-type Msg
-    = Msg Path Value
+tools : IR.MetadataTools meta a
+tools =
+    IR.makeMetadataTools "Gadget.Adapter.Form"
+
+
+label : String -> IR.Gadget a -> IR.Gadget a
+label l gadget =
+    tools.attach "label" Gadget.string l gadget
+
+
+type ControlMsg
+    = ControlMsg Path Value
+
+
+type Msg controlMsg inMsg appMsg
+    = ToSelf controlMsg
+    | ToAll inMsg
+    | ToApp appMsg
 
 
 type alias Path =
@@ -22,7 +38,7 @@ type alias Path =
 type Model
     = Sum String (Dict String ( Int, Dict String Model ))
     | Collection Type (Dict String Model)
-    | Record Int (Dict String ( Int, Model ))
+    | Record Int (List Model)
     | Tuple Model Model
     | Triple Model Model Model
     | Unit
@@ -30,18 +46,18 @@ type Model
 
 
 type PrimitiveType
-    = StringType
-    | CharType
-    | IntType
-    | FloatType
-    | BoolType
+    = StringPrimitive
+    | CharPrimitive
+    | IntPrimitive
+    | FloatPrimitive
+    | BoolPrimitive
     | OverrideType String
 
 
 type alias Form inMsg appMsg output =
     { init : ( Model, Cmd appMsg )
     , load : output -> Model
-    , update : Msg -> Model -> ( Model, Cmd appMsg )
+    , update : ControlMsg -> Model -> ( Model, Cmd appMsg )
     , inject : inMsg -> Model -> Model
     , view : Model -> H.Html appMsg
     , subscriptions : Model -> Sub appMsg
@@ -55,25 +71,25 @@ type Control model msg inMsg appMsg output
         , msgGadget : IR.Gadget msg
         , outputGadget : IR.Gadget output
         , placeholder : output
-        , init : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> ( model, Cmd appMsg )
+        , init : ( model, Cmd (Msg msg inMsg appMsg) )
         , load : output -> model
-        , update : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> appMsg -> model -> ( model, Cmd appMsg )
+        , update : msg -> model -> ( model, Cmd (Msg msg inMsg appMsg) )
         , inject : inMsg -> model -> model
-        , view : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> String -> model -> H.Html appMsg
-        , subscriptions : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> model -> Sub appMsg
+        , view : String -> model -> H.Html (Msg msg inMsg appMsg)
+        , subscriptions : model -> Sub (Msg msg inMsg appMsg)
         , submit : model -> Result String output
         , layout : List UI
         }
 
 
 type alias InternalControl inMsg appMsg =
-    { init : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> ( Value, Cmd appMsg )
+    { init : ( Value, Cmd (Msg Value inMsg appMsg) )
     , load : Value -> Value
     , placeholder : Value
-    , update : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> Value -> Value -> ( Value, Cmd appMsg )
+    , update : Value -> Value -> ( Value, Cmd (Msg Value inMsg appMsg) )
     , inject : inMsg -> Value -> Value
-    , view : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> String -> Value -> H.Html appMsg
-    , subscriptions : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> Value -> Sub appMsg
+    , view : String -> Value -> H.Html (Msg Value inMsg appMsg)
+    , subscriptions : Value -> Sub (Msg Value inMsg appMsg)
     , layout : List UI
     , submit : Path -> Value -> Result (List Error) Value
     }
@@ -95,7 +111,7 @@ type alias Config inMsg appMsg output =
         , result : Result (Set Int) output
         }
         -> List (H.Html appMsg)
-    , msgToAppMsg : Msg -> appMsg
+    , msgToAppMsg : ControlMsg -> appMsg
     , inMsgToAppMsg : inMsg -> appMsg
     }
 
@@ -117,7 +133,7 @@ type FormBuilder inMsg appMsg output
             }
             -> List (H.Html appMsg)
         , overrides : Dict String (InternalControl inMsg appMsg)
-        , msgToAppMsg : Msg -> appMsg
+        , msgToAppMsg : ControlMsg -> appMsg
         , inMsgToAppMsg : inMsg -> appMsg
         }
 
@@ -141,7 +157,7 @@ type UI
 -}
 
 
-newForm : (Msg -> appMsg) -> (inMsg -> appMsg) -> FormBuilder inMsg appMsg output
+newForm : (ControlMsg -> appMsg) -> (inMsg -> appMsg) -> FormBuilder inMsg appMsg output
 newForm msgToAppMsg inMsgToAppMsg =
     FormBuilder
         { bool = buildControl boolControl
@@ -191,40 +207,45 @@ endForm gadget (FormBuilder builder) =
             , inMsgToAppMsg = builder.inMsgToAppMsg
             }
 
+        type_ =
+            IR.irType gadget
+
+        path =
+            []
+
         init_ =
             let
                 ( model, cmd ) =
-                    init config (IR.irType gadget)
+                    init config path type_
             in
             ( model
-            , Cmd.map builder.msgToAppMsg cmd
+            , cmd
             )
 
         update_ msg model =
             let
                 ( newModel, cmd ) =
-                    update config msg model
+                    update config path type_ msg model
             in
             ( newModel
-            , Cmd.map builder.msgToAppMsg cmd
+            , cmd
             )
 
         load_ output =
-            load config gadget output
+            load config path type_ output
 
         inject_ inMsg model =
-            Debug.log "inject" model
+            inject config path inMsg model
 
         view_ model =
-            view config gadget gadget
-                |> H.map builder.msgToAppMsg
+            view config path type_ model
+                |> H.form []
 
         subscriptions_ model =
-            subscriptions config model
-                |> Sub.map builder.msgToAppMsg
+            subscriptions config path model
 
         submit_ model =
-            submit config gadget model
+            submit config path type_ model
     in
     { init = init_
     , load = load_
@@ -236,19 +257,39 @@ endForm gadget (FormBuilder builder) =
     }
 
 
-init config type_ =
+init :
+    Config inMsg appMsg output
+    -> Path
+    -> Type
+    -> ( Model, Cmd appMsg )
+init config path type_ =
     case type_ of
-        UnitType m ->
+        UnitType metadata ->
             ( Unit, Cmd.none )
 
-        RecordType m fields ->
+        IntType metadata ->
+            let
+                ( mdl, cmd ) =
+                    config.int.init
+            in
+            ( Primitive IntPrimitive mdl
+            , Cmd.map (msgMapper config path) cmd
+            )
+
+        RecordType metadata fields ->
             let
                 ( out, cmds ) =
-                    List.foldl
+                    List.foldr
                         (\( thisFieldName, thisField ) ( prevFields, prevCmds ) ->
-                            ( prevFields, prevCmds )
+                            let
+                                ( mdl, cmd ) =
+                                    init config (thisFieldName :: path) thisField
+                            in
+                            ( mdl :: prevFields
+                            , cmd :: prevCmds
+                            )
                         )
-                        ( Dict.empty, [] )
+                        ( [], [] )
                         fields
             in
             ( Record 0 out
@@ -256,26 +297,135 @@ init config type_ =
             )
 
         _ ->
-            Debug.todo "others"
+            Debug.todo "init"
 
 
-load =
+load config path type_ output =
     Debug.todo "load"
 
 
-update =
-    Debug.todo "update"
+msgMapper config path msg =
+    case msg of
+        ToSelf toSelf ->
+            config.msgToAppMsg (ControlMsg path toSelf)
+
+        ToAll toAll ->
+            config.inMsgToAppMsg toAll
+
+        ToApp toApp ->
+            toApp
 
 
-view =
-    Debug.todo "view"
+update :
+    Config inMsg appMsg output
+    -> Path
+    -> Type
+    -> ControlMsg
+    -> Model
+    -> ( Model, Cmd appMsg )
+update config modelPath type_ ((ControlMsg msgPath controlMsg) as msg) model =
+    case ( model, type_ ) of
+        ( Unit, _ ) ->
+            ( Unit, Cmd.none )
+
+        ( Primitive IntPrimitive controlModel, _ ) ->
+            if msgPath == modelPath then
+                let
+                    ( newControlModel, controlCmd ) =
+                        config.int.update controlMsg controlModel
+                in
+                ( Primitive IntPrimitive newControlModel
+                , Cmd.map (msgMapper config modelPath) controlCmd
+                )
+
+            else
+                ( model, Cmd.none )
+
+        ( Record selected fields, RecordType metadata fieldTypes ) ->
+            let
+                ( newFields, cmds ) =
+                    List.Extra.zip fieldTypes fields
+                        |> List.foldr
+                            (\( ( fieldName, fieldType ), fieldModel ) ( prevFields, prevCmds ) ->
+                                let
+                                    ( newFieldModel, fieldCmd ) =
+                                        update config (fieldName :: modelPath) fieldType msg fieldModel
+                                in
+                                ( newFieldModel :: prevFields
+                                , fieldCmd :: prevCmds
+                                )
+                            )
+                            ( [], [] )
+            in
+            ( Record selected newFields
+            , Cmd.batch cmds
+            )
+
+        _ ->
+            Debug.todo "update"
 
 
-subscriptions =
+inject config path inMsg model =
+    Debug.todo "inject"
+
+
+view :
+    Config inMsg appMsg output
+    -> Path
+    -> Type
+    -> Model
+    -> List (H.Html appMsg)
+view config path type_ model =
+    let
+        id =
+            pathToString path
+    in
+    case ( model, type_ ) of
+        ( Unit, _ ) ->
+            []
+
+        ( Primitive primitive primitiveModel, primitiveType ) ->
+            let
+                label_ metadata =
+                    tools.decode "label" Gadget.string metadata
+                        |> Maybe.withDefault id
+            in
+            case ( primitive, primitiveType ) of
+                ( IntPrimitive, IntType metadata ) ->
+                    config.viewControl False
+                        [ H.label [ HA.for id ] [ H.text (label_ metadata) ]
+                        , config.int.view id primitiveModel
+                            |> H.map (msgMapper config path)
+                        ]
+
+                _ ->
+                    Debug.todo "view primitive"
+
+        ( Record selected fieldModels, RecordType metadata fieldTypes ) ->
+            let
+                label_ =
+                    tools.decode "label" Gadget.string metadata
+                        |> Maybe.map (\l -> H.label [ HA.for id ] [ H.text l ])
+                        |> Maybe.withDefault (H.text "")
+
+                fields =
+                    List.Extra.zip fieldTypes fieldModels
+                        |> List.concatMap
+                            (\( ( fieldName, fieldType ), fieldModel ) ->
+                                view config (fieldName :: path) fieldType fieldModel
+                            )
+            in
+            label_ :: fields
+
+        _ ->
+            Debug.todo "view"
+
+
+subscriptions config path model =
     Debug.todo "subscriptions"
 
 
-submit =
+submit config path type_ model =
     Debug.todo "submit"
 
 
@@ -397,16 +547,26 @@ buildControl (Control builder) =
             builder.placeholder
                 |> builder.load
                 |> IR.fromInput builder.modelGadget
+
+        controlMsgToValue msg =
+            case msg of
+                ToSelf m ->
+                    ToSelf (IR.fromInput builder.msgGadget m)
+
+                ToAll m ->
+                    ToAll m
+
+                ToApp m ->
+                    ToApp m
     in
     { init =
-        \msgs ->
-            let
-                ( model, command ) =
-                    builder.init msgs
-            in
-            ( IR.fromInput builder.modelGadget model
-            , command
-            )
+        let
+            ( model, command ) =
+                builder.init
+        in
+        ( IR.fromInput builder.modelGadget model
+        , command |> Cmd.map controlMsgToValue
+        )
     , load =
         \outputValue ->
             IR.toOutput builder.outputGadget outputValue
@@ -415,17 +575,17 @@ buildControl (Control builder) =
                 |> Result.withDefault placeholderValue
     , placeholder = IR.fromInput builder.outputGadget builder.placeholder
     , update =
-        \msgs msg modelValue ->
+        \msg modelValue ->
             let
                 result =
-                    Result.map2 (builder.update msgs)
+                    Result.map2 builder.update
                         (IR.toOutput builder.msgGadget msg)
                         (IR.toOutput builder.modelGadget modelValue)
             in
             case result of
-                Ok ( model, command ) ->
-                    ( IR.fromInput builder.modelGadget model
-                    , command
+                Ok ( newModelValue, command ) ->
+                    ( IR.fromInput builder.modelGadget newModelValue
+                    , command |> Cmd.map controlMsgToValue
                     )
 
                 Err _ ->
@@ -436,13 +596,13 @@ buildControl (Control builder) =
         \inMsg modelValue ->
             Debug.log "TODO" modelValue
     , view =
-        \msgs id modelValue ->
-            Result.map (builder.view msgs id) (IR.toOutput builder.modelGadget modelValue)
+        \id modelValue ->
+            Result.map (builder.view id) (IR.toOutput builder.modelGadget modelValue)
                 |> Result.Extra.extract (List.map (.error >> H.text) >> H.div [])
-                |> H.map (\msg -> IR.fromInput builder.msgGadget msg)
+                |> H.map controlMsgToValue
     , layout =
         builder.layout
-    , subscriptions = \_ _ -> Sub.none
+    , subscriptions = \_ -> Sub.none
     , submit =
         \path modelValue ->
             IR.toOutput builder.modelGadget modelValue
@@ -598,8 +758,8 @@ sandbox :
     { placeholder : output
     , init : model
     , load : output -> model
-    , update : appMsg -> model -> model
-    , view : String -> model -> H.Html appMsg
+    , update : msg -> model -> model
+    , view : String -> model -> H.Html msg
     , submit : model -> Result String output
     , modelGadget : IR.Gadget model
     , msgGadget : IR.Gadget msg
@@ -612,12 +772,12 @@ sandbox args =
         , msgGadget = args.msgGadget
         , outputGadget = args.outputGadget
         , placeholder = args.placeholder
-        , init = \_ -> ( args.init, Cmd.none )
+        , init = ( args.init, Cmd.none )
         , load = args.load
-        , update = \_ msg model -> ( args.update msg model, Cmd.none )
+        , update = \msg model -> ( args.update msg model, Cmd.none )
         , inject = \_ model -> model
-        , view = \_ -> args.view
-        , subscriptions = \_ _ -> Sub.none
+        , view = \id model -> args.view id model |> H.map ToSelf
+        , subscriptions = \_ -> Sub.none
         , submit = args.submit
         }
 
@@ -627,12 +787,12 @@ new :
     , msgGadget : IR.Gadget msg
     , outputGadget : IR.Gadget output
     , placeholder : output
-    , init : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> ( model, Cmd appMsg )
+    , init : ( model, Cmd (Msg msg inMsg appMsg) )
     , load : output -> model
-    , update : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> appMsg -> model -> ( model, Cmd appMsg )
+    , update : msg -> model -> ( model, Cmd (Msg msg inMsg appMsg) )
     , inject : inMsg -> model -> model
-    , view : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> String -> model -> H.Html appMsg
-    , subscriptions : { msgToAppMsg : Msg -> appMsg, inMsgToAppMsg : inMsg -> appMsg } -> model -> Sub appMsg
+    , view : String -> model -> H.Html (Msg msg inMsg appMsg)
+    , subscriptions : model -> Sub (Msg msg inMsg appMsg)
     , submit : model -> Result String output
     }
     -> Control model msg inMsg appMsg output
@@ -651,3 +811,9 @@ new args =
         , submit = args.submit
         , layout = [ Label, Input, Feedback ]
         }
+
+
+pathToString : Path -> String
+pathToString path =
+    List.reverse path
+        |> String.join "-"
