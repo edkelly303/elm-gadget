@@ -1,9 +1,10 @@
-module Form2 exposing (main)
+module Form2Demo exposing (main)
 
 import Browser
 import Gadget
 import Gadget.Adapter.Form2 as Form
 import Html as H
+import Task
 
 
 type alias Model =
@@ -11,8 +12,12 @@ type alias Model =
 
 
 type Msg
-    = FormUpdated (Form.Msg ())
+    = FormUpdated (Form.Msg SharedMsg)
     | OtherMsg
+
+
+type SharedMsg
+    = AUpdated String
 
 
 main : Program () Model Msg
@@ -26,18 +31,50 @@ main =
 
 
 type alias Foo =
-    { a : Int, b : Int }
+    { a : Int
+    , b : Int
+    }
 
 
 fooGadget =
     Gadget.record Foo
-        |> Gadget.field "a" .a (Gadget.int |> Form.label "What is a?")
-        |> Gadget.field "b" .b (Gadget.int |> Form.label "What is b?")
+        |> Gadget.field "a" .a aGadget
+        |> Gadget.field "b" .b bGadget
         |> Gadget.endRecord
+
+
+aGadget =
+    Gadget.int
+        |> Form.label "What is a?"
+        |> Form.override "a"
+
+
+bGadget =
+    Gadget.int
+        |> Form.label "What is b?"
+        |> Form.override "b"
 
 
 form =
     Form.newForm FormUpdated
+        |> Form.withOverride "a"
+            (Form.intControl
+                |> Form.control_update
+                    (\controlMsg model ->
+                        ( controlMsg
+                        , Task.perform (\() -> Form.ToForm (AUpdated controlMsg)) (Task.succeed ())
+                        )
+                    )
+            )
+        |> Form.withOverride "b"
+            (Form.intControl
+                |> Form.control_notify
+                    (\formMsg model ->
+                        case formMsg of
+                            AUpdated s ->
+                                s
+                    )
+            )
         |> Form.endForm fooGadget
 
 

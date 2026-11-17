@@ -8,9 +8,9 @@
         },
         "form2": {
             "inputs": [
-                "src/Form2.elm"
+                "src/Form2Demo.elm"
             ],
-            "output": "build/form2.js"
+            "output": "build/form2demo.js"
         }
     },
     "serve": "./build",
