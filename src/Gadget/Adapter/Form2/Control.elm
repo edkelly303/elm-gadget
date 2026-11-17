@@ -22,10 +22,6 @@ import List.Extra
 import Result.Extra
 
 
-type alias Control formMsg appMsg output =
-    Internal.Control formMsg appMsg output
-
-
 type alias Send controlMsg formMsg appMsg =
     Internal.Send controlMsg formMsg appMsg
 
@@ -43,6 +39,10 @@ toForm =
 toApp : appMsg -> Send controlMsg formMsg appMsg
 toApp =
     Internal.ToApp
+
+
+type alias Control formMsg appMsg output =
+    Internal.Control formMsg appMsg output
 
 
 sandbox :
