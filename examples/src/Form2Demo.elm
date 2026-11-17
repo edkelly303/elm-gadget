@@ -3,6 +3,7 @@ module Form2Demo exposing (main)
 import Browser
 import Gadget
 import Gadget.Adapter.Form2 as Form
+import Gadget.Adapter.Form2.Control as Control
 import Html as H
 import Html.Attributes as HA
 import Html.Events as HE
@@ -55,6 +56,7 @@ type alias Foo =
 -}
 
 
+fooGadget : Gadget.Gadget Foo
 fooGadget =
     Gadget.record Foo
         |> Gadget.field "bar" .bar barGadget
@@ -62,12 +64,14 @@ fooGadget =
         |> Gadget.endRecord
 
 
+barGadget : Gadget.Gadget String
 barGadget =
     Gadget.string
         |> Form.label "What is a 'bar'?"
         |> Form.useControl barControl
 
 
+quxGadget : Gadget.Gadget String
 quxGadget =
     Gadget.string
         |> Form.label "What is a 'qux'?"
@@ -90,10 +94,10 @@ quxGadget =
 form : Form.Form FormMsg AppMsg Foo
 form =
     fooGadget
-        |> Form.newForm FormUpdatedItself
+        |> Form.new FormUpdatedItself
         |> Form.registerControl barControl
         |> Form.registerControl quxControl
-        |> Form.endForm
+        |> Form.end
 
 
 
@@ -109,9 +113,9 @@ form =
 -}
 
 
-barControl : Form.Control FormMsg AppMsg String
+barControl : Control.Control FormMsg AppMsg String
 barControl =
-    Form.new
+    Control.new
         { modelGadget = Gadget.string
         , msgGadget = Gadget.string
         , outputGadget = Gadget.string
@@ -119,9 +123,9 @@ barControl =
         , placeholder = ""
         , load = identity
         , update =
-            \controlMsg model ->
-                ( controlMsg
-                , send (Form.ToForm (BarSentMsgToForm controlMsg))
+            \msg model ->
+                ( msg
+                , send (Control.toForm (BarSentMsgToForm msg))
                 )
         , notify =
             \formMsg model ->
@@ -131,24 +135,16 @@ barControl =
 
                     _ ->
                         model
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "text"
-                    , HE.onInput Form.ToSelf
-                    , HA.id id
-                    , HA.value model
-                    ]
-                    []
-        , subscriptions = \model -> Sub.none
+        , view = textInput
+        , subscriptions = always Sub.none
         , submit = Ok
         , id = "bar"
         }
 
 
-quxControl : Form.Control FormMsg AppMsg String
+quxControl : Control.Control FormMsg AppMsg String
 quxControl =
-    Form.new
+    Control.new
         { modelGadget = Gadget.string
         , msgGadget = Gadget.string
         , outputGadget = Gadget.string
@@ -156,9 +152,9 @@ quxControl =
         , placeholder = ""
         , load = identity
         , update =
-            \controlMsg model ->
-                ( controlMsg
-                , send (Form.ToApp (QuxSentMsgToApp controlMsg))
+            \msg model ->
+                ( msg
+                , send (Control.toApp (QuxSentMsgToApp msg))
                 )
         , notify =
             \formMsg model ->
@@ -168,21 +164,25 @@ quxControl =
 
                     _ ->
                         model
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "text"
-                    , HE.onInput Form.ToSelf
-                    , HA.id id
-                    , HA.value model
-                    ]
-                    []
-        , subscriptions = \model -> Sub.none
+        , view = textInput
+        , subscriptions = always Sub.none
         , submit = Ok
         , id = "qux"
         }
 
 
+textInput : String -> String -> H.Html (Control.Send String FormMsg AppMsg)
+textInput id model =
+    H.input
+        [ HA.type_ "text"
+        , HE.onInput Control.toSelf
+        , HA.id id
+        , HA.value model
+        ]
+        []
+
+
+send : Control.Send String FormMsg AppMsg -> Cmd (Control.Send String FormMsg AppMsg)
 send msg =
     Task.perform identity (Task.succeed msg)
 
@@ -210,6 +210,7 @@ main =
         }
 
 
+init : () -> ( AppModel, Cmd AppMsg )
 init flags =
     let
         ( formModel, formCmd ) =
@@ -220,6 +221,7 @@ init flags =
     )
 
 
+update : AppMsg -> AppModel -> ( AppModel, Cmd AppMsg )
 update msg model =
     case msg of
         FormUpdatedItself formMsg ->
@@ -241,6 +243,7 @@ update msg model =
             )
 
 
+view : AppModel -> Browser.Document AppMsg
 view model =
     { title = "Form 2 demo"
     , body =
