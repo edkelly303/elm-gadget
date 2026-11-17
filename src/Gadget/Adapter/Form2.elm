@@ -19,7 +19,6 @@ import Gadget.Adapter.Form2.Internal as Internal exposing (..)
 import Gadget.IR as IR exposing (Error, Type(..), Value)
 import Html as H
 import Html.Attributes as HA
-import Html.Events as HE
 import List.Extra
 import Set
 
@@ -97,11 +96,11 @@ new msgToAppMsg outputGadget =
             c
     in
     Builder
-        { bool = unwrap boolControl
-        , int = unwrap intControl
-        , float = unwrap floatControl
-        , char = unwrap charControl
-        , string = unwrap stringControl
+        { bool = unwrap Control.bool
+        , int = unwrap Control.int
+        , float = unwrap Control.float
+        , char = unwrap Control.char
+        , string = unwrap Control.string
         , viewFeedback = \error -> H.span [] [ H.text error ]
         , viewTopLevel = \{ fieldViews } -> fieldViews
         , viewControl =
@@ -452,156 +451,6 @@ withTopLevelView :
     -> Builder formMsg appMsg output
 withTopLevelView f (Builder builder) =
     Builder { builder | viewTopLevel = f }
-
-
-intControl : Control formMsg appMsg Int
-intControl =
-    Control.sandbox
-        { modelGadget = Gadget.string
-        , msgGadget = Gadget.string
-        , outputGadget = Gadget.int
-        , init = ""
-        , placeholder = 0
-        , load = String.fromInt
-        , update = \msg _ -> msg
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "number"
-                    , HA.attribute "inputmode" "numeric"
-                    , HE.onInput identity
-                    , HA.id id
-                    , HA.value model
-                    ]
-                    []
-        , submit =
-            \model ->
-                String.toInt model
-                    |> Result.fromMaybe "This must be an integer"
-        , id = "int"
-        }
-
-
-floatControl : Control formMsg appMsg Float
-floatControl =
-    Control.sandbox
-        { modelGadget = Gadget.string
-        , msgGadget = Gadget.string
-        , outputGadget = Gadget.float
-        , init = ""
-        , placeholder = 0.0
-        , load = String.fromFloat
-        , update = \msg _ -> msg
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "number"
-                    , HA.attribute "inputmode" "decimal"
-                    , HE.onInput identity
-                    , HA.id id
-                    , HA.value model
-                    ]
-                    []
-        , submit =
-            \model ->
-                String.toFloat model
-                    |> Result.fromMaybe "This must be a decimal number"
-        , id = "float"
-        }
-
-
-stringControl : Control formMsg appMsg String
-stringControl =
-    Control.sandbox
-        { modelGadget = Gadget.string
-        , msgGadget = Gadget.string
-        , outputGadget = Gadget.string
-        , init = ""
-        , placeholder = ""
-        , load = identity
-        , update = \msg _ -> msg
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "text"
-                    , HE.onInput identity
-                    , HA.id id
-                    , HA.value model
-                    ]
-                    []
-        , submit = Ok
-        , id = "string"
-        }
-
-
-boolControl : Control formMsg appMsg output
-boolControl =
-    Control.sandbox
-        { modelGadget = Gadget.bool
-        , msgGadget = Gadget.bool
-        , outputGadget = Gadget.bool
-        , init = False
-        , placeholder = False
-        , load = identity
-        , update = \msg _ -> msg
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "checkbox"
-                    , HE.onCheck identity
-                    , HA.checked model
-                    , HA.id id
-                    ]
-                    []
-        , submit = Ok
-        , id = "bool"
-        }
-        |> withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
-
-
-withLayout : ({ label : UI, input : UI, feedback : UI } -> List UI) -> Control formMsg appMsg output -> Control formMsg appMsg a
-withLayout f (Control id builder) =
-    Control id
-        { builder
-            | layout =
-                f { label = Label, input = Input, feedback = Feedback }
-                    |> List.Extra.unique
-        }
-
-
-charControl : Control formMsg appMsg Char
-charControl =
-    Control.sandbox
-        { modelGadget = Gadget.string
-        , msgGadget = Gadget.maybe Gadget.char
-        , outputGadget = Gadget.char
-        , init = ""
-        , placeholder = 'a'
-        , load = String.fromChar
-        , update =
-            \msg _ ->
-                case msg of
-                    Nothing ->
-                        ""
-
-                    Just c ->
-                        String.fromChar c
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "text"
-                    , HE.onInput (\str -> String.uncons str |> Maybe.map Tuple.first)
-                    , HA.id id
-                    , HA.value model
-                    ]
-                    []
-        , submit =
-            \model ->
-                String.uncons model
-                    |> Maybe.map Tuple.first
-                    |> Result.fromMaybe "This must not be blank"
-        , id = "char"
-        }
 
 
 pathToString : Path -> String
