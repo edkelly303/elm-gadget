@@ -1,58 +1,42 @@
 module Gadget.Adapter.Form2 exposing
     ( label, useControl
     , Form, Model, Msg
-    , FormBuilder, newForm, registerControl, endForm
-    , Control, Send(..), sandbox, element, new, control_notify, control_update
+    , Builder, new, registerControl, withControlView, withFeedbackView, withTopLevelView, end
     )
 
 {-|
 
 @docs label, useControl
 @docs Form, Model, Msg
-@docs FormBuilder, newForm, registerControl, endForm
-@docs Control, Send, sandbox, element, new, control_notify, control_update
+@docs Builder, new, registerControl, withControlView, withFeedbackView, withTopLevelView, end
 
 -}
 
 import Dict exposing (Dict)
 import Gadget
+import Gadget.Adapter.Form2.Control as Control
+import Gadget.Adapter.Form2.Internal as Internal exposing (..)
 import Gadget.IR as IR exposing (Error, Type(..), Value)
 import Html as H
 import Html.Attributes as HA
 import Html.Events as HE
 import List.Extra
-import Result.Extra
-import Set exposing (Set)
+import Set
 
 
-tools : IR.MetadataTools meta a
-tools =
-    IR.makeMetadataTools "Gadget.Adapter.Form"
+type alias Form formMsg appMsg output =
+    { init : ( Model, Cmd appMsg )
+    , load : output -> Model
+    , update : Msg formMsg -> Model -> ( Model, Cmd appMsg )
+    , notify : formMsg -> Model -> Model
+    , view : Model -> H.Html appMsg
+    , subscriptions : Model -> Sub appMsg
+    , submit : Model -> Result (List Error) output
+    }
 
 
-label : String -> IR.Gadget a -> IR.Gadget a
-label labelText gadget =
-    tools.attach "label" Gadget.string labelText gadget
-
-
-useControl : Control formMsg appMsg a -> IR.Gadget a -> IR.Gadget a
-useControl (Control id _) gadget =
-    tools.attach "useControl" Gadget.string id gadget
-
-
-type Msg formMsg
-    = ControlMsg Path Value
-    | FormMsg formMsg
-
-
-type Send controlMsg formMsg appMsg
-    = ToSelf controlMsg
-    | ToForm formMsg
-    | ToApp appMsg
-
-
-type alias Path =
-    List String
+type alias Msg formMsg =
+    Internal.Msg formMsg
 
 
 type Model
@@ -74,63 +58,23 @@ type PrimitiveType
     | OverrideType String
 
 
-type alias Form formMsg appMsg output =
-    { init : ( Model, Cmd appMsg )
-    , load : output -> Model
-    , update : Msg formMsg -> Model -> ( Model, Cmd appMsg )
-    , notify : formMsg -> Model -> Model
-    , view : Model -> H.Html appMsg
-    , subscriptions : Model -> Sub appMsg
-    , submit : Model -> Result (List Error) output
-    }
+type Builder formMsg appMsg output
+    = Builder (Internal.Config formMsg appMsg output)
 
 
-type FormBuilder formMsg appMsg output
-    = FormBuilder (Config formMsg appMsg output)
+tools : IR.MetadataTools meta a
+tools =
+    IR.makeMetadataTools "Gadget.Adapter.Form"
 
 
-type alias Config formMsg appMsg output =
-    { bool : InternalControl formMsg appMsg
-    , int : InternalControl formMsg appMsg
-    , float : InternalControl formMsg appMsg
-    , char : InternalControl formMsg appMsg
-    , string : InternalControl formMsg appMsg
-    , overrides : Dict String (InternalControl formMsg appMsg)
-    , viewFeedback : String -> H.Html appMsg
-    , viewControl : Bool -> List (H.Html appMsg) -> List (H.Html appMsg)
-    , viewTopLevel :
-        { switchActiveField : Int -> appMsg
-        , activeField : Int
-        , fieldViews : List (H.Html appMsg)
-        , result : Result (Set Int) output
-        }
-        -> List (H.Html appMsg)
-    , msgToAppMsg : Msg formMsg -> appMsg
-    , outputType : IR.Type
-    }
+label : String -> IR.Gadget a -> IR.Gadget a
+label labelText gadget =
+    tools.attach "label" Gadget.string labelText gadget
 
 
-type Control formMsg appMsg output
-    = Control String (InternalControl formMsg appMsg)
-
-
-type alias InternalControl formMsg appMsg =
-    { init : ( Value, Cmd (Send Value formMsg appMsg) )
-    , load : Value -> Value
-    , placeholder : Value
-    , update : Value -> Value -> ( Value, Cmd (Send Value formMsg appMsg) )
-    , notify : formMsg -> Value -> Value
-    , view : String -> Value -> H.Html (Send Value formMsg appMsg)
-    , subscriptions : Value -> Sub (Send Value formMsg appMsg)
-    , submit : Path -> Value -> Result (List Error) Value
-    , layout : List UI
-    }
-
-
-type UI
-    = Label
-    | Input
-    | Feedback
+useControl : Control formMsg appMsg a -> IR.Gadget a -> IR.Gadget a
+useControl (Control id _) gadget =
+    tools.attach "useControl" Gadget.string id gadget
 
 
 
@@ -146,13 +90,13 @@ type UI
 -}
 
 
-newForm : (Msg formMsg -> appMsg) -> IR.Gadget output -> FormBuilder formMsg appMsg output
-newForm msgToAppMsg outputGadget =
+new : (Msg formMsg -> appMsg) -> IR.Gadget output -> Builder formMsg appMsg output
+new msgToAppMsg outputGadget =
     let
         unwrap (Control _ c) =
             c
     in
-    FormBuilder
+    Builder
         { bool = unwrap boolControl
         , int = unwrap intControl
         , float = unwrap floatControl
@@ -179,10 +123,10 @@ newForm msgToAppMsg outputGadget =
         }
 
 
-endForm :
-    FormBuilder formMsg appMsg output
+end :
+    Builder formMsg appMsg output
     -> Form formMsg appMsg output
-endForm (FormBuilder config) =
+end (Builder config) =
     let
         path =
             []
@@ -307,19 +251,6 @@ init config path type_ =
 load : a -> b -> c -> d -> e
 load config path type_ output =
     Debug.todo "load"
-
-
-msgMapper : Config formMsg appMsg output -> Path -> Send Value formMsg appMsg -> appMsg
-msgMapper config path msg =
-    case msg of
-        ToSelf toSelf ->
-            config.msgToAppMsg (ControlMsg path toSelf)
-
-        ToForm toAll ->
-            config.msgToAppMsg (FormMsg toAll)
-
-        ToApp toApp ->
-            toApp
 
 
 lookupControl : PrimitiveType -> Config formMsg appMsg output -> Maybe (InternalControl formMsg appMsg)
@@ -468,32 +399,45 @@ submit config path type_ model =
     Debug.todo "submit"
 
 
+msgMapper : Config formMsg appMsg output -> Path -> Send Value formMsg appMsg -> appMsg
+msgMapper config path msg =
+    case msg of
+        ToSelf toSelf ->
+            config.msgToAppMsg (ControlMsg path toSelf)
+
+        ToForm toAll ->
+            config.msgToAppMsg (FormMsg toAll)
+
+        ToApp toApp ->
+            toApp
+
+
 registerControl :
     Control formMsg appMsg controlOutput
-    -> FormBuilder formMsg appMsg output
-    -> FormBuilder formMsg appMsg output
-registerControl controlBuilder (FormBuilder builder) =
+    -> Builder formMsg appMsg output
+    -> Builder formMsg appMsg output
+registerControl controlBuilder (Builder builder) =
     let
         (Control id internalControl) =
             controlBuilder
     in
-    FormBuilder { builder | overrides = Dict.insert id internalControl builder.overrides }
+    Builder { builder | overrides = Dict.insert id internalControl builder.overrides }
 
 
 withControlView :
     (Bool -> List (H.Html appMsg) -> List (H.Html appMsg))
-    -> FormBuilder formMsg appMsg output
-    -> FormBuilder formMsg appMsg output
-withControlView f (FormBuilder builder) =
-    FormBuilder { builder | viewControl = f }
+    -> Builder formMsg appMsg output
+    -> Builder formMsg appMsg output
+withControlView f (Builder builder) =
+    Builder { builder | viewControl = f }
 
 
 withFeedbackView :
     (String -> H.Html appMsg)
-    -> FormBuilder formMsg appMsg output
-    -> FormBuilder formMsg appMsg output
-withFeedbackView f (FormBuilder builder) =
-    FormBuilder { builder | viewFeedback = f }
+    -> Builder formMsg appMsg output
+    -> Builder formMsg appMsg output
+withFeedbackView f (Builder builder) =
+    Builder { builder | viewFeedback = f }
 
 
 withTopLevelView :
@@ -504,15 +448,15 @@ withTopLevelView :
      }
      -> List (H.Html appMsg)
     )
-    -> FormBuilder formMsg appMsg output
-    -> FormBuilder formMsg appMsg output
-withTopLevelView f (FormBuilder builder) =
-    FormBuilder { builder | viewTopLevel = f }
+    -> Builder formMsg appMsg output
+    -> Builder formMsg appMsg output
+withTopLevelView f (Builder builder) =
+    Builder { builder | viewTopLevel = f }
 
 
 intControl : Control formMsg appMsg Int
 intControl =
-    sandbox
+    Control.sandbox
         { modelGadget = Gadget.string
         , msgGadget = Gadget.string
         , outputGadget = Gadget.int
@@ -540,7 +484,7 @@ intControl =
 
 floatControl : Control formMsg appMsg Float
 floatControl =
-    sandbox
+    Control.sandbox
         { modelGadget = Gadget.string
         , msgGadget = Gadget.string
         , outputGadget = Gadget.float
@@ -568,7 +512,7 @@ floatControl =
 
 stringControl : Control formMsg appMsg String
 stringControl =
-    sandbox
+    Control.sandbox
         { modelGadget = Gadget.string
         , msgGadget = Gadget.string
         , outputGadget = Gadget.string
@@ -592,7 +536,7 @@ stringControl =
 
 boolControl : Control formMsg appMsg output
 boolControl =
-    sandbox
+    Control.sandbox
         { modelGadget = Gadget.bool
         , msgGadget = Gadget.bool
         , outputGadget = Gadget.bool
@@ -627,7 +571,7 @@ withLayout f (Control id builder) =
 
 charControl : Control formMsg appMsg Char
 charControl =
-    sandbox
+    Control.sandbox
         { modelGadget = Gadget.string
         , msgGadget = Gadget.maybe Gadget.char
         , outputGadget = Gadget.char
@@ -657,233 +601,6 @@ charControl =
                     |> Maybe.map Tuple.first
                     |> Result.fromMaybe "This must not be blank"
         , id = "char"
-        }
-
-
-sandbox :
-    { placeholder : output
-    , init : model
-    , load : output -> model
-    , update : controlMsg -> model -> model
-    , view : String -> model -> H.Html controlMsg
-    , submit : model -> Result String output
-    , modelGadget : IR.Gadget model
-    , msgGadget : IR.Gadget controlMsg
-    , outputGadget : IR.Gadget output
-    , id : String
-    }
-    -> Control formMsg appMsg output
-sandbox args =
-    new
-        { modelGadget = args.modelGadget
-        , msgGadget = args.msgGadget
-        , outputGadget = args.outputGadget
-        , placeholder = args.placeholder
-        , init = ( args.init, Cmd.none )
-        , load = args.load
-        , update = \msg model -> ( args.update msg model, Cmd.none )
-        , notify = \_ model -> model
-        , view = \id model -> args.view id model |> H.map ToSelf
-        , subscriptions = \_ -> Sub.none
-        , submit = args.submit
-        , id = args.id
-        }
-
-
-element :
-    { placeholder : output
-    , init : ( model, Cmd msg )
-    , load : output -> model
-    , update : msg -> model -> ( model, Cmd msg )
-    , view : String -> model -> H.Html msg
-    , subscriptions : model -> Sub msg
-    , submit : model -> Result String output
-    , modelGadget : IR.Gadget model
-    , msgGadget : IR.Gadget msg
-    , outputGadget : IR.Gadget output
-    , id : String
-    }
-    -> Control formMsg appMsg output
-element args =
-    new
-        { modelGadget = args.modelGadget
-        , msgGadget = args.msgGadget
-        , outputGadget = args.outputGadget
-        , placeholder = args.placeholder
-        , init = args.init |> Tuple.mapSecond (Cmd.map ToSelf)
-        , load = args.load
-        , update = \msg model -> args.update msg model |> Tuple.mapSecond (Cmd.map ToSelf)
-        , notify = \_ model -> model
-        , view = \id model -> args.view id model |> H.map ToSelf
-        , subscriptions = \model -> args.subscriptions model |> Sub.map ToSelf
-        , submit = args.submit
-        , id = args.id
-        }
-
-
-new :
-    { modelGadget : IR.Gadget model
-    , msgGadget : IR.Gadget controlMsg
-    , outputGadget : IR.Gadget output
-    , placeholder : output
-    , init : ( model, Cmd (Send controlMsg formMsg appMsg) )
-    , load : output -> model
-    , update : controlMsg -> model -> ( model, Cmd (Send controlMsg formMsg appMsg) )
-    , notify : formMsg -> model -> model
-    , view : String -> model -> H.Html (Send controlMsg formMsg appMsg)
-    , subscriptions : model -> Sub (Send controlMsg formMsg appMsg)
-    , submit : model -> Result String output
-    , id : String
-    }
-    -> Control formMsg appMsg output
-new builder =
-    let
-        placeholderValue =
-            builder.placeholder
-                |> builder.load
-                |> IR.fromInput builder.modelGadget
-
-        controlMsgToValue controlMsg =
-            case controlMsg of
-                ToSelf m ->
-                    ToSelf (IR.fromInput builder.msgGadget m)
-
-                ToForm m ->
-                    ToForm m
-
-                ToApp m ->
-                    ToApp m
-    in
-    Control builder.id
-        { init =
-            let
-                ( model, command ) =
-                    builder.init
-            in
-            ( IR.fromInput builder.modelGadget model
-            , command |> Cmd.map controlMsgToValue
-            )
-        , load =
-            \outputValue ->
-                IR.toOutput builder.outputGadget outputValue
-                    |> Result.map (\output -> builder.load output)
-                    |> Result.map (IR.fromInput builder.modelGadget)
-                    |> Result.withDefault placeholderValue
-        , placeholder = IR.fromInput builder.outputGadget builder.placeholder
-        , update =
-            \controlMsg modelValue ->
-                let
-                    result =
-                        Result.map2 builder.update
-                            (IR.toOutput builder.msgGadget controlMsg)
-                            (IR.toOutput builder.modelGadget modelValue)
-                in
-                case result of
-                    Ok ( newModelValue, command ) ->
-                        ( IR.fromInput builder.modelGadget newModelValue
-                        , command |> Cmd.map controlMsgToValue
-                        )
-
-                    Err _ ->
-                        ( modelValue
-                        , Cmd.none
-                        )
-        , notify =
-            \formMsg modelValue ->
-                IR.toOutput builder.modelGadget modelValue
-                    |> Result.map (builder.notify formMsg)
-                    |> Result.map (IR.fromInput builder.modelGadget)
-                    |> Result.withDefault modelValue
-        , view =
-            \id modelValue ->
-                Result.map (builder.view id) (IR.toOutput builder.modelGadget modelValue)
-                    |> Result.Extra.extract (List.map (.error >> H.text) >> H.div [])
-                    |> H.map controlMsgToValue
-        , layout =
-            [ Label, Input, Feedback ]
-        , subscriptions = \_ -> Sub.none
-        , submit =
-            \path modelValue ->
-                IR.toOutput builder.modelGadget modelValue
-                    |> Result.andThen
-                        (\model ->
-                            builder.submit model
-                                |> Result.mapError (\error -> [ { error = error, path = path } ])
-                                |> Result.map (IR.fromInput builder.outputGadget)
-                        )
-        }
-
-
-control_notify :
-    IR.Gadget controlModel
-    -> (formMsg -> controlModel -> controlModel)
-    -> Control formMsg appMsg output
-    -> Control formMsg appMsg output
-control_notify modelGadget notify_ (Control id control) =
-    Control id
-        { placeholder = control.placeholder
-        , init = control.init
-        , load = control.load
-        , update = control.update
-        , notify =
-            \formMsg modelValue ->
-                IR.toOutput modelGadget modelValue
-                    |> Result.map (notify_ formMsg)
-                    |> Result.map (IR.fromInput modelGadget)
-                    |> Result.withDefault modelValue
-        , view = control.view
-        , subscriptions = control.subscriptions
-        , submit = control.submit
-        , layout = [ Label, Input, Feedback ]
-        }
-
-
-control_update :
-    IR.Gadget controlMsg
-    -> IR.Gadget controlModel
-    -> (controlMsg -> controlModel -> ( controlModel, Cmd (Send controlMsg formMsg appMsg) ))
-    -> Control formMsg appMsg output
-    -> Control formMsg appMsg output
-control_update msgGadget modelGadget update_ (Control id control) =
-    let
-        controlMsgToValue controlMsg =
-            case controlMsg of
-                ToSelf m ->
-                    ToSelf (IR.fromInput msgGadget m)
-
-                ToForm m ->
-                    ToForm m
-
-                ToApp m ->
-                    ToApp m
-    in
-    Control id
-        { placeholder = control.placeholder
-        , init = control.init
-        , load = control.load
-        , update =
-            \controlMsg modelValue ->
-                let
-                    result =
-                        Result.map2 update_
-                            (IR.toOutput msgGadget controlMsg)
-                            (IR.toOutput modelGadget modelValue)
-                in
-                case result of
-                    Ok ( newModelValue, command ) ->
-                        ( IR.fromInput modelGadget newModelValue
-                        , command |> Cmd.map controlMsgToValue
-                        )
-
-                    Err _ ->
-                        ( modelValue
-                        , Cmd.none
-                        )
-        , notify = control.notify
-        , view = control.view
-        , subscriptions = control.subscriptions
-        , submit = control.submit
-        , layout = [ Label, Input, Feedback ]
         }
 
 
