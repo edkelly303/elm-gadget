@@ -1,26 +1,22 @@
 module Gadget.Adapter.Form2 exposing
-    ( Control
-    , Form
-    , FormBuilder
-    , Model
-    , Msg
-    , Send(..)
-    , control_notify
-    , control_update
-    , element
-    , endForm
-    , intControl
-    , label
-    , new
-    , newForm
-    , sandbox
-    , useControl
-    , withOverride
+    ( label, useControl
+    , Form, Model, Msg
+    , FormBuilder, newForm, registerControl, endForm
+    , Control, Send(..), sandbox, element, new, control_notify, control_update
     )
+
+{-|
+
+@docs label, useControl
+@docs Form, Model, Msg
+@docs FormBuilder, newForm, registerControl, endForm
+@docs Control, Send, sandbox, element, new, control_notify, control_update
+
+-}
 
 import Dict exposing (Dict)
 import Gadget
-import Gadget.IR as IR exposing (Error, Type(..), Value(..))
+import Gadget.IR as IR exposing (Error, Type(..), Value)
 import Html as H
 import Html.Attributes as HA
 import Html.Events as HE
@@ -110,6 +106,7 @@ type alias Config formMsg appMsg output =
         }
         -> List (H.Html appMsg)
     , msgToAppMsg : Msg formMsg -> appMsg
+    , outputType : IR.Type
     }
 
 
@@ -149,8 +146,8 @@ type UI
 -}
 
 
-newForm : (Msg formMsg -> appMsg) -> FormBuilder formMsg appMsg output
-newForm msgToAppMsg =
+newForm : (Msg formMsg -> appMsg) -> IR.Gadget output -> FormBuilder formMsg appMsg output
+newForm msgToAppMsg outputGadget =
     let
         unwrap (Control _ c) =
             c
@@ -177,40 +174,23 @@ newForm msgToAppMsg =
                     inner
                 ]
         , overrides = Dict.empty
+        , outputType = IR.irType outputGadget
         , msgToAppMsg = msgToAppMsg
         }
 
 
 endForm :
-    IR.Gadget output
-    -> FormBuilder formMsg appMsg output
+    FormBuilder formMsg appMsg output
     -> Form formMsg appMsg output
-endForm gadget (FormBuilder builder) =
+endForm (FormBuilder config) =
     let
-        config : Config formMsg appMsg output
-        config =
-            { bool = builder.bool
-            , int = builder.int
-            , float = builder.float
-            , char = builder.char
-            , string = builder.string
-            , overrides = builder.overrides
-            , viewFeedback = builder.viewFeedback
-            , viewControl = builder.viewControl
-            , viewTopLevel = builder.viewTopLevel
-            , msgToAppMsg = builder.msgToAppMsg
-            }
-
-        type_ =
-            IR.irType gadget
-
         path =
             []
 
         init_ =
             let
                 ( model, cmd ) =
-                    init config path type_
+                    init config path config.outputType
             in
             ( model
             , cmd
@@ -219,28 +199,28 @@ endForm gadget (FormBuilder builder) =
         update_ msg model =
             let
                 ( newModel, cmd ) =
-                    update config path type_ msg model
+                    update config path config.outputType msg model
             in
             ( newModel
             , cmd
             )
 
         load_ output =
-            load config path type_ output
+            load config path config.outputType output
 
         notify_ formMsg model =
             update_ (FormMsg formMsg) model
                 |> Tuple.first
 
         view_ model =
-            view config path type_ model
+            view config path config.outputType model
                 |> H.form []
 
         subscriptions_ model =
             subscriptions config path model
 
         submit_ model =
-            submit config path type_ model
+            submit config path config.outputType model
     in
     { init = init_
     , load = load_
@@ -488,11 +468,11 @@ submit config path type_ model =
     Debug.todo "submit"
 
 
-withOverride :
+registerControl :
     Control formMsg appMsg controlOutput
     -> FormBuilder formMsg appMsg output
     -> FormBuilder formMsg appMsg output
-withOverride controlBuilder (FormBuilder builder) =
+registerControl controlBuilder (FormBuilder builder) =
     let
         (Control id internalControl) =
             controlBuilder
