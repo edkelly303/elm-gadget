@@ -56,6 +56,7 @@ main =
         }
 
 
+form : Form.Form FormMsg AppMsg Foo
 form =
     Form.newForm FormUpdatedItself
         |> Form.withOverride barControl
@@ -63,6 +64,7 @@ form =
         |> Form.endForm fooGadget
 
 
+barControl : Form.Control FormMsg AppMsg Int
 barControl =
     Form.intControl
         |> Form.control_update Gadget.string
@@ -83,9 +85,11 @@ barControl =
             )
 
 
+quxControl : Form.Control FormMsg AppMsg Int
 quxControl =
     Form.intControl
-        |> Form.control_update Gadget.string
+        |> Form.control_update
+            Gadget.string
             Gadget.string
             (\controlMsg model ->
                 ( controlMsg
