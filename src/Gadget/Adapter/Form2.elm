@@ -1,4 +1,22 @@
-module Gadget.Adapter.Form2 exposing (..)
+module Gadget.Adapter.Form2 exposing
+    ( Control
+    , Form
+    , FormBuilder
+    , Model
+    , Msg
+    , Send(..)
+    , control_notify
+    , control_update
+    , element
+    , endForm
+    , intControl
+    , label
+    , new
+    , newForm
+    , sandbox
+    , useControl
+    , withOverride
+    )
 
 import Dict exposing (Dict)
 import Gadget
@@ -687,6 +705,37 @@ sandbox args =
         , notify = \_ model -> model
         , view = \id model -> args.view id model |> H.map ToSelf
         , subscriptions = \_ -> Sub.none
+        , submit = args.submit
+        , id = args.id
+        }
+
+
+element :
+    { placeholder : output
+    , init : ( model, Cmd msg )
+    , load : output -> model
+    , update : msg -> model -> ( model, Cmd msg )
+    , view : String -> model -> H.Html msg
+    , subscriptions : model -> Sub msg
+    , submit : model -> Result String output
+    , modelGadget : IR.Gadget model
+    , msgGadget : IR.Gadget msg
+    , outputGadget : IR.Gadget output
+    , id : String
+    }
+    -> Control formMsg appMsg output
+element args =
+    new
+        { modelGadget = args.modelGadget
+        , msgGadget = args.msgGadget
+        , outputGadget = args.outputGadget
+        , placeholder = args.placeholder
+        , init = args.init |> Tuple.mapSecond (Cmd.map ToSelf)
+        , load = args.load
+        , update = \msg model -> args.update msg model |> Tuple.mapSecond (Cmd.map ToSelf)
+        , notify = \_ model -> model
+        , view = \id model -> args.view id model |> H.map ToSelf
+        , subscriptions = \model -> args.subscriptions model |> Sub.map ToSelf
         , submit = args.submit
         , id = args.id
         }
