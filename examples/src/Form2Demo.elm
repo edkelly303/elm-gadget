@@ -7,20 +7,46 @@ import Html as H
 import Task
 
 
-type alias Model =
+type alias Foo =
+    { bar : Int
+    , qux : Int
+    }
+
+
+fooGadget =
+    Gadget.record Foo
+        |> Gadget.field "bar" .bar barGadget
+        |> Gadget.field "qux" .qux quxGadget
+        |> Gadget.endRecord
+
+
+barGadget =
+    Gadget.int
+        |> Form.label "What number is bar?"
+        |> Form.override "bar"
+
+
+quxGadget =
+    Gadget.int
+        |> Form.label "What number is qux?"
+        |> Form.override "qux"
+
+
+type alias AppModel =
     { form : Form.Model }
 
 
-type Msg
-    = FormUpdated (Form.Msg SharedMsg)
-    | OtherMsg
+type AppMsg
+    = FormUpdatedItself (Form.Msg FormMsg)
+    | QuxSentMsgToApp String
 
 
-type SharedMsg
-    = AUpdated String
+type FormMsg
+    = BarSentMsgToForm String
+    | AppSentMsgToForm String
 
 
-main : Program () Model Msg
+main : Program () AppModel AppMsg
 main =
     Browser.document
         { init = init
@@ -30,52 +56,53 @@ main =
         }
 
 
-type alias Foo =
-    { a : Int
-    , b : Int
-    }
-
-
-fooGadget =
-    Gadget.record Foo
-        |> Gadget.field "a" .a aGadget
-        |> Gadget.field "b" .b bGadget
-        |> Gadget.endRecord
-
-
-aGadget =
-    Gadget.int
-        |> Form.label "What is a?"
-        |> Form.override "a"
-
-
-bGadget =
-    Gadget.int
-        |> Form.label "What is b?"
-        |> Form.override "b"
-
-
 form =
-    Form.newForm FormUpdated
-        |> Form.withOverride "a"
-            (Form.intControl
-                |> Form.control_update
-                    (\controlMsg model ->
-                        ( controlMsg
-                        , Task.perform (\() -> Form.ToForm (AUpdated controlMsg)) (Task.succeed ())
-                        )
-                    )
-            )
-        |> Form.withOverride "b"
-            (Form.intControl
-                |> Form.control_notify
-                    (\formMsg model ->
-                        case formMsg of
-                            AUpdated s ->
-                                s
-                    )
-            )
+    Form.newForm FormUpdatedItself
+        |> Form.withOverride "bar" barControl
+        |> Form.withOverride "qux" quxControl
         |> Form.endForm fooGadget
+
+
+barControl =
+    Form.intControl
+        |> Form.control_update
+            (\controlMsg model ->
+                ( controlMsg
+                , send (Form.ToForm (BarSentMsgToForm controlMsg))
+                )
+            )
+        |> Form.control_notify
+            (\formMsg model ->
+                case formMsg of
+                    AppSentMsgToForm string ->
+                        string
+
+                    _ ->
+                        model
+            )
+
+
+quxControl =
+    Form.intControl
+        |> Form.control_update
+            (\controlMsg model ->
+                ( controlMsg
+                , send (Form.ToApp (QuxSentMsgToApp controlMsg))
+                )
+            )
+        |> Form.control_notify
+            (\formMsg model ->
+                case formMsg of
+                    BarSentMsgToForm string ->
+                        string
+
+                    _ ->
+                        model
+            )
+
+
+send msg =
+    Task.perform identity (Task.succeed msg)
 
 
 init flags =
@@ -90,22 +117,27 @@ init flags =
 
 update msg model =
     case msg of
-        FormUpdated formMsg ->
+        FormUpdatedItself formMsg ->
             let
                 ( formModel, formCmd ) =
                     form.update formMsg model.form
             in
             ( { form = formModel }, formCmd )
 
-        OtherMsg ->
-            ( model, Cmd.none )
+        QuxSentMsgToApp string ->
+            let
+                formModel =
+                    form.notify (AppSentMsgToForm string) model.form
+            in
+            ( { form = formModel }
+            , Cmd.none
+            )
 
 
 view model =
     { title = "Form 2 demo"
     , body =
-        [ H.main_
-            []
+        [ H.main_ []
             [ form.view model.form ]
         ]
     }
