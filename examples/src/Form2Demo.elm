@@ -23,13 +23,13 @@ fooGadget =
 barGadget =
     Gadget.int
         |> Form.label "What number is bar?"
-        |> Form.override "bar"
+        |> Form.useControl barControl
 
 
 quxGadget =
     Gadget.int
         |> Form.label "What number is qux?"
-        |> Form.override "qux"
+        |> Form.useControl quxControl
 
 
 type alias AppModel =
@@ -58,20 +58,21 @@ main =
 
 form =
     Form.newForm FormUpdatedItself
-        |> Form.withOverride "bar" barControl
-        |> Form.withOverride "qux" quxControl
+        |> Form.withOverride barControl
+        |> Form.withOverride quxControl
         |> Form.endForm fooGadget
 
 
 barControl =
     Form.intControl
-        |> Form.control_update
+        |> Form.control_update Gadget.string
+            Gadget.string
             (\controlMsg model ->
                 ( controlMsg
                 , send (Form.ToForm (BarSentMsgToForm controlMsg))
                 )
             )
-        |> Form.control_notify
+        |> Form.control_notify Gadget.string
             (\formMsg model ->
                 case formMsg of
                     AppSentMsgToForm string ->
@@ -84,13 +85,14 @@ barControl =
 
 quxControl =
     Form.intControl
-        |> Form.control_update
+        |> Form.control_update Gadget.string
+            Gadget.string
             (\controlMsg model ->
                 ( controlMsg
                 , send (Form.ToApp (QuxSentMsgToApp controlMsg))
                 )
             )
-        |> Form.control_notify
+        |> Form.control_notify Gadget.string
             (\formMsg model ->
                 case formMsg of
                     BarSentMsgToForm string ->
