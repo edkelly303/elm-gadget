@@ -4,6 +4,7 @@ import Browser
 import Gadget
 import Gadget.Adapter.Form2 as Form
 import Gadget.Adapter.Form2.Control as Control
+import Gadget.Adapter.Form2.Safe as Safe
 import Html as H
 import Html.Attributes as HA
 import Html.Events as HE
@@ -45,41 +46,6 @@ type alias Foo =
 
 
 {-
-    d888b   .d8b.  d8888b.  d888b  d88888b d888888b .d8888.
-   88' Y8b d8' `8b 88  `8D 88' Y8b 88'     `~~88~~' 88'  YP
-   88      88ooo88 88   88 88      88ooooo    88    `8bo.
-   88  ooo 88~~~88 88   88 88  ooo 88~~~~~    88      `Y8b.
-   88. ~8~ 88   88 88  .8D 88. ~8~ 88.        88    db   8D
-    Y888P  YP   YP Y8888D'  Y888P  Y88888P    YP    `8888Y'
-
-
--}
-
-
-fooGadget : Gadget.Gadget Foo
-fooGadget =
-    Gadget.record Foo
-        |> Gadget.field "bar" .bar barGadget
-        |> Gadget.field "qux" .qux quxGadget
-        |> Gadget.endRecord
-
-
-barGadget : Gadget.Gadget String
-barGadget =
-    Gadget.string
-        |> Form.label "What is a 'bar'?"
-        |> Form.useControl barControl
-
-
-quxGadget : Gadget.Gadget String
-quxGadget =
-    Gadget.string
-        |> Form.label "What is a 'qux'?"
-        |> Form.useControl quxControl
-
-
-
-{-
    d88888b  .d88b.  d8888b. .88b  d88.
    88'     .8P  Y8. 88  `8D 88'YbdP`88
    88ooo   88    88 88oobY' 88  88  88
@@ -91,13 +57,13 @@ quxGadget =
 -}
 
 
-form : Form.Form FormMsg AppMsg Foo
-form =
-    fooGadget
-        |> Form.new FormUpdatedItself
-        |> Form.registerControl barControl
-        |> Form.registerControl quxControl
-        |> Form.end
+safeForm : Form.Form FormMsg AppMsg Foo
+safeForm =
+    Safe.record Foo
+        |> Safe.field "bar" .bar (Safe.bespoke Gadget.string barControl "What is bar?")
+        |> Safe.field "qux" .qux (Safe.bespoke Gadget.string quxControl "What is qux?")
+        |> Safe.endRecord
+        |> Safe.toForm FormUpdatedItself
 
 
 
@@ -113,9 +79,9 @@ form =
 -}
 
 
-barControl : Control.Control FormMsg AppMsg String
+barControl : Safe.Safe FormMsg AppMsg String
 barControl =
-    Control.new
+    Safe.new
         { modelGadget = Gadget.string
         , msgGadget = Gadget.string
         , outputGadget = Gadget.string
@@ -142,9 +108,9 @@ barControl =
         }
 
 
-quxControl : Control.Control FormMsg AppMsg String
+quxControl : Safe.Safe FormMsg AppMsg String
 quxControl =
-    Control.new
+    Safe.new
         { modelGadget = Gadget.string
         , msgGadget = Gadget.string
         , outputGadget = Gadget.string
@@ -214,7 +180,7 @@ init : () -> ( AppModel, Cmd AppMsg )
 init flags =
     let
         ( formModel, formCmd ) =
-            form.init
+            safeForm.init
     in
     ( { form = formModel }
     , formCmd
@@ -227,7 +193,7 @@ update msg model =
         FormUpdatedItself formMsg ->
             let
                 ( formModel, formCmd ) =
-                    form.update formMsg model.form
+                    safeForm.update formMsg model.form
             in
             ( { form = formModel }
             , formCmd
@@ -236,7 +202,7 @@ update msg model =
         QuxSentMsgToApp string ->
             let
                 formModel =
-                    form.notify (AppSentMsgToForm string) model.form
+                    safeForm.notify (AppSentMsgToForm string) model.form
             in
             ( { form = formModel }
             , Cmd.none
@@ -248,6 +214,6 @@ view model =
     { title = "Form 2 demo"
     , body =
         [ H.main_ []
-            [ form.view model.form ]
+            [ safeForm.view model.form ]
         ]
     }
