@@ -17,8 +17,13 @@ tools =
 
 
 label : String -> IR.Gadget a -> IR.Gadget a
-label l gadget =
-    tools.attach "label" Gadget.string l gadget
+label labelText gadget =
+    tools.attach "label" Gadget.string labelText gadget
+
+
+override : String -> IR.Gadget a -> IR.Gadget a
+override overrideId gadget =
+    tools.attach "override" Gadget.string overrideId gadget
 
 
 type Msg formMsg
@@ -66,6 +71,30 @@ type alias Form formMsg appMsg output =
     }
 
 
+type FormBuilder formMsg appMsg output
+    = FormBuilder (Config formMsg appMsg output)
+
+
+type alias Config formMsg appMsg output =
+    { bool : InternalControl formMsg appMsg
+    , int : InternalControl formMsg appMsg
+    , float : InternalControl formMsg appMsg
+    , char : InternalControl formMsg appMsg
+    , string : InternalControl formMsg appMsg
+    , overrides : Dict String (InternalControl formMsg appMsg)
+    , viewFeedback : String -> H.Html appMsg
+    , viewControl : Bool -> List (H.Html appMsg) -> List (H.Html appMsg)
+    , viewTopLevel :
+        { switchActiveField : Int -> appMsg
+        , activeField : Int
+        , fieldViews : List (H.Html appMsg)
+        , result : Result (Set Int) output
+        }
+        -> List (H.Html appMsg)
+    , msgToAppMsg : Msg formMsg -> appMsg
+    }
+
+
 type Control model controlMsg formMsg appMsg output
     = Control
         { modelGadget : IR.Gadget model
@@ -91,50 +120,9 @@ type alias InternalControl formMsg appMsg =
     , notify : formMsg -> Value -> Value
     , view : String -> Value -> H.Html (Send Value formMsg appMsg)
     , subscriptions : Value -> Sub (Send Value formMsg appMsg)
-    , layout : List UI
     , submit : Path -> Value -> Result (List Error) Value
+    , layout : List UI
     }
-
-
-type alias Config formMsg appMsg output =
-    { bool : InternalControl formMsg appMsg
-    , int : InternalControl formMsg appMsg
-    , float : InternalControl formMsg appMsg
-    , char : InternalControl formMsg appMsg
-    , string : InternalControl formMsg appMsg
-    , overrides : Dict String (InternalControl formMsg appMsg)
-    , viewFeedback : String -> H.Html appMsg
-    , viewControl : Bool -> List (H.Html appMsg) -> List (H.Html appMsg)
-    , viewTopLevel :
-        { switchActiveField : Int -> appMsg
-        , activeField : Int
-        , fieldViews : List (H.Html appMsg)
-        , result : Result (Set Int) output
-        }
-        -> List (H.Html appMsg)
-    , msgToAppMsg : Msg formMsg -> appMsg
-    }
-
-
-type FormBuilder formMsg appMsg output
-    = FormBuilder
-        { bool : InternalControl formMsg appMsg
-        , int : InternalControl formMsg appMsg
-        , float : InternalControl formMsg appMsg
-        , char : InternalControl formMsg appMsg
-        , string : InternalControl formMsg appMsg
-        , viewFeedback : String -> H.Html appMsg
-        , viewControl : Bool -> List (H.Html appMsg) -> List (H.Html appMsg)
-        , viewTopLevel :
-            { switchActiveField : Int -> appMsg
-            , activeField : Int
-            , fieldViews : List (H.Html appMsg)
-            , result : Result (Set.Set Int) output
-            }
-            -> List (H.Html appMsg)
-        , overrides : Dict String (InternalControl formMsg appMsg)
-        , msgToAppMsg : Msg formMsg -> appMsg
-        }
 
 
 type UI
@@ -261,41 +249,70 @@ init :
     -> Type
     -> ( Model, Cmd appMsg )
 init config path type_ =
-    case type_ of
-        UnitType metadata ->
-            ( Unit, Cmd.none )
-
-        IntType metadata ->
+    let
+        makePrimitive primitive control =
             let
                 ( mdl, cmd ) =
-                    config.int.init
+                    control.init
             in
-            ( Primitive IntPrimitive mdl
+            ( Primitive primitive mdl
             , Cmd.map (msgMapper config path) cmd
             )
+    in
+    case
+        tools.extract type_
+            |> tools.decode "override" Gadget.string
+            |> Maybe.andThen
+                (\id ->
+                    Dict.get id config.overrides
+                        |> Maybe.map (Tuple.pair id)
+                )
+    of
+        Just ( id, control ) ->
+            makePrimitive (OverrideType id) control
 
-        RecordType metadata fields ->
-            let
-                ( out, cmds ) =
-                    List.foldr
-                        (\( thisFieldName, thisField ) ( prevFields, prevCmds ) ->
-                            let
-                                ( mdl, cmd ) =
-                                    init config (thisFieldName :: path) thisField
-                            in
-                            ( mdl :: prevFields
-                            , cmd :: prevCmds
-                            )
-                        )
-                        ( [], [] )
-                        fields
-            in
-            ( Record 0 out
-            , Cmd.batch cmds
-            )
+        Nothing ->
+            case type_ of
+                UnitType _ ->
+                    ( Unit, Cmd.none )
 
-        _ ->
-            Debug.todo "init"
+                IntType _ ->
+                    makePrimitive IntPrimitive config.int
+
+                FloatType _ ->
+                    makePrimitive FloatPrimitive config.float
+
+                StringType _ ->
+                    makePrimitive StringPrimitive config.string
+
+                CharType _ ->
+                    makePrimitive CharPrimitive config.char
+
+                BoolType _ ->
+                    makePrimitive BoolPrimitive config.bool
+
+                RecordType _ fields ->
+                    let
+                        ( out, cmds ) =
+                            List.foldr
+                                (\( thisFieldName, thisField ) ( prevFields, prevCmds ) ->
+                                    let
+                                        ( mdl, cmd ) =
+                                            init config (thisFieldName :: path) thisField
+                                    in
+                                    ( mdl :: prevFields
+                                    , cmd :: prevCmds
+                                    )
+                                )
+                                ( [], [] )
+                                fields
+                    in
+                    ( Record 0 out
+                    , Cmd.batch cmds
+                    )
+
+                _ ->
+                    Debug.todo "init"
 
 
 load config path type_ output =
@@ -315,6 +332,28 @@ msgMapper config path msg =
             toApp
 
 
+lookupControl : PrimitiveType -> Config formMsg appMsg output -> Maybe (InternalControl formMsg appMsg)
+lookupControl primitiveType config =
+    case primitiveType of
+        IntPrimitive ->
+            Just config.int
+
+        StringPrimitive ->
+            Just config.string
+
+        CharPrimitive ->
+            Just config.char
+
+        FloatPrimitive ->
+            Just config.float
+
+        BoolPrimitive ->
+            Just config.bool
+
+        OverrideType id ->
+            Dict.get id config.overrides
+
+
 update :
     Config formMsg appMsg output
     -> Path
@@ -327,27 +366,32 @@ update config modelPath type_ msg model =
         ( Unit, _ ) ->
             ( Unit, Cmd.none )
 
-        ( Primitive IntPrimitive controlModel, _ ) ->
-            case msg of
-                FormMsg formMsg ->
-                    ( Primitive IntPrimitive (config.int.notify formMsg controlModel)
-                    , Cmd.none
-                    )
+        ( Primitive primitiveType controlModel, _ ) ->
+            case lookupControl primitiveType config of
+                Just control ->
+                    case msg of
+                        FormMsg formMsg ->
+                            ( Primitive primitiveType (control.notify formMsg controlModel)
+                            , Cmd.none
+                            )
 
-                ControlMsg msgPath controlMsg ->
-                    if msgPath == modelPath then
-                        let
-                            ( newControlModel, controlCmd ) =
-                                config.int.update controlMsg controlModel
-                        in
-                        ( Primitive IntPrimitive newControlModel
-                        , Cmd.map (msgMapper config modelPath) controlCmd
-                        )
+                        ControlMsg msgPath controlMsg ->
+                            if msgPath == modelPath then
+                                let
+                                    ( newControlModel, controlCmd ) =
+                                        control.update controlMsg controlModel
+                                in
+                                ( Primitive primitiveType newControlModel
+                                , Cmd.map (msgMapper config modelPath) controlCmd
+                                )
 
-                    else
-                        ( model, Cmd.none )
+                            else
+                                ( model, Cmd.none )
 
-        ( Record selected fields, RecordType metadata fieldTypes ) ->
+                Nothing ->
+                    ( model, Cmd.none )
+
+        ( Record selected fields, RecordType _ fieldTypes ) ->
             let
                 ( newFields, cmds ) =
                     List.Extra.zip fieldTypes fields
@@ -388,22 +432,23 @@ view config path type_ model =
 
         ( Primitive primitive primitiveModel, primitiveType ) ->
             let
-                label_ metadata =
-                    tools.decode "label" Gadget.string metadata
+                label_ =
+                    tools.extract primitiveType
+                        |> tools.decode "label" Gadget.string
                         |> Maybe.withDefault id
             in
-            case ( primitive, primitiveType ) of
-                ( IntPrimitive, IntType metadata ) ->
+            case lookupControl primitive config of
+                Just control ->
                     config.viewControl False
-                        [ H.label [ HA.for id ] [ H.text (label_ metadata) ]
-                        , config.int.view id primitiveModel
+                        [ H.label [ HA.for id ] [ H.text label_ ]
+                        , control.view id primitiveModel
                             |> H.map (msgMapper config path)
                         ]
 
-                _ ->
-                    Debug.todo "view primitive"
+                Nothing ->
+                    [ H.text "view error: control not found" ]
 
-        ( Record selected fieldModels, RecordType metadata fieldTypes ) ->
+        ( Record _ fieldModels, RecordType metadata fieldTypes ) ->
             let
                 label_ =
                     tools.decode "label" Gadget.string metadata
@@ -443,71 +488,6 @@ withOverride id controlBuilder (FormBuilder builder) =
                 controlBuilder
     in
     FormBuilder { builder | overrides = Dict.insert id toControl builder.overrides }
-
-
-withIntControl :
-    Control model controlMsg formMsg appMsg Int
-    -> FormBuilder formMsg appMsg output
-    -> FormBuilder formMsg appMsg output
-withIntControl control (FormBuilder builder) =
-    FormBuilder
-        { builder
-            | int =
-                buildControl
-                    control
-        }
-
-
-withFloatControl :
-    Control model controlMsg formMsg appMsg Float
-    -> FormBuilder formMsg appMsg output
-    -> FormBuilder formMsg appMsg output
-withFloatControl control (FormBuilder builder) =
-    FormBuilder
-        { builder
-            | float =
-                buildControl
-                    control
-        }
-
-
-withStringControl :
-    Control model controlMsg formMsg appMsg String
-    -> FormBuilder formMsg appMsg output
-    -> FormBuilder formMsg appMsg output
-withStringControl control (FormBuilder builder) =
-    FormBuilder
-        { builder
-            | string =
-                buildControl
-                    control
-        }
-
-
-withCharControl :
-    Control model controlMsg formMsg appMsg Char
-    -> FormBuilder formMsg appMsg output
-    -> FormBuilder formMsg appMsg output
-withCharControl control (FormBuilder builder) =
-    FormBuilder
-        { builder
-            | char =
-                buildControl
-                    control
-        }
-
-
-withBoolControl :
-    Control model controlMsg formMsg appMsg Bool
-    -> FormBuilder formMsg appMsg output
-    -> FormBuilder formMsg appMsg output
-withBoolControl control (FormBuilder builder) =
-    FormBuilder
-        { builder
-            | bool =
-                buildControl
-                    control
-        }
 
 
 withControlView :
@@ -814,6 +794,48 @@ new args =
         , view = args.view
         , subscriptions = args.subscriptions
         , submit = args.submit
+        , layout = [ Label, Input, Feedback ]
+        }
+
+
+control_notify :
+    (formMsg -> model -> model)
+    -> Control model controlMsg formMsg appMsg output
+    -> Control model controlMsg formMsg appMsg output
+control_notify f (Control control) =
+    Control
+        { modelGadget = control.modelGadget
+        , msgGadget = control.msgGadget
+        , outputGadget = control.outputGadget
+        , placeholder = control.placeholder
+        , init = control.init
+        , load = control.load
+        , update = control.update
+        , notify = f
+        , view = control.view
+        , subscriptions = control.subscriptions
+        , submit = control.submit
+        , layout = [ Label, Input, Feedback ]
+        }
+
+
+control_update :
+    (controlMsg -> model -> ( model, Cmd (Send controlMsg formMsg appMsg) ))
+    -> Control model controlMsg formMsg appMsg output
+    -> Control model controlMsg formMsg appMsg output
+control_update f (Control control) =
+    Control
+        { modelGadget = control.modelGadget
+        , msgGadget = control.msgGadget
+        , outputGadget = control.outputGadget
+        , placeholder = control.placeholder
+        , init = control.init
+        , load = control.load
+        , update = f
+        , notify = control.notify
+        , view = control.view
+        , subscriptions = control.subscriptions
+        , submit = control.submit
         , layout = [ Label, Input, Feedback ]
         }
 
