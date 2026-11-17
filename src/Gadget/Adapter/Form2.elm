@@ -59,7 +59,7 @@ type alias Form formMsg appMsg output =
     { init : ( Model, Cmd appMsg )
     , load : output -> Model
     , update : Msg formMsg -> Model -> ( Model, Cmd appMsg )
-    , inject : formMsg -> Model -> Model
+    , notify : formMsg -> Model -> Model
     , view : Model -> H.Html appMsg
     , subscriptions : Model -> Sub appMsg
     , submit : Model -> Result (List Error) output
@@ -75,7 +75,7 @@ type Control model controlMsg formMsg appMsg output
         , init : ( model, Cmd (Send controlMsg formMsg appMsg) )
         , load : output -> model
         , update : controlMsg -> model -> ( model, Cmd (Send controlMsg formMsg appMsg) )
-        , receive : formMsg -> model -> model
+        , notify : formMsg -> model -> model
         , view : String -> model -> H.Html (Send controlMsg formMsg appMsg)
         , subscriptions : model -> Sub (Send controlMsg formMsg appMsg)
         , submit : model -> Result String output
@@ -88,7 +88,7 @@ type alias InternalControl formMsg appMsg =
     , load : Value -> Value
     , placeholder : Value
     , update : Value -> Value -> ( Value, Cmd (Send Value formMsg appMsg) )
-    , receive : formMsg -> Value -> Value
+    , notify : formMsg -> Value -> Value
     , view : String -> Value -> H.Html (Send Value formMsg appMsg)
     , subscriptions : Value -> Sub (Send Value formMsg appMsg)
     , layout : List UI
@@ -231,8 +231,9 @@ endForm gadget (FormBuilder builder) =
         load_ output =
             load config path type_ output
 
-        receive_ formMsg model =
-            receive config path formMsg model
+        notify_ formMsg model =
+            update_ (FormMsg formMsg) model
+                |> Tuple.first
 
         view_ model =
             view config path type_ model
@@ -247,7 +248,7 @@ endForm gadget (FormBuilder builder) =
     { init = init_
     , load = load_
     , update = update_
-    , inject = receive_
+    , notify = notify_
     , view = view_
     , subscriptions = subscriptions_
     , submit = submit_
@@ -329,7 +330,7 @@ update config modelPath type_ msg model =
         ( Primitive IntPrimitive controlModel, _ ) ->
             case msg of
                 FormMsg formMsg ->
-                    ( Primitive IntPrimitive (config.int.receive formMsg controlModel)
+                    ( Primitive IntPrimitive (config.int.notify formMsg controlModel)
                     , Cmd.none
                     )
 
@@ -368,10 +369,6 @@ update config modelPath type_ msg model =
 
         _ ->
             Debug.todo "update"
-
-
-receive config path formMsg model =
-    Debug.todo "inject"
 
 
 view :
@@ -597,9 +594,12 @@ buildControl (Control builder) =
                     ( modelValue
                     , Cmd.none
                     )
-    , receive =
+    , notify =
         \formMsg modelValue ->
-            Debug.log "TODO" modelValue
+            IR.toOutput builder.modelGadget modelValue
+                |> Result.map (builder.notify formMsg)
+                |> Result.map (IR.fromInput builder.modelGadget)
+                |> Result.withDefault modelValue
     , view =
         \id modelValue ->
             Result.map (builder.view id) (IR.toOutput builder.modelGadget modelValue)
@@ -780,7 +780,7 @@ sandbox args =
         , init = ( args.init, Cmd.none )
         , load = args.load
         , update = \msg model -> ( args.update msg model, Cmd.none )
-        , inject = \_ model -> model
+        , notify = \_ model -> model
         , view = \id model -> args.view id model |> H.map ToSelf
         , subscriptions = \_ -> Sub.none
         , submit = args.submit
@@ -795,7 +795,7 @@ new :
     , init : ( model, Cmd (Send controlMsg formMsg appMsg) )
     , load : output -> model
     , update : controlMsg -> model -> ( model, Cmd (Send controlMsg formMsg appMsg) )
-    , inject : formMsg -> model -> model
+    , notify : formMsg -> model -> model
     , view : String -> model -> H.Html (Send controlMsg formMsg appMsg)
     , subscriptions : model -> Sub (Send controlMsg formMsg appMsg)
     , submit : model -> Result String output
@@ -810,7 +810,7 @@ new args =
         , init = args.init
         , load = args.load
         , update = args.update
-        , receive = args.inject
+        , notify = args.notify
         , view = args.view
         , subscriptions = args.subscriptions
         , submit = args.submit
