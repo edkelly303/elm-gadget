@@ -40,7 +40,7 @@ type alias Msg formMsg =
 
 type Model
     = Sum String (Dict String ( Int, Dict String Model ))
-    | Collection Type (Dict String Model)
+    | Collection (List Model)
     | Record Int (List Model)
     | Pair Model Model
     | Triple Model Model Model
@@ -255,6 +255,9 @@ init config path type_ =
                     , Cmd.batch [ aCmd, bCmd, cCmd ]
                     )
 
+                ListType _ _ ->
+                    ( Collection [], Cmd.none )
+
                 RecordType _ fields ->
                     let
                         ( out, cmds ) =
@@ -280,10 +283,10 @@ init config path type_ =
 
 
 load : Config formMsg appMsg output -> Type -> Value -> Model
-load config type_ output =
+load config type_ value =
     let
         loadPrimitive primitive control =
-            Primitive primitive (control.load output)
+            Primitive primitive (control.load value)
     in
     case
         tools.extract type_
@@ -298,45 +301,48 @@ load config type_ output =
             loadPrimitive (OtherPrimitive id) control
 
         Nothing ->
-            case type_ of
-                UnitType _ ->
+            case ( value, type_ ) of
+                ( UnitValue, UnitType _ ) ->
                     Unit
 
-                IntType _ ->
+                ( IntValue _, IntType _ ) ->
                     loadPrimitive IntPrimitive config.int
 
-                FloatType _ ->
+                ( FloatValue _, FloatType _ ) ->
                     loadPrimitive FloatPrimitive config.float
 
-                StringType _ ->
+                ( StringValue _, StringType _ ) ->
                     loadPrimitive StringPrimitive config.string
 
-                CharType _ ->
+                ( CharValue _, CharType _ ) ->
                     loadPrimitive CharPrimitive config.char
 
-                BoolType _ ->
+                ( BoolValue _, BoolType _ ) ->
                     loadPrimitive BoolPrimitive config.bool
 
-                PairType _ aType bType ->
+                ( PairValue aValue bValue, PairType _ aType bType ) ->
                     Pair
-                        (load config aType output)
-                        (load config bType output)
+                        (load config aType aValue)
+                        (load config bType bValue)
 
-                TripleType _ aType bType cType ->
+                ( TripleValue aValue bValue cValue, TripleType _ aType bType cType ) ->
                     Triple
-                        (load config aType output)
-                        (load config bType output)
-                        (load config cType output)
+                        (load config aType aValue)
+                        (load config bType bValue)
+                        (load config cType cValue)
 
-                RecordType _ fields ->
+                ( ListValue itemValues, ListType _ itemType ) ->
+                    Collection (List.map (load config itemType) itemValues)
+
+                ( RecordValue fieldValues, RecordType _ fieldTypes ) ->
                     let
                         out =
                             List.foldr
-                                (\( _, thisField ) prevFields ->
-                                    load config thisField output :: prevFields
+                                (\( ( _, thisFieldValue ), ( _, thisFieldType ) ) prevFields ->
+                                    load config thisFieldType thisFieldValue :: prevFields
                                 )
                                 []
-                                fields
+                                (List.Extra.zip fieldValues fieldTypes)
                     in
                     Record 0 out
 
@@ -430,6 +436,18 @@ update config modelPath type_ msg model =
             , Cmd.batch [ aCmd, bCmd, cCmd ]
             )
 
+        ( Collection itemModels, ListType _ itemType ) ->
+            let
+                ( newItemModels, cmds ) =
+                    List.indexedMap
+                        (\idx itemModel ->
+                            update config (String.fromInt idx :: modelPath) itemType msg itemModel
+                        )
+                        itemModels
+                        |> List.unzip
+            in
+            ( Collection newItemModels, Cmd.batch cmds )
+
         ( Record selected fields, RecordType _ fieldTypes ) ->
             let
                 ( newFields, cmds ) =
@@ -507,6 +525,16 @@ view config path type_ model =
             in
             optionalLabel :: fields
 
+        ( Collection itemModels, ListType _ itemType ) ->
+            requiredLabel
+                :: List.concat
+                    (List.indexedMap
+                        (\idx itemModel ->
+                            view config (String.fromInt idx :: path) itemType itemModel
+                        )
+                        itemModels
+                    )
+
         ( Pair aModel bModel, PairType _ aType bType ) ->
             optionalLabel
                 :: List.concat
@@ -559,10 +587,9 @@ subscriptions config path type_ model =
                 |> List.map (\( fieldModel, ( fieldName, fieldType ) ) -> subscriptions config (fieldName :: path) fieldType fieldModel)
                 |> Sub.batch
 
-        ( Collection _ itemModels, ListType _ itemType ) ->
+        ( Collection itemModels, ListType _ itemType ) ->
             itemModels
-                |> Dict.map (\itemName itemModel -> subscriptions config (itemName :: path) itemType itemModel)
-                |> Dict.values
+                |> List.indexedMap (\idx itemModel -> subscriptions config (String.fromInt idx :: path) itemType itemModel)
                 |> Sub.batch
 
         _ ->
@@ -667,6 +694,22 @@ submitHelp config path type_ model =
                     submitHelp config ("2" :: path) cType c
             in
             ( TripleValue aValue bValue cValue, aErrs ++ bErrs ++ cErrs )
+
+        ( Collection itemModels, ListType _ itemType ) ->
+            let
+                ( itemValues, errors ) =
+                    List.indexedMap
+                        (\idx itemModel ->
+                            let
+                                ( value, errs ) =
+                                    submitHelp config (String.fromInt idx :: path) itemType itemModel
+                            in
+                            ( value, errs )
+                        )
+                        itemModels
+                        |> List.unzip
+            in
+            ( ListValue itemValues, List.concat errors )
 
         ( Record _ fieldModels, RecordType _ fieldTypes ) ->
             let
