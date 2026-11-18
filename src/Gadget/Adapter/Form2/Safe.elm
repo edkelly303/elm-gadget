@@ -34,24 +34,29 @@ sendToForm =
     C.toForm
 
 
-pure : G.Gadget output -> Safe formMsg appMsg output
-pure gadget =
+fromGadget : G.Gadget output -> Safe formMsg appMsg output
+fromGadget gadget =
     Safe ( gadget, [] )
+
+
+toGadget : Safe formMsg appMsg output -> G.Gadget output
+toGadget (Safe ( gadget, _ )) =
+    gadget
 
 
 int : Safe formMsg appMsg Int
 int =
-    pure G.int
+    fromGadget G.int
 
 
 float : Safe formMsg appMsg Float
 float =
-    pure G.float
+    fromGadget G.float
 
 
 string : Safe formMsg appMsg String
 string =
-    pure G.string
+    fromGadget G.string
 
 
 record : output -> RecordBuilder input output formMsg appMsg
@@ -105,13 +110,13 @@ new :
     , id : String
     }
     -> Safe formMsg appMsg output
-new builder =
+new args =
     let
         control =
-            C.new builder
+            C.new args
     in
     Safe
-        ( builder.outputGadget
+        ( args.outputGadget
             |> F.useControl control
         , [ eraseOutputType control ]
         )
