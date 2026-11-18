@@ -12,7 +12,7 @@ module Gadget.Adapter.Form2 exposing
 
 -}
 
-import Dict exposing (Dict)
+import Dict
 import Gadget
 import Gadget.Adapter.Form2.Control as Control
 import Gadget.Adapter.Form2.Internal as Internal exposing (..)
@@ -826,7 +826,7 @@ submitHelp config path type_ model =
 
                 Nothing ->
                     ( UnitValue
-                    , [ { path = path, error = "control not found" } ]
+                    , [ { path = path, error = "uh oh, control not found in submit" } ]
                     )
 
         ( Pair a b, PairType _ aType bType ) ->
@@ -884,8 +884,43 @@ submitHelp config path type_ model =
             in
             ( RecordValue namedValues, List.concat errors )
 
+        ( Sum selected variantModels, CustomType _ firstNamedVariantType restNamedVariantTypes ) ->
+            let
+                maybe =
+                    List.Extra.zip variantModels (firstNamedVariantType :: restNamedVariantTypes)
+                        |> List.Extra.getAt selected
+                        |> Maybe.map
+                            (\( thisVariantModel, ( thisVariantName, thisVariantType ) ) ->
+                                let
+                                    argModelsAndTypes =
+                                        List.Extra.zip
+                                            thisVariantModel
+                                            (variantTypeToArgsList thisVariantType)
+                                in
+                                List.indexedMap
+                                    (\argIdx ( thisArgModel, thisArgType ) ->
+                                        submitHelp config (String.fromInt argIdx :: thisVariantName :: path) thisArgType thisArgModel
+                                    )
+                                    argModelsAndTypes
+                                    |> List.unzip
+                                    |> Tuple.mapFirst
+                                        (argsListToVariantValue
+                                            -- pretty sure this can't fail
+                                            >> Result.withDefault Variant0Value
+                                        )
+                                    |> Tuple.mapSecond List.concat
+                                    |> (\( value, errs ) -> ( thisVariantName, value, errs ))
+                            )
+            in
+            case maybe of
+                Just ( variantName, variantValue, errors ) ->
+                    ( CustomValue selected ( variantName, variantValue ), errors )
+
+                Nothing ->
+                    ( UnitValue, [ { path = path, error = "uh oh, variant not found at selected index in submit" } ] )
+
         _ ->
-            Debug.todo "submitHelp"
+            ( UnitValue, [ { path = path, error = "uh oh, type/value mismatch in submit" } ] )
 
 
 msgMapper : Config formMsg appMsg output -> Path -> Send Value formMsg appMsg -> appMsg
