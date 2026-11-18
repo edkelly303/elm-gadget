@@ -186,7 +186,12 @@ new builder =
                     |> H.map controlMsgToValue
         , layout =
             [ Label, Input, Feedback ]
-        , subscriptions = \_ -> Sub.none
+        , subscriptions =
+            \modelValue ->
+                IR.toOutput builder.modelGadget modelValue
+                    |> Result.map builder.subscriptions
+                    |> Result.withDefault Sub.none
+                    |> Sub.map controlMsgToValue
         , submit =
             \path modelValue ->
                 IR.toOutput builder.modelGadget modelValue
