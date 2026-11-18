@@ -749,21 +749,21 @@ subscriptions config path type_ model =
                 |> List.indexedMap (\idx itemModel -> subscriptions config (String.fromInt idx :: path) itemType itemModel)
                 |> Sub.batch
 
+        ( Sum _ variantModels, CustomType _ firstNamedVariantType restNamedVariantTypes ) ->
+            List.Extra.zip variantModels (firstNamedVariantType :: restNamedVariantTypes)
+                |> List.concatMap
+                    (\( argModels, ( variantName, variantType ) ) ->
+                        argModels
+                            |> List.Extra.zip (variantTypeToArgsList variantType)
+                            |> List.indexedMap
+                                (\idx ( argType, argModel ) ->
+                                    subscriptions config (String.fromInt idx :: variantName :: path) argType argModel
+                                )
+                    )
+                |> Sub.batch
+
         _ ->
-            -- ( Sum _ variantModels, CustomType _ ( firstVariantName, firstVariantType ) restNamedVariantTypes ) ->
-            --     variantModels
-            --         |> Dict.toList
-            --         |> List.concatMap
-            --             (\( variantName, ( _, argModels ) ) ->
-            --                 argModels
-            --                     |> Dict.toList
-            --                     |> List.map
-            --                         (\( argName, argModel ) ->
-            --                             subscriptions config (argName :: variantName :: path) argModel
-            --                         )
-            --             )
-            --         |> Sub.batch
-            Debug.todo "subscriptions"
+            Sub.none
 
 
 submit : Config formMsg msg output -> Model -> Result (List Error) output
