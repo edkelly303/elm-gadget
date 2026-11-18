@@ -678,8 +678,37 @@ view config path type_ model =
                     , view config ("2" :: path) cType cModel
                     ]
 
+        ( Sum selected variantModels, CustomType _ firstNamedVariantType restNamedVariantTypes ) ->
+            let
+                namedVariantTypesAndModels =
+                    List.Extra.zip
+                        (firstNamedVariantType :: restNamedVariantTypes)
+                        variantModels
+            in
+            case List.Extra.getAt selected namedVariantTypesAndModels of
+                Just ( ( variantName, variantType ), argModels ) ->
+                    let
+                        argTypes =
+                            variantTypeToArgsList variantType
+
+                        argTypesAndModels =
+                            List.Extra.zip argTypes argModels
+
+                        args =
+                            List.indexedMap
+                                (\idx ( argType, argModel ) ->
+                                    view config (String.fromInt idx :: variantName :: path) argType argModel
+                                )
+                                argTypesAndModels
+                                |> List.concat
+                    in
+                    optionalLabel :: args
+
+                Nothing ->
+                    [ H.text "uh oh! invalid variant selection in view function" ]
+
         _ ->
-            Debug.todo "view"
+            [ H.text "uh oh! type mismatch in view function" ]
 
 
 subscriptions : Config formMsg appMsg output -> Path -> Type -> Model -> Sub appMsg
