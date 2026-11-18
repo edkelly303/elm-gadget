@@ -16,7 +16,7 @@ import Dict exposing (Dict)
 import Gadget
 import Gadget.Adapter.Form2.Control as Control
 import Gadget.Adapter.Form2.Internal as Internal exposing (..)
-import Gadget.IR as IR exposing (Error, Type(..), Value(..))
+import Gadget.IR as IR exposing (Error, Type(..), Value(..), VariantType(..), VariantValue(..))
 import Html as H
 import Html.Attributes as HA
 import List.Extra
@@ -39,7 +39,7 @@ type alias Msg formMsg =
 
 
 type Model
-    = Sum String (Dict String ( Int, Dict String Model ))
+    = Sum Int (List (List Model))
     | Collection (List Model)
     | Record Int (List Model)
     | Pair Model Model
@@ -258,28 +258,65 @@ init config path type_ =
                 ListType _ _ ->
                     ( Collection [], Cmd.none )
 
-                RecordType _ fields ->
+                RecordType _ namedFieldTypes ->
                     let
-                        ( out, cmds ) =
+                        ( fieldModels, cmds ) =
                             List.foldr
-                                (\( thisFieldName, thisField ) ( prevFields, prevCmds ) ->
+                                (\( thisFieldName, thisFieldType ) ( prevFieldModels, prevCmds ) ->
                                     let
-                                        ( mdl, cmd ) =
-                                            init config (thisFieldName :: path) thisField
+                                        ( thisFieldModel, cmd ) =
+                                            init config (thisFieldName :: path) thisFieldType
                                     in
-                                    ( mdl :: prevFields
+                                    ( thisFieldModel :: prevFieldModels
                                     , cmd :: prevCmds
                                     )
                                 )
                                 ( [], [] )
-                                fields
+                                namedFieldTypes
                     in
-                    ( Record 0 out
+                    ( Record 0 fieldModels
                     , Cmd.batch cmds
                     )
 
-                _ ->
-                    Debug.todo "init"
+                CustomType _ firstNamedVariantType restNamedVariantTypes ->
+                    let
+                        namedVariantTypes =
+                            firstNamedVariantType :: restNamedVariantTypes
+
+                        ( variantModels, cmds ) =
+                            List.foldr
+                                (\( thisVariantName, thisVariantType ) ( prevVariantModels, prevVariantCmds ) ->
+                                    let
+                                        thisVariantArgTypes =
+                                            variantTypeToArgsList thisVariantType
+
+                                        ( thisVariantModel, thisVariantCmds ) =
+                                            List.Extra.indexedFoldl
+                                                (\idx argType ( prevArgModels, prevArgCmds ) ->
+                                                    let
+                                                        ( argModel, argCmd ) =
+                                                            init config (String.fromInt idx :: thisVariantName :: path) argType
+                                                    in
+                                                    ( argModel :: prevArgModels
+                                                    , argCmd :: prevArgCmds
+                                                    )
+                                                )
+                                                ( [], [] )
+                                                thisVariantArgTypes
+                                    in
+                                    ( List.reverse thisVariantModel :: prevVariantModels
+                                    , thisVariantCmds ++ prevVariantCmds
+                                    )
+                                )
+                                ( [], [] )
+                                namedVariantTypes
+                    in
+                    ( Sum 0 variantModels
+                    , Cmd.batch cmds
+                    )
+
+                LazyType _ thunk ->
+                    init config path (thunk ())
 
 
 load : Config formMsg appMsg output -> Type -> Value -> Model
@@ -816,3 +853,73 @@ pathIsAncestorOfHelp descendant ancestor =
 
         ( _ :: _, [] ) ->
             True
+
+
+argsListToVariantValue : List Value -> Result String IR.VariantValue
+argsListToVariantValue l =
+    case l of
+        [] ->
+            Ok IR.Variant0Value
+
+        [ arg1 ] ->
+            Ok <| IR.Variant1Value arg1
+
+        [ arg1, arg2 ] ->
+            Ok <| IR.Variant2Value arg1 arg2
+
+        [ arg1, arg2, arg3 ] ->
+            Ok <| IR.Variant3Value arg1 arg2 arg3
+
+        [ arg1, arg2, arg3, arg4 ] ->
+            Ok <| IR.Variant4Value arg1 arg2 arg3 arg4
+
+        [ arg1, arg2, arg3, arg4, arg5 ] ->
+            Ok <| IR.Variant5Value arg1 arg2 arg3 arg4 arg5
+
+        _ ->
+            Err "Variant has too many args"
+
+
+variantTypeToArgsList : VariantType -> List Type
+variantTypeToArgsList v =
+    case v of
+        Variant0Type ->
+            []
+
+        Variant1Type arg1 ->
+            [ arg1 ]
+
+        Variant2Type arg1 arg2 ->
+            [ arg1, arg2 ]
+
+        Variant3Type arg1 arg2 arg3 ->
+            [ arg1, arg2, arg3 ]
+
+        Variant4Type arg1 arg2 arg3 arg4 ->
+            [ arg1, arg2, arg3, arg4 ]
+
+        Variant5Type arg1 arg2 arg3 arg4 arg5 ->
+            [ arg1, arg2, arg3, arg4, arg5 ]
+
+
+variantValueToArgsList : VariantValue -> List ( String, Value )
+variantValueToArgsList v =
+    List.indexedMap (\idx item -> ( String.fromInt idx, item )) <|
+        case v of
+            Variant0Value ->
+                []
+
+            Variant1Value arg1 ->
+                [ arg1 ]
+
+            Variant2Value arg1 arg2 ->
+                [ arg1, arg2 ]
+
+            Variant3Value arg1 arg2 arg3 ->
+                [ arg1, arg2, arg3 ]
+
+            Variant4Value arg1 arg2 arg3 arg4 ->
+                [ arg1, arg2, arg3, arg4 ]
+
+            Variant5Value arg1 arg2 arg3 arg4 arg5 ->
+                [ arg1, arg2, arg3, arg4, arg5 ]
