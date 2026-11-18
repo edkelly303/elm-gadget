@@ -8,6 +8,7 @@ import Html as H
 import Html.Attributes as HA
 import Html.Events as HE
 import Task
+import Time
 
 
 
@@ -58,9 +59,10 @@ type alias Foo =
 
 safeForm : Form.Form FormMsg AppMsg Foo
 safeForm =
-    Control.record Foo
+    Control.record (\bar qux _ -> Foo bar qux)
         |> Control.field "bar" .bar (barControl |> Control.label "What is bar?")
         |> Control.field "qux" .qux (quxControl |> Control.label "What is qux?")
+        |> Control.field "clock" (always 0) (clockControl |> Control.label "time!")
         |> Control.endRecord
         |> Control.toForm FormUpdatedItself
 
@@ -76,6 +78,22 @@ safeForm =
 
 
 -}
+
+
+clockControl =
+    Control.element
+        { modelGadget = Gadget.int
+        , msgGadget = Gadget.unit
+        , outputGadget = Gadget.int
+        , id = "clock"
+        , init = ( 0, Cmd.none )
+        , load = identity
+        , update = \() model -> ( model + 1, Cmd.none )
+        , view = \id model -> H.text ("Seconds: " ++ String.fromInt model)
+        , subscriptions = \model -> Time.every 1000 (always ())
+        , submit = Ok
+        , placeholder = 0
+        }
 
 
 barControl : Control.Safe FormMsg AppMsg String
@@ -171,7 +189,7 @@ main =
         { init = init
         , update = update
         , view = view
-        , subscriptions = always Sub.none
+        , subscriptions = subscriptions
         }
 
 
@@ -216,3 +234,7 @@ view model =
             [ safeForm.view model.form ]
         ]
     }
+
+
+subscriptions model =
+    safeForm.subscriptions model.form
