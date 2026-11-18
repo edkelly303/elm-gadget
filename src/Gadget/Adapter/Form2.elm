@@ -741,7 +741,10 @@ subscriptions config path type_ model =
 
         ( Record _ fieldModels, RecordType _ fieldTypes ) ->
             List.Extra.zip fieldModels fieldTypes
-                |> List.map (\( fieldModel, ( fieldName, fieldType ) ) -> subscriptions config (fieldName :: path) fieldType fieldModel)
+                |> List.map
+                    (\( fieldModel, ( fieldName, fieldType ) ) ->
+                        subscriptions config (fieldName :: path) fieldType fieldModel
+                    )
                 |> Sub.batch
 
         ( Collection itemModels, ListType _ itemType ) ->
