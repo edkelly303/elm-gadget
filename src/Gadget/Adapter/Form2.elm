@@ -117,7 +117,7 @@ new msgToAppMsg outputGadget =
                     inner
                 ]
         , overrides = Dict.empty
-        , outputType = IR.irType outputGadget
+        , outputGadget = outputGadget
         , msgToAppMsg = msgToAppMsg
         }
 
@@ -127,13 +127,16 @@ end :
     -> Form formMsg appMsg output
 end (Builder config) =
     let
+        outputType =
+            IR.irType config.outputGadget
+
         path =
             []
 
         init_ =
             let
                 ( model, cmd ) =
-                    init config path config.outputType
+                    init config path outputType
             in
             ( model
             , cmd
@@ -142,28 +145,30 @@ end (Builder config) =
         update_ msg model =
             let
                 ( newModel, cmd ) =
-                    update config path config.outputType msg model
+                    update config path outputType msg model
             in
             ( newModel
             , cmd
             )
 
         load_ output =
-            load config path config.outputType output
+            output
+                |> IR.fromInput config.outputGadget
+                |> load config outputType
 
         notify_ formMsg model =
             update_ (FormMsg formMsg) model
                 |> Tuple.first
 
         view_ model =
-            view config path config.outputType model
+            view config path outputType model
                 |> H.form []
 
         subscriptions_ model =
             subscriptions config path model
 
         submit_ model =
-            submit config path config.outputType model
+            submit config path outputType model
     in
     { init = init_
     , load = load_
@@ -247,9 +252,62 @@ init config path type_ =
                     Debug.todo "init"
 
 
-load : a -> b -> c -> d -> e
-load config path type_ output =
-    Debug.todo "load"
+load : Config formMsg appMsg output -> Type -> Value -> Model
+load config type_ output =
+    let
+        loadPrimitive primitive control =
+            let
+                mdl =
+                    control.load output
+            in
+            Primitive primitive mdl
+    in
+    case
+        tools.extract type_
+            |> tools.decode "useControl" Gadget.string
+            |> Maybe.andThen
+                (\id ->
+                    Dict.get id config.overrides
+                        |> Maybe.map (Tuple.pair id)
+                )
+    of
+        Just ( id, control ) ->
+            loadPrimitive (OtherPrimitive id) control
+
+        Nothing ->
+            case type_ of
+                UnitType _ ->
+                    Unit
+
+                IntType _ ->
+                    loadPrimitive IntPrimitive config.int
+
+                FloatType _ ->
+                    loadPrimitive FloatPrimitive config.float
+
+                StringType _ ->
+                    loadPrimitive StringPrimitive config.string
+
+                CharType _ ->
+                    loadPrimitive CharPrimitive config.char
+
+                BoolType _ ->
+                    loadPrimitive BoolPrimitive config.bool
+
+                RecordType _ fields ->
+                    let
+                        out =
+                            List.foldr
+                                (\( _, thisField ) prevFields ->
+                                    load config thisField output :: prevFields
+                                )
+                                []
+                                fields
+                    in
+                    Record 0 out
+
+                _ ->
+                    Debug.todo "init"
 
 
 lookupControl : Primitive -> Config formMsg appMsg output -> Maybe (InternalControl formMsg appMsg)

@@ -61,5 +61,5 @@ type alias Config formMsg appMsg output =
         }
         -> List (H.Html appMsg)
     , msgToAppMsg : Msg formMsg -> appMsg
-    , outputType : IR.Type
+    , outputGadget : IR.Gadget output
     }
