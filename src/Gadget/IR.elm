@@ -181,7 +181,7 @@ For example, here's how [`Gadget.Adapter.Random`](Gadget-Adapter-Random) defines
     irValue =
         tools.get "range" metadata
 
-    irValue --> Just (Gadget.IR.TupleValue (Gadget.IR.IntValue 0) (Gadget.IR.IntValue 10))
+    irValue --> Just (Gadget.IR.PairValue (Gadget.IR.IntValue 0) (Gadget.IR.IntValue 10))
 
     elmValue =
         tools.decode "range" (Gadget.tuple Gadget.int Gadget.int) metadata
