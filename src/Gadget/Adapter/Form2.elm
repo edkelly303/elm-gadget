@@ -154,7 +154,7 @@ end (Builder config) =
         load_ output =
             output
                 |> IR.fromInput config.outputGadget
-                |> load config outputType
+                |> load config path outputType
 
         notify_ formMsg model =
             update_ (FormMsg formMsg) model
@@ -319,8 +319,8 @@ init config path type_ =
                     init config path (thunk ())
 
 
-load : Config formMsg appMsg output -> Type -> Value -> Model
-load config type_ value =
+load : Config formMsg appMsg output -> Path -> Type -> Value -> Model
+load config path type_ value =
     let
         loadPrimitive primitive control =
             Primitive primitive (control.load value)
@@ -359,32 +359,79 @@ load config type_ value =
 
                 ( PairValue aValue bValue, PairType _ aType bType ) ->
                     Pair
-                        (load config aType aValue)
-                        (load config bType bValue)
+                        (load config ("0" :: path) aType aValue)
+                        (load config ("1" :: path) bType bValue)
 
                 ( TripleValue aValue bValue cValue, TripleType _ aType bType cType ) ->
                     Triple
-                        (load config aType aValue)
-                        (load config bType bValue)
-                        (load config cType cValue)
+                        (load config ("0" :: path) aType aValue)
+                        (load config ("1" :: path) bType bValue)
+                        (load config ("2" :: path) cType cValue)
 
                 ( ListValue itemValues, ListType _ itemType ) ->
-                    Collection (List.map (load config itemType) itemValues)
+                    Collection
+                        (List.indexedMap
+                            (\idx itemValue ->
+                                load config (String.fromInt idx :: path) itemType itemValue
+                            )
+                            itemValues
+                        )
 
                 ( RecordValue fieldValues, RecordType _ fieldTypes ) ->
                     let
-                        out =
-                            List.foldr
-                                (\( ( _, thisFieldValue ), ( _, thisFieldType ) ) prevFields ->
-                                    load config thisFieldType thisFieldValue :: prevFields
+                        fieldModels =
+                            List.Extra.indexedFoldl
+                                (\idx ( ( _, thisFieldValue ), ( _, thisFieldType ) ) prevFieldModels ->
+                                    load config (String.fromInt idx :: path) thisFieldType thisFieldValue :: prevFieldModels
                                 )
                                 []
                                 (List.Extra.zip fieldValues fieldTypes)
                     in
-                    Record 0 out
+                    Record 0 (List.reverse fieldModels)
+
+                ( CustomValue selected ( _, thisVariantValue ), CustomType _ firstNamedVariantType restNamedVariantTypes ) ->
+                    let
+                        namedVariantTypes =
+                            firstNamedVariantType :: restNamedVariantTypes
+
+                        variantModels =
+                            List.Extra.indexedFoldl
+                                (\variantIdx ( thisVariantName, thisVariantType ) prevVariantModels ->
+                                    let
+                                        thisVariantArgTypesAndValues =
+                                            List.Extra.zip
+                                                (variantTypeToArgsList thisVariantType)
+                                                (variantValueToArgsList thisVariantValue)
+
+                                        thisVariantModel =
+                                            List.Extra.indexedFoldl
+                                                (\argIdx ( argType, argValue ) prevArgModels ->
+                                                    let
+                                                        argPath =
+                                                            String.fromInt argIdx :: thisVariantName :: path
+
+                                                        argModel =
+                                                            if variantIdx == selected then
+                                                                load config argPath argType argValue
+
+                                                            else
+                                                                init config argPath argType
+                                                                    |> Tuple.first
+                                                    in
+                                                    argModel :: prevArgModels
+                                                )
+                                                []
+                                                thisVariantArgTypesAndValues
+                                    in
+                                    List.reverse thisVariantModel :: prevVariantModels
+                                )
+                                []
+                                namedVariantTypes
+                    in
+                    Sum selected (List.reverse variantModels)
 
                 _ ->
-                    Debug.todo "init"
+                    Unit
 
 
 lookupControl : Primitive -> Config formMsg appMsg output -> Maybe (InternalControl formMsg appMsg)
@@ -902,24 +949,23 @@ variantTypeToArgsList v =
             [ arg1, arg2, arg3, arg4, arg5 ]
 
 
-variantValueToArgsList : VariantValue -> List ( String, Value )
+variantValueToArgsList : VariantValue -> List Value
 variantValueToArgsList v =
-    List.indexedMap (\idx item -> ( String.fromInt idx, item )) <|
-        case v of
-            Variant0Value ->
-                []
+    case v of
+        Variant0Value ->
+            []
 
-            Variant1Value arg1 ->
-                [ arg1 ]
+        Variant1Value arg1 ->
+            [ arg1 ]
 
-            Variant2Value arg1 arg2 ->
-                [ arg1, arg2 ]
+        Variant2Value arg1 arg2 ->
+            [ arg1, arg2 ]
 
-            Variant3Value arg1 arg2 arg3 ->
-                [ arg1, arg2, arg3 ]
+        Variant3Value arg1 arg2 arg3 ->
+            [ arg1, arg2, arg3 ]
 
-            Variant4Value arg1 arg2 arg3 arg4 ->
-                [ arg1, arg2, arg3, arg4 ]
+        Variant4Value arg1 arg2 arg3 arg4 ->
+            [ arg1, arg2, arg3, arg4 ]
 
-            Variant5Value arg1 arg2 arg3 arg4 arg5 ->
-                [ arg1, arg2, arg3, arg4, arg5 ]
+        Variant5Value arg1 arg2 arg3 arg4 arg5 ->
+            [ arg1, arg2, arg3, arg4, arg5 ]
