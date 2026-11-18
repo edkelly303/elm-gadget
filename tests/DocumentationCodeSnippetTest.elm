@@ -498,7 +498,7 @@ tests =
                             irValue__Gadget_IR__MetadataTools_0
                                 |> Expect.equal
                                     (Maybe.Just
-                                        (Gadget.IR.TupleValue
+                                        (Gadget.IR.PairValue
                                             (Gadget.IR.IntValue 0)
                                             (Gadget.IR.IntValue 10)
                                         )
