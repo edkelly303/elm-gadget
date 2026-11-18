@@ -70,7 +70,7 @@ type Value
     | CustomValue Int ( String, VariantValue )
     | RecordValue (List ( String, Value ))
     | ListValue (List Value)
-    | TupleValue Value Value
+    | PairValue Value Value
     | TripleValue Value Value Value
 
 
@@ -98,7 +98,7 @@ type Type
     | RecordType Metadata (List ( String, Type ))
     | ListType Metadata Type
     | LazyType Metadata (() -> Type)
-    | TupleType Metadata Type Type
+    | PairType Metadata Type Type
     | TripleType Metadata Type Type Type
 
 
@@ -303,8 +303,8 @@ makeMetadataTools adapterId =
                 LazyType m inner ->
                     LazyType (f m) inner
 
-                TupleType m a b ->
-                    TupleType (f m) a b
+                PairType m a b ->
+                    PairType (f m) a b
 
                 TripleType m a b c ->
                     TripleType (f m) a b c
@@ -341,7 +341,7 @@ makeMetadataTools adapterId =
                 LazyType m _ ->
                     m
 
-                TupleType m _ _ ->
+                PairType m _ _ ->
                     m
 
                 TripleType m _ _ _ ->

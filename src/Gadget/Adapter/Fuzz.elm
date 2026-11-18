@@ -266,8 +266,8 @@ fuzzAdapter overrides irType =
                     Fuzz.list (fuzzAdapter overrides itemType)
                         |> Fuzz.map ListValue
 
-                TupleType _ aType bType ->
-                    Fuzz.map2 (\a b -> TupleValue a b)
+                PairType _ aType bType ->
+                    Fuzz.map2 (\a b -> PairValue a b)
                         (fuzzAdapter overrides aType)
                         (fuzzAdapter overrides bType)
 

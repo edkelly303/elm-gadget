@@ -276,7 +276,7 @@ diffHelp type_ oldIR_ newIR_ =
                             |> doRunLengthEncoding
                             |> ListChanges
 
-                    ( IR.TupleValue a1 b1, IR.TupleValue a2 b2, IR.TupleType _ aType bType ) ->
+                    ( IR.PairValue a1 b1, IR.PairValue a2 b2, IR.PairType _ aType bType ) ->
                         TupleChange (diffHelp aType a1 a2) (diffHelp bType b1 b2)
 
                     ( IR.TripleValue a1 b1 c1, IR.TripleValue a2 b2 c2, IR.TripleType _ aType bType cType ) ->
@@ -595,8 +595,8 @@ default type_ =
         IR.RecordType _ fieldTypes ->
             IR.RecordValue (List.map (Tuple.mapSecond default) fieldTypes)
 
-        IR.TupleType _ aType bType ->
-            IR.TupleValue (default aType) (default bType)
+        IR.PairType _ aType bType ->
+            IR.PairValue (default aType) (default bType)
 
         IR.TripleType _ aType bType cType ->
             IR.TripleValue (default aType) (default bType) (default cType)
@@ -646,9 +646,9 @@ patchHelp changes_ old_ type_ =
         ( FloatChange b, IR.FloatValue _, _ ) ->
             Ok (IR.FloatValue b)
 
-        ( TupleChange aChange bChange, IR.TupleValue a b, IR.TupleType _ aType bType ) ->
+        ( TupleChange aChange bChange, IR.PairValue a b, IR.PairType _ aType bType ) ->
             Result.map2
-                (\a2 b2 -> IR.TupleValue a2 b2)
+                (\a2 b2 -> IR.PairValue a2 b2)
                 (patchHelp aChange a aType)
                 (patchHelp bChange b bType)
 

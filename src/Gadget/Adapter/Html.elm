@@ -236,7 +236,7 @@ htmlAdapter irValue irType =
                         )
                         (List.map (\item -> ( "", item, itemType )) items)
 
-                ( TupleValue a b, TupleType metadata aType bType ) ->
+                ( PairValue a b, PairType metadata aType bType ) ->
                     combinator
                         (metadataHtml metadata)
                         "Tuple"
@@ -414,7 +414,7 @@ debugValue v =
         ListValue items ->
             "[ " ++ (List.map debugValue items |> String.join ", ") ++ " ]"
 
-        TupleValue a b ->
+        PairValue a b ->
             "( " ++ debugValue a ++ ", " ++ debugValue b ++ " )"
 
         TripleValue a b c ->

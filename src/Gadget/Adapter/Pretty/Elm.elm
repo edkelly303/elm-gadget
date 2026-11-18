@@ -148,7 +148,7 @@ toDocumentHelp isChildOfCustomType isNested value =
                                     ]
                                 )
 
-        TupleValue a b ->
+        PairValue a b ->
             G.group <|
                 nestIfNeeded <|
                     G.concat

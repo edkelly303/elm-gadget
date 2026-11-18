@@ -162,7 +162,7 @@ encodeAdapter irValue =
         ListValue items ->
             JE.list encodeAdapter items
 
-        TupleValue a b ->
+        PairValue a b ->
             JE.list encodeAdapter [ a, b ]
 
         TripleValue a b c ->
@@ -273,8 +273,8 @@ decodeAdapter irType =
             JD.list (JD.lazy (\() -> decodeAdapter itemType))
                 |> JD.map ListValue
 
-        TupleType _ aType bType ->
-            JD.map2 (\a b -> TupleValue a b)
+        PairType _ aType bType ->
+            JD.map2 (\a b -> PairValue a b)
                 (JD.index 0 (JD.lazy (\() -> decodeAdapter aType)))
                 (JD.index 1 (JD.lazy (\() -> decodeAdapter bType)))
 

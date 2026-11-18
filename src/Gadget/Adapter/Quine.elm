@@ -227,7 +227,7 @@ quineHelp isChildNode irType =
                 LazyType _ inner ->
                     quineHelp isChildNode (inner ())
 
-                TupleType _ a b ->
+                PairType _ a b ->
                     breakable
                         [ G.fromString "Gadget.tuple"
                         , quineHelp True a

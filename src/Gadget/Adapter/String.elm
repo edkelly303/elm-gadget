@@ -148,7 +148,7 @@ printAdapter irValue =
                 ""
                 items
 
-        IR.TupleValue a b ->
+        IR.PairValue a b ->
             combinator "2" "" [ a, b ]
 
         IR.TripleValue a b c ->
@@ -247,7 +247,7 @@ tupleParser =
             (\values ->
                 case values of
                     [ a, b ] ->
-                        P.succeed (IR.TupleValue a b)
+                        P.succeed (IR.PairValue a b)
 
                     _ ->
                         P.problem "wrong number of members for tuple"

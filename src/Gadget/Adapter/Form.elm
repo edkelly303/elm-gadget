@@ -791,7 +791,7 @@ initHelp config path irType =
                 LazyType _ innerType ->
                     initHelp config path (innerType ())
 
-                TupleType _ a b ->
+                PairType _ a b ->
                     let
                         ( aModel, aCmd ) =
                             initHelp config ("0" :: path) a
@@ -940,7 +940,7 @@ loadHelp config value type_ =
                         |> Dict.fromList
                         |> Collection metadata itemType
 
-                ( TupleValue aValue bValue, TupleType _ aType bType ) ->
+                ( PairValue aValue bValue, PairType _ aType bType ) ->
                     Tuple metadata (loadHelp config aValue aType) (loadHelp config bValue bType)
 
                 ( TripleValue aValue bValue cValue, TripleType _ aType bType cType ) ->
@@ -1849,7 +1849,7 @@ parsePrimitiveControls config path model =
                 ( bValue, bErrs ) =
                     parsePrimitiveControls config ("1" :: path) b
             in
-            ( TupleValue aValue bValue, aErrs ++ bErrs )
+            ( PairValue aValue bValue, aErrs ++ bErrs )
 
         Triple _ a b c ->
             let

@@ -160,7 +160,7 @@ randomAdapter irType =
         tools.extract irType
             |> tools.get "choose"
     of
-        Just (IR.TupleValue choice (IR.ListValue choices)) ->
+        Just (IR.PairValue choice (IR.ListValue choices)) ->
             Random.uniform choice choices
 
         _ ->
@@ -271,8 +271,8 @@ randomAdapter irType =
                         |> Random.andThen (\int -> Random.list int (randomAdapter itemType))
                         |> Random.map IR.ListValue
 
-                IR.TupleType _ aType bType ->
-                    Random.map2 (\a b -> IR.TupleValue a b)
+                IR.PairType _ aType bType ->
+                    Random.map2 (\a b -> IR.PairValue a b)
                         (randomAdapter aType)
                         (randomAdapter bType)
 

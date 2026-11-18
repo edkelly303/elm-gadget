@@ -42,7 +42,7 @@ type Model
     = Sum String (Dict String ( Int, Dict String Model ))
     | Collection Type (Dict String Model)
     | Record Int (List Model)
-    | Tuple Model Model
+    | Pair Model Model
     | Triple Model Model Model
     | Unit
     | Primitive Primitive Value
@@ -227,6 +227,33 @@ init config path type_ =
 
                 BoolType _ ->
                     makePrimitive BoolPrimitive config.bool
+
+                PairType _ aType bType ->
+                    let
+                        ( aValue, aCmd ) =
+                            init config ("0" :: path) aType
+
+                        ( bValue, bCmd ) =
+                            init config ("1" :: path) bType
+                    in
+                    ( Pair aValue bValue
+                    , Cmd.batch [ aCmd, bCmd ]
+                    )
+
+                TripleType _ aType bType cType ->
+                    let
+                        ( aValue, aCmd ) =
+                            init config ("0" :: path) aType
+
+                        ( bValue, bCmd ) =
+                            init config ("1" :: path) bType
+
+                        ( cValue, cCmd ) =
+                            init config ("2" :: path) cType
+                    in
+                    ( Triple aValue bValue cValue
+                    , Cmd.batch [ aCmd, bCmd, cCmd ]
+                    )
 
                 RecordType _ fields ->
                     let
@@ -461,7 +488,7 @@ subscriptions config path type_ model =
                 Nothing ->
                     Sub.none
 
-        ( Tuple a b, TupleType _ aType bType ) ->
+        ( Pair a b, PairType _ aType bType ) ->
             Sub.batch
                 [ subscriptions config ("0" :: path) aType a
                 , subscriptions config ("1" :: path) bType b
@@ -565,7 +592,7 @@ submitHelp config path type_ model =
                     , [ { path = path, error = "control not found" } ]
                     )
 
-        ( Tuple a b, TupleType _ aType bType ) ->
+        ( Pair a b, PairType _ aType bType ) ->
             let
                 ( aValue, aErrs ) =
                     submitHelp config ("0" :: path) aType a
@@ -573,7 +600,7 @@ submitHelp config path type_ model =
                 ( bValue, bErrs ) =
                     submitHelp config ("1" :: path) bType b
             in
-            ( TupleValue aValue bValue, aErrs ++ bErrs )
+            ( PairValue aValue bValue, aErrs ++ bErrs )
 
         ( Triple a b c, TripleType _ aType bType cType ) ->
             let

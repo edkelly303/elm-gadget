@@ -401,13 +401,13 @@ tuple (Gadget a) (Gadget b) =
     Gadget
         { fromInput =
             \input ->
-                TupleValue
+                PairValue
                     (a.fromInput (Tuple.first input))
                     (b.fromInput (Tuple.second input))
         , toOutput =
             \path value ->
                 case value of
-                    TupleValue fst snd ->
+                    PairValue fst snd ->
                         Result.map2 Tuple.pair
                             (a.toOutput ("0" :: path) fst)
                             (b.toOutput ("1" :: path) snd)
@@ -415,7 +415,7 @@ tuple (Gadget a) (Gadget b) =
                     _ ->
                         Err [ { error = "Not a tuple", path = path } ]
         , irType =
-            TupleType IR.emptyMetadata a.irType b.irType
+            PairType IR.emptyMetadata a.irType b.irType
         }
 
 
