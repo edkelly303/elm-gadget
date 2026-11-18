@@ -16,7 +16,7 @@ import Dict exposing (Dict)
 import Gadget
 import Gadget.Adapter.Form2.Control as Control
 import Gadget.Adapter.Form2.Internal as Internal exposing (..)
-import Gadget.IR as IR exposing (Error, Type(..), Value)
+import Gadget.IR as IR exposing (Error, Type(..), Value(..))
 import Html as H
 import Html.Attributes as HA
 import List.Extra
@@ -165,10 +165,10 @@ end (Builder config) =
                 |> H.form []
 
         subscriptions_ model =
-            subscriptions config path model
+            subscriptions config path outputType model
 
         submit_ model =
-            submit config path outputType model
+            submit config model
     in
     { init = init_
     , load = load_
@@ -446,14 +446,166 @@ view config path type_ model =
             Debug.todo "view"
 
 
-subscriptions : a -> b -> c -> d
-subscriptions config path model =
-    Debug.todo "subscriptions"
+subscriptions : Config formMsg appMsg output -> Path -> Type -> Model -> Sub appMsg
+subscriptions config path type_ model =
+    case ( model, type_ ) of
+        ( Unit, _ ) ->
+            Sub.none
+
+        ( Primitive primitive modelValue, _ ) ->
+            case lookupControl primitive config of
+                Just control ->
+                    control.subscriptions modelValue
+                        |> Sub.map (msgMapper config path)
+
+                Nothing ->
+                    Sub.none
+
+        ( Tuple a b, TupleType _ aType bType ) ->
+            Sub.batch
+                [ subscriptions config ("0" :: path) aType a
+                , subscriptions config ("1" :: path) bType b
+                ]
+
+        ( Triple a b c, TripleType _ aType bType cType ) ->
+            Sub.batch
+                [ subscriptions config ("0" :: path) aType a
+                , subscriptions config ("1" :: path) bType b
+                , subscriptions config ("2" :: path) cType c
+                ]
+
+        ( Record _ fieldModels, RecordType _ fieldTypes ) ->
+            List.Extra.zip fieldModels fieldTypes
+                |> List.map (\( fieldModel, ( fieldName, fieldType ) ) -> subscriptions config (fieldName :: path) fieldType fieldModel)
+                |> Sub.batch
+
+        ( Collection _ itemModels, ListType _ itemType ) ->
+            itemModels
+                |> Dict.map (\itemName itemModel -> subscriptions config (itemName :: path) itemType itemModel)
+                |> Dict.values
+                |> Sub.batch
+
+        _ ->
+            -- ( Sum _ variantModels, CustomType _ ( firstVariantName, firstVariantType ) restNamedVariantTypes ) ->
+            --     variantModels
+            --         |> Dict.toList
+            --         |> List.concatMap
+            --             (\( variantName, ( _, argModels ) ) ->
+            --                 argModels
+            --                     |> Dict.toList
+            --                     |> List.map
+            --                         (\( argName, argModel ) ->
+            --                             subscriptions config (argName :: variantName :: path) argModel
+            --                         )
+            --             )
+            --         |> Sub.batch
+            Debug.todo "subscriptions"
 
 
-submit : a -> b -> c -> d -> e
-submit config path type_ model =
-    Debug.todo "submit"
+submit : Config formMsg msg output -> Model -> Result (List Error) output
+submit config model =
+    let
+        ( parsedValue, parsingErrors ) =
+            submitHelp config [] (IR.irType config.outputGadget) model
+    in
+    case ( parsingErrors, IR.toOutput config.outputGadget parsedValue ) of
+        ( [], Ok output ) ->
+            Ok output
+
+        ( _, Ok _ ) ->
+            Err parsingErrors
+
+        ( [], Err validationErrors ) ->
+            Err validationErrors
+
+        ( _, Err validationErrors ) ->
+            let
+                parsingErrorPaths =
+                    parsingErrors
+                        |> List.map .path
+                        |> List.Extra.unique
+
+                filteredValidationErrors =
+                    -- don't keep validation errors for paths that are
+                    -- ancestors of parsing errors (because these
+                    -- validation errors will potentially be based on
+                    -- dummy values, so they should be discarded)
+                    List.filter
+                        (\validationError ->
+                            parsingErrorPaths
+                                |> List.any
+                                    (\parsingErrorPath ->
+                                        validationError.path |> pathIsAncestorOf parsingErrorPath
+                                    )
+                                |> not
+                        )
+                        validationErrors
+            in
+            Err (parsingErrors ++ filteredValidationErrors)
+
+
+submitHelp : Config formMsg msg output -> Path -> Type -> Model -> ( Value, List Error )
+submitHelp config path type_ model =
+    case ( model, type_ ) of
+        ( Unit, _ ) ->
+            ( UnitValue, [] )
+
+        ( Primitive primitive modelValue, _ ) ->
+            case lookupControl primitive config of
+                Just control ->
+                    case control.submit path modelValue of
+                        Ok value ->
+                            ( value, [] )
+
+                        Err errs ->
+                            ( control.placeholder, errs )
+
+                Nothing ->
+                    ( UnitValue
+                    , [ { path = path, error = "control not found" } ]
+                    )
+
+        ( Tuple a b, TupleType _ aType bType ) ->
+            let
+                ( aValue, aErrs ) =
+                    submitHelp config ("0" :: path) aType a
+
+                ( bValue, bErrs ) =
+                    submitHelp config ("1" :: path) bType b
+            in
+            ( TupleValue aValue bValue, aErrs ++ bErrs )
+
+        ( Triple a b c, TripleType _ aType bType cType ) ->
+            let
+                ( aValue, aErrs ) =
+                    submitHelp config ("0" :: path) aType a
+
+                ( bValue, bErrs ) =
+                    submitHelp config ("1" :: path) bType b
+
+                ( cValue, cErrs ) =
+                    submitHelp config ("2" :: path) cType c
+            in
+            ( TripleValue aValue bValue cValue, aErrs ++ bErrs ++ cErrs )
+
+        ( Record _ fieldModels, RecordType _ fieldTypes ) ->
+            let
+                ( namedValues, errors ) =
+                    List.Extra.zip fieldModels fieldTypes
+                        |> List.map
+                            (\( fieldModel, ( fieldName, fieldType ) ) ->
+                                let
+                                    ( value, errs ) =
+                                        submitHelp config (fieldName :: path) fieldType fieldModel
+                                in
+                                ( ( fieldName, value ), errs )
+                            )
+                        |> List.unzip
+            in
+            ( RecordValue namedValues, List.concat errors )
+
+        _ ->
+            Debug.todo "submitHelp"
 
 
 msgMapper : Config formMsg appMsg output -> Path -> Send Value formMsg appMsg -> appMsg
@@ -515,3 +667,29 @@ pathToString : Path -> String
 pathToString path =
     List.reverse path
         |> String.join "-"
+
+
+pathIsAncestorOf : Path -> Path -> Bool
+pathIsAncestorOf descendant ancestor =
+    pathIsAncestorOfHelp (List.reverse descendant) (List.reverse ancestor)
+
+
+pathIsAncestorOfHelp : List a -> List a -> Bool
+pathIsAncestorOfHelp descendant ancestor =
+    case ( descendant, ancestor ) of
+        ( [], [] ) ->
+            True
+
+        ( d :: restD, a :: restA ) ->
+            if d == a then
+                pathIsAncestorOfHelp restD restA
+
+            else
+                False
+
+        ( [], _ :: _ ) ->
+            -- descendant is shorter than ancestor, so it can't really be a descendant
+            False
+
+        ( _ :: _, [] ) ->
+            True
