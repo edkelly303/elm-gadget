@@ -3,8 +3,7 @@ module Form2Demo exposing (main)
 import Browser
 import Gadget
 import Gadget.Adapter.Form2 as Form
-import Gadget.Adapter.Form2.Control as Control
-import Gadget.Adapter.Form2.Safe as Safe
+import Gadget.Adapter.Form2.Safe as Control
 import Html as H
 import Html.Attributes as HA
 import Html.Events as HE
@@ -59,11 +58,11 @@ type alias Foo =
 
 safeForm : Form.Form FormMsg AppMsg Foo
 safeForm =
-    Safe.record Foo
-        |> Safe.field "bar" .bar (Safe.bespoke Gadget.string barControl "What is bar?")
-        |> Safe.field "qux" .qux (Safe.bespoke Gadget.string quxControl "What is qux?")
-        |> Safe.endRecord
-        |> Safe.toForm FormUpdatedItself
+    Control.record Foo
+        |> Control.field "bar" .bar (barControl |> Control.label "What is bar?")
+        |> Control.field "qux" .qux (quxControl |> Control.label "What is qux?")
+        |> Control.endRecord
+        |> Control.toForm FormUpdatedItself
 
 
 
@@ -79,9 +78,9 @@ safeForm =
 -}
 
 
-barControl : Safe.Safe FormMsg AppMsg String
+barControl : Control.Safe FormMsg AppMsg String
 barControl =
-    Safe.new
+    Control.new
         { modelGadget = Gadget.string
         , msgGadget = Gadget.string
         , outputGadget = Gadget.string
@@ -91,7 +90,7 @@ barControl =
         , update =
             \msg model ->
                 ( msg
-                , send (Control.toForm (BarSentMsgToForm msg))
+                , send (Control.sendToForm (BarSentMsgToForm msg))
                 )
         , notify =
             \formMsg model ->
@@ -108,9 +107,9 @@ barControl =
         }
 
 
-quxControl : Safe.Safe FormMsg AppMsg String
+quxControl : Control.Safe FormMsg AppMsg String
 quxControl =
-    Safe.new
+    Control.new
         { modelGadget = Gadget.string
         , msgGadget = Gadget.string
         , outputGadget = Gadget.string
@@ -120,7 +119,7 @@ quxControl =
         , update =
             \msg model ->
                 ( msg
-                , send (Control.toApp (QuxSentMsgToApp msg))
+                , send (Control.sendToApp (QuxSentMsgToApp msg))
                 )
         , notify =
             \formMsg model ->
@@ -141,7 +140,7 @@ textInput : String -> String -> H.Html (Control.Send String FormMsg AppMsg)
 textInput id model =
     H.input
         [ HA.type_ "text"
-        , HE.onInput Control.toSelf
+        , HE.onInput Control.sendToSelf
         , HA.id id
         , HA.value model
         ]
