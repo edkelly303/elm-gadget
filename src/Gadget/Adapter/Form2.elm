@@ -637,6 +637,14 @@ view config path type_ model =
                         [ requiredLabel
                         , control.view id primitiveModel
                             |> H.map (msgMapper config path)
+                        , H.div []
+                            (case control.submit path primitiveModel of
+                                Err errors ->
+                                    List.map (\{ error } -> config.viewFeedback error) errors
+
+                                Ok _ ->
+                                    []
+                            )
                         ]
 
                 Nothing ->
