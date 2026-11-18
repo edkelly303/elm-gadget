@@ -4,6 +4,7 @@ import Browser
 import Gadget
 import Gadget.Adapter.Form2 as Form
 import Gadget.Adapter.Form2.Safe as Control
+import Gadget.IR
 import Html as H
 import Html.Attributes as HA
 import Html.Events as HE
@@ -25,11 +26,14 @@ import Time
 
 
 type alias AppModel =
-    { form : Form.Model }
+    { form : Form.Model
+    , output : Result (List Gadget.IR.Error) Foo
+    }
 
 
 type AppMsg
     = FormUpdatedItself (Form.Msg FormMsg)
+    | FormSubmitted
     | QuxSentMsgToApp String
 
 
@@ -40,7 +44,7 @@ type FormMsg
 
 type alias Foo =
     { bar : String
-    , qux : String
+    , qux : Int
     }
 
 
@@ -125,15 +129,15 @@ barControl =
         }
 
 
-quxControl : Control.Safe FormMsg AppMsg String
+quxControl : Control.Safe FormMsg AppMsg Int
 quxControl =
     Control.new
         { modelGadget = Gadget.string
         , msgGadget = Gadget.string
-        , outputGadget = Gadget.string
+        , outputGadget = Gadget.int
         , init = ( "", Cmd.none )
-        , placeholder = ""
-        , load = identity
+        , placeholder = 0
+        , load = String.fromInt
         , update =
             \msg model ->
                 ( msg
@@ -149,7 +153,7 @@ quxControl =
                         model
         , view = textInput
         , subscriptions = always Sub.none
-        , submit = Ok
+        , submit = \model -> String.toInt model |> Result.fromMaybe "⚠️ This must be an integer"
         , id = "qux"
         }
 
@@ -199,7 +203,7 @@ init flags =
         ( formModel, formCmd ) =
             safeForm.init
     in
-    ( { form = formModel }
+    ( { form = formModel, output = Err [] }
     , formCmd
     )
 
@@ -212,8 +216,13 @@ update msg model =
                 ( formModel, formCmd ) =
                     safeForm.update formMsg model.form
             in
-            ( { form = formModel }
+            ( { model | form = formModel }
             , formCmd
+            )
+
+        FormSubmitted ->
+            ( { model | output = safeForm.submit model.form }
+            , Cmd.none
             )
 
         QuxSentMsgToApp string ->
@@ -221,7 +230,7 @@ update msg model =
                 formModel =
                     safeForm.notify (AppSentMsgToForm string) model.form
             in
-            ( { form = formModel }
+            ( { model | form = formModel }
             , Cmd.none
             )
 
@@ -231,7 +240,11 @@ view model =
     { title = "Form 2 demo"
     , body =
         [ H.main_ []
-            [ safeForm.view model.form ]
+            [ safeForm.view model.form
+            , H.button [ HE.onClick FormSubmitted ] [ H.text "Submit!" ]
+            , H.h2 [] [ H.text "Form output" ]
+            , H.output [] [ H.text (Debug.toString model.output) ]
+            ]
         ]
     }
 
