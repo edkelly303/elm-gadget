@@ -552,8 +552,52 @@ update config modelPath type_ msg model =
             , Cmd.batch cmds
             )
 
+        ( Sum selected variantModels, CustomType _ firstNamedVariantType restNamedVariantTypes ) ->
+            let
+                variantModelsAndNamedTypes =
+                    List.Extra.zip
+                        variantModels
+                        (firstNamedVariantType :: restNamedVariantTypes)
+
+                ( newVariantModels, variantCmds ) =
+                    List.foldl
+                        (\( thisVariantModel, ( thisVariantName, thisVariantType ) ) ( prevVariantModels, prevVariantCmds ) ->
+                            let
+                                thisVariantArgTypesAndValues =
+                                    List.Extra.zip
+                                        (variantTypeToArgsList thisVariantType)
+                                        thisVariantModel
+
+                                ( newThisVariantModel, thisVariantCmds ) =
+                                    List.Extra.indexedFoldl
+                                        (\argIdx ( argType, argModel ) ( prevArgModels, prevArgCmds ) ->
+                                            let
+                                                argPath =
+                                                    String.fromInt argIdx :: thisVariantName :: modelPath
+
+                                                ( newArgModel, newArgCmd ) =
+                                                    update config argPath argType msg argModel
+                                            in
+                                            ( newArgModel :: prevArgModels
+                                            , newArgCmd :: prevArgCmds
+                                            )
+                                        )
+                                        ( [], [] )
+                                        thisVariantArgTypesAndValues
+                            in
+                            ( List.reverse newThisVariantModel :: prevVariantModels
+                            , thisVariantCmds ++ prevVariantCmds
+                            )
+                        )
+                        ( [], [] )
+                        variantModelsAndNamedTypes
+            in
+            ( Sum selected (List.reverse newVariantModels)
+            , Cmd.batch variantCmds
+            )
+
         _ ->
-            Debug.todo "update"
+            ( Unit, Cmd.none )
 
 
 view :
