@@ -45,16 +45,16 @@ type Model
     | Tuple Model Model
     | Triple Model Model Model
     | Unit
-    | Primitive PrimitiveType Value
+    | Primitive Primitive Value
 
 
-type PrimitiveType
+type Primitive
     = StringPrimitive
     | CharPrimitive
     | IntPrimitive
     | FloatPrimitive
     | BoolPrimitive
-    | OverrideType String
+    | OtherPrimitive String
 
 
 type Builder formMsg appMsg output
@@ -201,7 +201,7 @@ init config path type_ =
                 )
     of
         Just ( id, control ) ->
-            makePrimitive (OverrideType id) control
+            makePrimitive (OtherPrimitive id) control
 
         Nothing ->
             case type_ of
@@ -252,9 +252,9 @@ load config path type_ output =
     Debug.todo "load"
 
 
-lookupControl : PrimitiveType -> Config formMsg appMsg output -> Maybe (InternalControl formMsg appMsg)
-lookupControl primitiveType config =
-    case primitiveType of
+lookupControl : Primitive -> Config formMsg appMsg output -> Maybe (InternalControl formMsg appMsg)
+lookupControl primitive config =
+    case primitive of
         IntPrimitive ->
             Just config.int
 
@@ -270,7 +270,7 @@ lookupControl primitiveType config =
         BoolPrimitive ->
             Just config.bool
 
-        OverrideType id ->
+        OtherPrimitive id ->
             Dict.get id config.overrides
 
 
@@ -286,12 +286,12 @@ update config modelPath type_ msg model =
         ( Unit, _ ) ->
             ( Unit, Cmd.none )
 
-        ( Primitive primitiveType controlModel, _ ) ->
-            case lookupControl primitiveType config of
+        ( Primitive primitive controlModel, _ ) ->
+            case lookupControl primitive config of
                 Just control ->
                     case msg of
                         FormMsg formMsg ->
-                            ( Primitive primitiveType (control.notify formMsg controlModel)
+                            ( Primitive primitive (control.notify formMsg controlModel)
                             , Cmd.none
                             )
 
@@ -301,7 +301,7 @@ update config modelPath type_ msg model =
                                     ( newControlModel, controlCmd ) =
                                         control.update controlMsg controlModel
                                 in
-                                ( Primitive primitiveType newControlModel
+                                ( Primitive primitive newControlModel
                                 , Cmd.map (msgMapper config modelPath) controlCmd
                                 )
 
