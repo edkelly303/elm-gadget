@@ -283,11 +283,7 @@ load : Config formMsg appMsg output -> Type -> Value -> Model
 load config type_ output =
     let
         loadPrimitive primitive control =
-            let
-                mdl =
-                    control.load output
-            in
-            Primitive primitive mdl
+            Primitive primitive (control.load output)
     in
     case
         tools.extract type_
@@ -320,6 +316,17 @@ load config type_ output =
 
                 BoolType _ ->
                     loadPrimitive BoolPrimitive config.bool
+
+                PairType _ aType bType ->
+                    Pair
+                        (load config aType output)
+                        (load config bType output)
+
+                TripleType _ aType bType cType ->
+                    Triple
+                        (load config aType output)
+                        (load config bType output)
+                        (load config cType output)
 
                 RecordType _ fields ->
                     let
@@ -396,6 +403,33 @@ update config modelPath type_ msg model =
                 Nothing ->
                     ( model, Cmd.none )
 
+        ( Pair aModel bModel, PairType _ aType bType ) ->
+            let
+                ( newAModel, aCmd ) =
+                    update config ("0" :: modelPath) aType msg aModel
+
+                ( newBModel, bCmd ) =
+                    update config ("1" :: modelPath) bType msg bModel
+            in
+            ( Pair newAModel newBModel
+            , Cmd.batch [ aCmd, bCmd ]
+            )
+
+        ( Triple aModel bModel cModel, TripleType _ aType bType cType ) ->
+            let
+                ( newAModel, aCmd ) =
+                    update config ("0" :: modelPath) aType msg aModel
+
+                ( newBModel, bCmd ) =
+                    update config ("1" :: modelPath) bType msg bModel
+
+                ( newCModel, cCmd ) =
+                    update config ("2" :: modelPath) cType msg cModel
+            in
+            ( Triple newAModel newBModel newCModel
+            , Cmd.batch [ aCmd, bCmd, cCmd ]
+            )
+
         ( Record selected fields, RecordType _ fieldTypes ) ->
             let
                 ( newFields, cmds ) =
@@ -430,22 +464,31 @@ view config path type_ model =
     let
         id =
             pathToString path
+
+        maybeLabel =
+            tools.extract type_
+                |> tools.decode "label" Gadget.string
+
+        optionalLabel =
+            case maybeLabel of
+                Nothing ->
+                    H.text ""
+
+                Just l ->
+                    H.label [ HA.for id ] [ H.text l ]
+
+        requiredLabel =
+            H.label [ HA.for id ] [ H.text (Maybe.withDefault id maybeLabel) ]
     in
     case ( model, type_ ) of
         ( Unit, _ ) ->
             []
 
-        ( Primitive primitive primitiveModel, primitiveType ) ->
-            let
-                label_ =
-                    tools.extract primitiveType
-                        |> tools.decode "label" Gadget.string
-                        |> Maybe.withDefault id
-            in
+        ( Primitive primitive primitiveModel, _ ) ->
             case lookupControl primitive config of
                 Just control ->
                     config.viewControl False
-                        [ H.label [ HA.for id ] [ H.text label_ ]
+                        [ requiredLabel
                         , control.view id primitiveModel
                             |> H.map (msgMapper config path)
                         ]
@@ -453,13 +496,8 @@ view config path type_ model =
                 Nothing ->
                     [ H.text "view error: control not found" ]
 
-        ( Record _ fieldModels, RecordType metadata fieldTypes ) ->
+        ( Record _ fieldModels, RecordType _ fieldTypes ) ->
             let
-                label_ =
-                    tools.decode "label" Gadget.string metadata
-                        |> Maybe.map (\l -> H.label [ HA.for id ] [ H.text l ])
-                        |> Maybe.withDefault (H.text "")
-
                 fields =
                     List.Extra.zip fieldTypes fieldModels
                         |> List.concatMap
@@ -467,7 +505,22 @@ view config path type_ model =
                                 view config (fieldName :: path) fieldType fieldModel
                             )
             in
-            label_ :: fields
+            optionalLabel :: fields
+
+        ( Pair aModel bModel, PairType _ aType bType ) ->
+            optionalLabel
+                :: List.concat
+                    [ view config ("0" :: path) aType aModel
+                    , view config ("1" :: path) bType bModel
+                    ]
+
+        ( Triple aModel bModel cModel, TripleType _ aType bType cType ) ->
+            optionalLabel
+                :: List.concat
+                    [ view config ("0" :: path) aType aModel
+                    , view config ("1" :: path) bType bModel
+                    , view config ("2" :: path) cType cModel
+                    ]
 
         _ ->
             Debug.todo "view"
