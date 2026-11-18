@@ -122,6 +122,32 @@ new args =
         )
 
 
+element :
+    { placeholder : output
+    , init : ( model, Cmd msg )
+    , load : output -> model
+    , update : msg -> model -> ( model, Cmd msg )
+    , view : String -> model -> H.Html msg
+    , subscriptions : model -> Sub msg
+    , submit : model -> Result String output
+    , modelGadget : G.Gadget model
+    , msgGadget : G.Gadget msg
+    , outputGadget : G.Gadget output
+    , id : String
+    }
+    -> Safe formMsg appMsg output
+element args =
+    let
+        control =
+            C.element args
+    in
+    Safe
+        ( args.outputGadget
+            |> F.useControl control
+        , [ eraseOutputType control ]
+        )
+
+
 label : String -> Safe formMsg appMsg output -> Safe formMsg appMsg output
 label l (Safe ( g, cs )) =
     Safe ( g |> F.label l, cs )
