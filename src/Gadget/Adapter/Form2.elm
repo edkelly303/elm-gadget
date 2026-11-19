@@ -833,7 +833,7 @@ submitHelp config path type_ model =
                             ( value, [] )
 
                         Err errs ->
-                            ( control.placeholder, errs )
+                            ( control.dummyOutputValue, errs )
 
                 Nothing ->
                     ( UnitValue

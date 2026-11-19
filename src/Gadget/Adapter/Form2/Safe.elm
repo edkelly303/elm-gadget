@@ -99,7 +99,6 @@ new :
     { modelGadget : G.Gadget model
     , msgGadget : G.Gadget controlMsg
     , outputGadget : G.Gadget output
-    , placeholder : output
     , init : ( model, Cmd (C.Send controlMsg formMsg appMsg) )
     , load : output -> model
     , update : controlMsg -> model -> ( model, Cmd (C.Send controlMsg formMsg appMsg) )
@@ -123,8 +122,7 @@ new args =
 
 
 element :
-    { placeholder : output
-    , init : ( model, Cmd msg )
+    { init : ( model, Cmd msg )
     , load : output -> model
     , update : msg -> model -> ( model, Cmd msg )
     , view : String -> model -> H.Html msg

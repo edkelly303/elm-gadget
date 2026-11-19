@@ -19,7 +19,7 @@ type Control formMsg appMsg output
 type alias InternalControl formMsg appMsg =
     { init : ( Value, Cmd (Send Value formMsg appMsg) )
     , load : Value -> Value
-    , placeholder : Value
+    , dummyOutputValue : Value
     , update : Value -> Value -> ( Value, Cmd (Send Value formMsg appMsg) )
     , notify : formMsg -> Value -> Value
     , view : String -> Value -> H.Html (Send Value formMsg appMsg)

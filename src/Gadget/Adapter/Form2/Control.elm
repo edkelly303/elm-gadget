@@ -13,6 +13,7 @@ module Gadget.Adapter.Form2.Control exposing
 -}
 
 import Gadget
+import Gadget.Adapter.Default as Default
 import Gadget.Adapter.Form2.Internal as Internal exposing (..)
 import Gadget.IR as IR
 import Html as H
@@ -46,8 +47,7 @@ type alias Control formMsg appMsg output =
 
 
 sandbox :
-    { placeholder : output
-    , init : model
+    { init : model
     , load : output -> model
     , update : controlMsg -> model -> model
     , view : String -> model -> H.Html controlMsg
@@ -63,7 +63,6 @@ sandbox args =
         { modelGadget = args.modelGadget
         , msgGadget = args.msgGadget
         , outputGadget = args.outputGadget
-        , placeholder = args.placeholder
         , init = ( args.init, Cmd.none )
         , load = args.load
         , update = \msg model -> ( args.update msg model, Cmd.none )
@@ -76,8 +75,7 @@ sandbox args =
 
 
 element :
-    { placeholder : output
-    , init : ( model, Cmd msg )
+    { init : ( model, Cmd msg )
     , load : output -> model
     , update : msg -> model -> ( model, Cmd msg )
     , view : String -> model -> H.Html msg
@@ -94,7 +92,6 @@ element args =
         { modelGadget = args.modelGadget
         , msgGadget = args.msgGadget
         , outputGadget = args.outputGadget
-        , placeholder = args.placeholder
         , init = args.init |> Tuple.mapSecond (Cmd.map Internal.ToSelf)
         , load = args.load
         , update = \msg model -> args.update msg model |> Tuple.mapSecond (Cmd.map Internal.ToSelf)
@@ -110,7 +107,6 @@ new :
     { modelGadget : IR.Gadget model
     , msgGadget : IR.Gadget controlMsg
     , outputGadget : IR.Gadget output
-    , placeholder : output
     , init : ( model, Cmd (Send controlMsg formMsg appMsg) )
     , load : output -> model
     , update : controlMsg -> model -> ( model, Cmd (Send controlMsg formMsg appMsg) )
@@ -123,10 +119,8 @@ new :
     -> Control formMsg appMsg output
 new builder =
     let
-        placeholderValue =
-            builder.placeholder
-                |> builder.load
-                |> IR.fromInput builder.modelGadget
+        placeholderModel =
+            Default.forGadget builder.modelGadget
 
         controlMsgToValue controlMsg =
             case controlMsg of
@@ -151,10 +145,10 @@ new builder =
         , load =
             \outputValue ->
                 IR.toOutput builder.outputGadget outputValue
-                    |> Result.map (\output -> builder.load output)
+                    |> Result.map builder.load
                     |> Result.map (IR.fromInput builder.modelGadget)
-                    |> Result.withDefault placeholderValue
-        , placeholder = IR.fromInput builder.outputGadget builder.placeholder
+                    |> Result.withDefault placeholderModel
+        , dummyOutputValue = Default.forGadget builder.outputGadget
         , update =
             \controlMsg modelValue ->
                 let
@@ -221,7 +215,6 @@ int =
         , msgGadget = Gadget.string
         , outputGadget = Gadget.int
         , init = ""
-        , placeholder = 0
         , load = String.fromInt
         , update = \msg _ -> msg
         , view =
@@ -249,7 +242,6 @@ float =
         , msgGadget = Gadget.string
         , outputGadget = Gadget.float
         , init = ""
-        , placeholder = 0.0
         , load = String.fromFloat
         , update = \msg _ -> msg
         , view =
@@ -277,7 +269,6 @@ string =
         , msgGadget = Gadget.string
         , outputGadget = Gadget.string
         , init = ""
-        , placeholder = ""
         , load = identity
         , update = \msg _ -> msg
         , view =
@@ -301,7 +292,6 @@ bool =
         , msgGadget = Gadget.bool
         , outputGadget = Gadget.bool
         , init = False
-        , placeholder = False
         , load = identity
         , update = \msg _ -> msg
         , view =
@@ -326,7 +316,6 @@ char =
         , msgGadget = Gadget.maybe Gadget.char
         , outputGadget = Gadget.char
         , init = ""
-        , placeholder = 'a'
         , load = String.fromChar
         , update =
             \msg _ ->

@@ -96,7 +96,6 @@ clockControl =
         , view = \id model -> H.text ("Seconds: " ++ String.fromInt model)
         , subscriptions = \model -> Time.every 1000 (always ())
         , submit = Ok
-        , placeholder = 0
         }
 
 
@@ -107,7 +106,6 @@ barControl =
         , msgGadget = Gadget.string
         , outputGadget = Gadget.string
         , init = ( "", Cmd.none )
-        , placeholder = ""
         , load = identity
         , update =
             \msg model ->
@@ -136,7 +134,6 @@ quxControl =
         , msgGadget = Gadget.string
         , outputGadget = Gadget.int
         , init = ( "", Cmd.none )
-        , placeholder = 0
         , load = String.fromInt
         , update =
             \msg model ->
