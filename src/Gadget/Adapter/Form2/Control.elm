@@ -119,9 +119,6 @@ new :
     -> Control formMsg appMsg output
 new builder =
     let
-        placeholderModel =
-            Default.forGadget builder.modelGadget
-
         controlMsgToValue controlMsg =
             case controlMsg of
                 Internal.ToSelf m ->
