@@ -24,6 +24,19 @@ import Result.Extra
 import Set
 
 
+
+{-
+   d888888b db    db d8888b. d88888b .d8888.
+   `~~88~~' `8b  d8' 88  `8D 88'     88'  YP
+      88     `8bd8'  88oodD' 88ooooo `8bo.
+      88       88    88~~~   88~~~~~   `Y8b.
+      88       88    88      88.     db   8D
+      YP       YP    88      Y88888P `8888Y'
+
+
+-}
+
+
 type alias Form formMsg appMsg output =
     { init : ( Model, Cmd appMsg )
     , load : output -> Result (List Error) Model
@@ -181,6 +194,61 @@ end (Builder config) =
     }
 
 
+registerControl :
+    Control formMsg appMsg controlOutput
+    -> Builder formMsg appMsg output
+    -> Builder formMsg appMsg output
+registerControl controlBuilder (Builder builder) =
+    let
+        (Control id internalControl) =
+            controlBuilder
+    in
+    Builder { builder | overrides = Dict.insert id internalControl builder.overrides }
+
+
+withControlView :
+    (Bool -> List (H.Html appMsg) -> List (H.Html appMsg))
+    -> Builder formMsg appMsg output
+    -> Builder formMsg appMsg output
+withControlView f (Builder builder) =
+    Builder { builder | viewControl = f }
+
+
+withFeedbackView :
+    (String -> H.Html appMsg)
+    -> Builder formMsg appMsg output
+    -> Builder formMsg appMsg output
+withFeedbackView f (Builder builder) =
+    Builder { builder | viewFeedback = f }
+
+
+withTopLevelView :
+    ({ switchActiveField : Int -> appMsg
+     , activeField : Int
+     , fieldViews : List (H.Html appMsg)
+     , result : Result (Set.Set Int) output
+     }
+     -> List (H.Html appMsg)
+    )
+    -> Builder formMsg appMsg output
+    -> Builder formMsg appMsg output
+withTopLevelView f (Builder builder) =
+    Builder { builder | viewTopLevel = f }
+
+
+
+{-
+   d888888b d8b   db d888888b d888888b
+     `88'   888o  88   `88'   `~~88~~'
+      88    88V8o 88    88       88
+      88    88 V8o88    88       88
+     .88.   88  V888   .88.      88
+   Y888888P VP   V8P Y888888P    YP
+
+
+-}
+
+
 init :
     Config formMsg appMsg output
     -> Path
@@ -320,6 +388,19 @@ init config path type_ =
                     init config path (thunk ())
 
 
+
+{-
+   db       .d88b.   .d8b.  d8888b.
+   88      .8P  Y8. d8' `8b 88  `8D
+   88      88    88 88ooo88 88   88
+   88      88    88 88~~~88 88   88
+   88booo. `8b  d8' 88   88 88  .8D
+   Y88888P  `Y88P'  YP   YP Y8888D'
+
+
+-}
+
+
 load : Config formMsg appMsg output -> Path -> Type -> Value -> Result (List Error) Model
 load config path type_ value =
     let
@@ -442,26 +523,17 @@ load config path type_ value =
                     Err []
 
 
-lookupControl : Primitive -> Config formMsg appMsg output -> Maybe (InternalControl formMsg appMsg)
-lookupControl primitive config =
-    case primitive of
-        IntPrimitive ->
-            Just config.int
 
-        StringPrimitive ->
-            Just config.string
+{-
+   db    db d8888b. d8888b.  .d8b.  d888888b d88888b
+   88    88 88  `8D 88  `8D d8' `8b `~~88~~' 88'
+   88    88 88oodD' 88   88 88ooo88    88    88ooooo
+   88    88 88~~~   88   88 88~~~88    88    88~~~~~
+   88b  d88 88      88  .8D 88   88    88    88.
+   ~Y8888P' 88      Y8888D' YP   YP    YP    Y88888P
 
-        CharPrimitive ->
-            Just config.char
 
-        FloatPrimitive ->
-            Just config.float
-
-        BoolPrimitive ->
-            Just config.bool
-
-        OtherPrimitive id ->
-            Dict.get id config.overrides
+-}
 
 
 update :
@@ -608,6 +680,41 @@ update config modelPath type_ msg model =
             ( Unit, Cmd.none )
 
 
+lookupControl : Primitive -> Config formMsg appMsg output -> Maybe (InternalControl formMsg appMsg)
+lookupControl primitive config =
+    case primitive of
+        IntPrimitive ->
+            Just config.int
+
+        StringPrimitive ->
+            Just config.string
+
+        CharPrimitive ->
+            Just config.char
+
+        FloatPrimitive ->
+            Just config.float
+
+        BoolPrimitive ->
+            Just config.bool
+
+        OtherPrimitive id ->
+            Dict.get id config.overrides
+
+
+
+{-
+   db    db d888888b d88888b db   d8b   db
+   88    88   `88'   88'     88   I8I   88
+   Y8    8P    88    88ooooo 88   I8I   88
+   `8b  d8'    88    88~~~~~ Y8   I8I   88
+    `8bd8'    .88.   88.     `8b d8'8b d8'
+      YP    Y888888P Y88888P  `8b8' `8d8'
+
+
+-}
+
+
 view :
     Config formMsg appMsg output
     -> Path
@@ -727,6 +834,19 @@ view config path type_ model =
             [ H.text "uh oh! type mismatch in view function" ]
 
 
+
+{-
+   .d8888. db    db d8888b. .d8888.
+   88'  YP 88    88 88  `8D 88'  YP
+   `8bo.   88    88 88oooY' `8bo.
+     `Y8b. 88    88 88~~~b.   `Y8b.
+   db   8D 88b  d88 88   8D db   8D
+   `8888Y' ~Y8888P' Y8888P' `8888Y'
+
+
+-}
+
+
 subscriptions : Config formMsg appMsg output -> Path -> Type -> Model -> Sub appMsg
 subscriptions config path type_ model =
     case ( model, type_ ) of
@@ -783,6 +903,19 @@ subscriptions config path type_ model =
 
         _ ->
             Sub.none
+
+
+
+{-
+   .d8888. db    db d8888b. .88b  d88. d888888b d888888b
+   88'  YP 88    88 88  `8D 88'YbdP`88   `88'   `~~88~~'
+   `8bo.   88    88 88oooY' 88  88  88    88       88
+     `Y8b. 88    88 88~~~b. 88  88  88    88       88
+   db   8D 88b  d88 88   8D 88  88  88   .88.      88
+   `8888Y' ~Y8888P' Y8888P' YP  YP  YP Y888888P    YP
+
+
+-}
 
 
 submit : Config formMsg msg output -> Model -> Result (List Error) output
@@ -955,46 +1088,17 @@ msgMapper config path msg =
             toApp
 
 
-registerControl :
-    Control formMsg appMsg controlOutput
-    -> Builder formMsg appMsg output
-    -> Builder formMsg appMsg output
-registerControl controlBuilder (Builder builder) =
-    let
-        (Control id internalControl) =
-            controlBuilder
-    in
-    Builder { builder | overrides = Dict.insert id internalControl builder.overrides }
+
+{-
+   d8888b.  .d8b.  d888888b db   db
+   88  `8D d8' `8b `~~88~~' 88   88
+   88oodD' 88ooo88    88    88ooo88
+   88~~~   88~~~88    88    88~~~88
+   88      88   88    88    88   88
+   88      YP   YP    YP    YP   YP
 
 
-withControlView :
-    (Bool -> List (H.Html appMsg) -> List (H.Html appMsg))
-    -> Builder formMsg appMsg output
-    -> Builder formMsg appMsg output
-withControlView f (Builder builder) =
-    Builder { builder | viewControl = f }
-
-
-withFeedbackView :
-    (String -> H.Html appMsg)
-    -> Builder formMsg appMsg output
-    -> Builder formMsg appMsg output
-withFeedbackView f (Builder builder) =
-    Builder { builder | viewFeedback = f }
-
-
-withTopLevelView :
-    ({ switchActiveField : Int -> appMsg
-     , activeField : Int
-     , fieldViews : List (H.Html appMsg)
-     , result : Result (Set.Set Int) output
-     }
-     -> List (H.Html appMsg)
-    )
-    -> Builder formMsg appMsg output
-    -> Builder formMsg appMsg output
-withTopLevelView f (Builder builder) =
-    Builder { builder | viewTopLevel = f }
+-}
 
 
 pathToString : Path -> String
@@ -1027,6 +1131,20 @@ pathIsAncestorOfHelp descendant ancestor =
 
         ( _ :: _, [] ) ->
             True
+
+
+
+{-
+   db    db  .d8b.  d8888b. d888888b  .d8b.  d8b   db d888888b
+   88    88 d8' `8b 88  `8D   `88'   d8' `8b 888o  88 `~~88~~'
+   Y8    8P 88ooo88 88oobY'    88    88ooo88 88V8o 88    88
+   `8b  d8' 88~~~88 88`8b      88    88~~~88 88 V8o88    88
+    `8bd8'  88   88 88 `88.   .88.   88   88 88  V888    88
+      YP    YP   YP 88   YD Y888888P YP   YP VP   V8P    YP
+
+
+
+-}
 
 
 argsListToVariantValue : List Value -> Result String IR.VariantValue
