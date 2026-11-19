@@ -43,8 +43,7 @@ type FormMsg
 
 
 type alias Foo =
-    { bar : String
-    , qux : Int
+    { qux : Int
     , zod : Maybe String
     }
 
@@ -81,12 +80,12 @@ safeForm =
 
 
 fooControl =
-    Control.record (\bar qux zod _ -> Foo bar qux zod)
-        |> Control.field "bar" .bar (barControl |> Control.label "What is bar?")
-        |> Control.field "qux" .qux (quxControl |> Control.label "What is qux?")
-        |> Control.field "zod" .zod (zodControl |> Control.label "what is zod?")
-        |> Control.field "clock" (always 0) (clockControl |> Control.label "time!")
+    Control.record (\qux zod _ -> Foo qux zod)
+        |> Control.field "qux" .qux quxControl
+        |> Control.field "zod" .zod zodControl
+        |> Control.field "clock" (always 0) clockControl
         |> Control.endRecord
+        |> Control.label "I am a record control. I produce records of type `Foo`"
 
 
 zodControl =
@@ -99,9 +98,10 @@ zodControl =
                 Nothing ->
                     nothing
         )
-        |> Control.variant1 "Just" Just Control.string
+        |> Control.variant1 "Just" Just barControl
         |> Control.variant0 "Nothing" Nothing
         |> Control.endCustom
+        |> Control.label "I am a `Maybe Int` control"
 
 
 clockControl =
@@ -113,10 +113,11 @@ clockControl =
         , init = ( 0, Cmd.none )
         , load = identity
         , update = \() model -> ( model + 1, Cmd.none )
-        , view = \id model -> H.text ("Seconds: " ++ String.fromInt model)
+        , view = \id model -> H.text ("Time elapsed: " ++ String.fromInt model ++ " seconds")
         , subscriptions = \model -> Time.every 1000 (always ())
         , submit = Ok
         }
+        |> Control.label "I am a `()` control. I subscribe to `Time.every`"
 
 
 barControl : Control.Safe FormMsg AppMsg String
@@ -145,6 +146,7 @@ barControl =
         , submit = Ok
         , id = "bar"
         }
+        |> Control.label "I am a `String` control, with special powers! I can send and receive `FormMsg` values"
 
 
 quxControl : Control.Safe FormMsg AppMsg Int
@@ -173,6 +175,7 @@ quxControl =
         , submit = \model -> String.toInt model |> Result.fromMaybe "⚠️ This must be an integer"
         , id = "qux"
         }
+        |> Control.label "I am an `Int` control, with special powers! I can send `AppMsg` values and receive `FormMsg` values"
 
 
 textInput : String -> String -> H.Html (Control.Send String FormMsg AppMsg)
@@ -222,12 +225,10 @@ init flags =
 
         formModel =
             safeForm.load
-                { bar = "Hello"
-                , qux = 100
-                , zod = Nothing
+                { qux = 100
+                , zod = Just "hello"
                 }
-                |> Result.withDefault
-                    formModel0
+                |> Result.withDefault formModel0
     in
     ( { form = formModel, output = Err [] }
     , formCmd
