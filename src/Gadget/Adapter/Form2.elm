@@ -20,12 +20,13 @@ import Gadget.IR as IR exposing (Error, Type(..), Value(..), VariantType(..), Va
 import Html as H
 import Html.Attributes as HA
 import List.Extra
+import Result.Extra
 import Set
 
 
 type alias Form formMsg appMsg output =
     { init : ( Model, Cmd appMsg )
-    , load : output -> Model
+    , load : output -> Result (List Error) Model
     , update : Msg formMsg -> Model -> ( Model, Cmd appMsg )
     , notify : formMsg -> Model -> Model
     , view : Model -> H.Html appMsg
@@ -319,11 +320,12 @@ init config path type_ =
                     init config path (thunk ())
 
 
-load : Config formMsg appMsg output -> Path -> Type -> Value -> Model
+load : Config formMsg appMsg output -> Path -> Type -> Value -> Result (List Error) Model
 load config path type_ value =
     let
         loadPrimitive primitive control =
-            Primitive primitive (control.load value)
+            control.load value
+                |> Result.map (Primitive primitive)
     in
     case
         tools.extract type_
@@ -340,7 +342,7 @@ load config path type_ value =
         Nothing ->
             case ( value, type_ ) of
                 ( UnitValue, UnitType _ ) ->
-                    Unit
+                    Ok Unit
 
                 ( IntValue _, IntType _ ) ->
                     loadPrimitive IntPrimitive config.int
@@ -358,24 +360,24 @@ load config path type_ value =
                     loadPrimitive BoolPrimitive config.bool
 
                 ( PairValue aValue bValue, PairType _ aType bType ) ->
-                    Pair
+                    Result.map2 Pair
                         (load config ("0" :: path) aType aValue)
                         (load config ("1" :: path) bType bValue)
 
                 ( TripleValue aValue bValue cValue, TripleType _ aType bType cType ) ->
-                    Triple
+                    Result.map3 Triple
                         (load config ("0" :: path) aType aValue)
                         (load config ("1" :: path) bType bValue)
                         (load config ("2" :: path) cType cValue)
 
                 ( ListValue itemValues, ListType _ itemType ) ->
-                    Collection
-                        (List.indexedMap
-                            (\idx itemValue ->
-                                load config (String.fromInt idx :: path) itemType itemValue
-                            )
-                            itemValues
+                    List.indexedMap
+                        (\idx itemValue ->
+                            load config (String.fromInt idx :: path) itemType itemValue
                         )
+                        itemValues
+                        |> Result.Extra.combine
+                        |> Result.map Collection
 
                 ( RecordValue fieldValues, RecordType _ fieldTypes ) ->
                     let
@@ -387,7 +389,10 @@ load config path type_ value =
                                 []
                                 (List.Extra.zip fieldValues fieldTypes)
                     in
-                    Record 0 (List.reverse fieldModels)
+                    fieldModels
+                        |> List.reverse
+                        |> Result.Extra.combine
+                        |> Result.map (Record 0)
 
                 ( CustomValue selected ( _, thisVariantValue ), CustomType _ firstNamedVariantType restNamedVariantTypes ) ->
                     let
@@ -417,21 +422,24 @@ load config path type_ value =
                                                             else
                                                                 init config argPath argType
                                                                     |> Tuple.first
+                                                                    |> Ok
                                                     in
                                                     argModel :: prevArgModels
                                                 )
                                                 []
                                                 thisVariantArgTypesAndValues
                                     in
-                                    List.reverse thisVariantModel :: prevVariantModels
+                                    (List.reverse thisVariantModel |> Result.Extra.combine) :: prevVariantModels
                                 )
                                 []
                                 namedVariantTypes
                     in
-                    Sum selected (List.reverse variantModels)
+                    List.reverse variantModels
+                        |> Result.Extra.combine
+                        |> Result.map (Sum selected)
 
                 _ ->
-                    Unit
+                    Err []
 
 
 lookupControl : Primitive -> Config formMsg appMsg output -> Maybe (InternalControl formMsg appMsg)

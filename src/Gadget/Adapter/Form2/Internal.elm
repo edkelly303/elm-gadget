@@ -18,7 +18,7 @@ type Control formMsg appMsg output
 
 type alias InternalControl formMsg appMsg =
     { init : ( Value, Cmd (Send Value formMsg appMsg) )
-    , load : Value -> Value
+    , load : Value -> Result (List Error) Value
     , dummyOutputValue : Value
     , update : Value -> Value -> ( Value, Cmd (Send Value formMsg appMsg) )
     , notify : formMsg -> Value -> Value

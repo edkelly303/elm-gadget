@@ -197,11 +197,12 @@ main =
 init : () -> ( AppModel, Cmd AppMsg )
 init flags =
     let
-        ( _, formCmd ) =
+        ( formModel0, formCmd ) =
             safeForm.init
 
         formModel =
             safeForm.load { bar = "Hello", qux = 100 }
+                |> Result.withDefault formModel0
     in
     ( { form = formModel, output = Err [] }
     , formCmd

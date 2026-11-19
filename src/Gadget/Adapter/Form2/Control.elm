@@ -147,7 +147,6 @@ new builder =
                 IR.toOutput builder.outputGadget outputValue
                     |> Result.map builder.load
                     |> Result.map (IR.fromInput builder.modelGadget)
-                    |> Result.withDefault placeholderModel
         , dummyOutputValue = Default.forGadget builder.outputGadget
         , update =
             \controlMsg modelValue ->
