@@ -45,6 +45,7 @@ type FormMsg
 type alias Foo =
     { bar : String
     , qux : Int
+    , zod : Maybe String
     }
 
 
@@ -63,12 +64,28 @@ type alias Foo =
 
 safeForm : Form.Form FormMsg AppMsg Foo
 safeForm =
-    Control.record (\bar qux _ -> Foo bar qux)
+    Control.record (\bar qux zod _ -> Foo bar qux zod)
         |> Control.field "bar" .bar (barControl |> Control.label "What is bar?")
         |> Control.field "qux" .qux (quxControl |> Control.label "What is qux?")
+        |> Control.field "zod" .zod (customControl |> Control.label "what is zod?")
         |> Control.field "clock" (always 0) (clockControl |> Control.label "time!")
         |> Control.endRecord
         |> Control.toForm FormUpdatedItself
+
+
+customControl =
+    Control.custom
+        (\just nothing variant ->
+            case variant of
+                Just s ->
+                    just s
+
+                Nothing ->
+                    nothing
+        )
+        |> Control.variant1 "Just" Just Control.string
+        |> Control.variant0 "Nothing" Nothing
+        |> Control.endCustom
 
 
 
@@ -201,7 +218,11 @@ init flags =
             safeForm.init
 
         formModel =
-            safeForm.load { bar = "Hello", qux = 100 }
+            safeForm.load
+                { bar = "Hello"
+                , qux = 100
+                , zod = Nothing
+                }
                 |> Result.withDefault formModel0
     in
     ( { form = formModel, output = Err [] }

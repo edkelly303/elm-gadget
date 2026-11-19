@@ -4,6 +4,7 @@ import Gadget as G
 import Gadget.Adapter.Form2 as F
 import Gadget.Adapter.Form2.Control as C
 import Gadget.Adapter.Form2.Internal as I
+import Gadget.IR as IR
 import Html as H
 
 
@@ -13,6 +14,10 @@ type Safe formMsg appMsg output
 
 type RecordBuilder input output formMsg appMsg
     = RecordBuilder ( G.RecordGadgetBuilder input output, List (I.Control formMsg appMsg Never) )
+
+
+type CustomBuilder input hasAtLeastOneVariant output formMsg appMsg
+    = CustomBuilder ( G.CustomGadgetBuilder input hasAtLeastOneVariant output, List (I.Control formMsg appMsg Never) )
 
 
 type alias Send controlMsg formMsg appMsg =
@@ -79,6 +84,57 @@ endRecord :
     -> Safe formMsg appMsg output
 endRecord (RecordBuilder ( builder, controls )) =
     Safe ( G.endRecord builder, controls )
+
+
+custom : input -> CustomBuilder input Never output formMsg appMsg
+custom match =
+    CustomBuilder ( G.custom match, [] )
+
+
+variant0 :
+    String
+    -> output
+    -> CustomBuilder (IR.Value -> input) hasAtLeastOneVariant output formMsg appMsg
+    -> CustomBuilder input () output formMsg appMsg
+variant0 name output (CustomBuilder ( builder, prevControls )) =
+    CustomBuilder
+        ( G.variant0 name output builder
+        , prevControls
+        )
+
+
+variant1 :
+    String
+    -> (output -> a)
+    -> Safe formMsg appMsg output
+    -> CustomBuilder ((output -> IR.Value) -> input) hasAtLeastOneVariant a formMsg appMsg
+    -> CustomBuilder input () a formMsg appMsg
+variant1 name ctor (Safe ( gadget, controls )) (CustomBuilder ( builder, prevControls )) =
+    CustomBuilder
+        ( G.variant1 name ctor gadget builder
+        , controls ++ prevControls
+        )
+
+
+variant2 :
+    String
+    -> (output -> a -> b)
+    -> Safe formMsg appMsg output
+    -> Safe formMsg appMsg a
+    -> CustomBuilder ((output -> a -> IR.Value) -> input) hasAtLeastOneVariant b formMsg appMsg
+    -> CustomBuilder input () b formMsg appMsg
+variant2 name ctor (Safe ( gadget1, controls1 )) (Safe ( gadget2, controls2 )) (CustomBuilder ( builder, prevControls )) =
+    CustomBuilder
+        ( G.variant2 name ctor gadget1 gadget2 builder
+        , controls1 ++ controls2 ++ prevControls
+        )
+
+
+endCustom :
+    CustomBuilder (output -> IR.Value) () output formMsg appMsg
+    -> Safe formMsg appMsg output
+endCustom (CustomBuilder ( builder, controls )) =
+    Safe ( G.endCustom builder, controls )
 
 
 toForm :
