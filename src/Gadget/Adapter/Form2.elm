@@ -634,47 +634,65 @@ update config modelPath type_ msg model =
 
         ( Sum selected variantModels, CustomType _ firstNamedVariantType restNamedVariantTypes ) ->
             let
-                variantModelsAndNamedTypes =
-                    List.Extra.zip
-                        variantModels
-                        (firstNamedVariantType :: restNamedVariantTypes)
+                continue () =
+                    let
+                        variantModelsAndNamedTypes =
+                            List.Extra.zip
+                                variantModels
+                                (firstNamedVariantType :: restNamedVariantTypes)
 
-                ( newVariantModels, variantCmds ) =
-                    List.foldl
-                        (\( thisVariantModel, ( thisVariantName, thisVariantType ) ) ( prevVariantModels, prevVariantCmds ) ->
-                            let
-                                thisVariantArgTypesAndValues =
-                                    List.Extra.zip
-                                        (variantTypeToArgsList thisVariantType)
-                                        thisVariantModel
+                        ( newVariantModels, variantCmds ) =
+                            List.foldl
+                                (\( thisVariantModel, ( thisVariantName, thisVariantType ) ) ( prevVariantModels, prevVariantCmds ) ->
+                                    let
+                                        thisVariantArgTypesAndValues =
+                                            List.Extra.zip
+                                                (variantTypeToArgsList thisVariantType)
+                                                thisVariantModel
 
-                                ( newThisVariantModel, thisVariantCmds ) =
-                                    List.Extra.indexedFoldl
-                                        (\argIdx ( argType, argModel ) ( prevArgModels, prevArgCmds ) ->
-                                            let
-                                                argPath =
-                                                    String.fromInt argIdx :: thisVariantName :: modelPath
+                                        ( newThisVariantModel, thisVariantCmds ) =
+                                            List.Extra.indexedFoldl
+                                                (\argIdx ( argType, argModel ) ( prevArgModels, prevArgCmds ) ->
+                                                    let
+                                                        argPath =
+                                                            String.fromInt argIdx :: thisVariantName :: modelPath
 
-                                                ( newArgModel, newArgCmd ) =
-                                                    update config argPath argType msg argModel
-                                            in
-                                            ( newArgModel :: prevArgModels
-                                            , newArgCmd :: prevArgCmds
-                                            )
-                                        )
-                                        ( [], [] )
-                                        thisVariantArgTypesAndValues
-                            in
-                            ( List.reverse newThisVariantModel :: prevVariantModels
-                            , thisVariantCmds ++ prevVariantCmds
-                            )
-                        )
-                        ( [], [] )
-                        variantModelsAndNamedTypes
+                                                        ( newArgModel, newArgCmd ) =
+                                                            update config argPath argType msg argModel
+                                                    in
+                                                    ( newArgModel :: prevArgModels
+                                                    , newArgCmd :: prevArgCmds
+                                                    )
+                                                )
+                                                ( [], [] )
+                                                thisVariantArgTypesAndValues
+                                    in
+                                    ( List.reverse newThisVariantModel :: prevVariantModels
+                                    , thisVariantCmds ++ prevVariantCmds
+                                    )
+                                )
+                                ( [], [] )
+                                variantModelsAndNamedTypes
+                    in
+                    ( Sum selected (List.reverse newVariantModels)
+                    , Cmd.batch variantCmds
+                    )
             in
-            ( Sum selected (List.reverse newVariantModels)
-            , Cmd.batch variantCmds
-            )
+            case msg of
+                ControlMsg msgPath msgValue ->
+                    if msgPath == modelPath then
+                        case IR.toOutput Gadget.int msgValue of
+                            Ok newSelected ->
+                                ( Sum newSelected variantModels, Cmd.none )
+
+                            Err _ ->
+                                ( Sum selected variantModels, Cmd.none )
+
+                    else
+                        continue ()
+
+                FormMsg _ ->
+                    continue ()
 
         _ ->
             ( Unit, Cmd.none )
