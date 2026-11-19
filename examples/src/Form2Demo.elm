@@ -131,7 +131,7 @@ barControl =
         , update =
             \msg model ->
                 ( msg
-                , send (Control.sendToForm (BarSentMsgToForm msg))
+                , sendMsg (Control.routeToForm (BarSentMsgToForm msg))
                 )
         , notify =
             \formMsg model ->
@@ -160,7 +160,7 @@ quxControl =
         , update =
             \msg model ->
                 ( msg
-                , send (Control.sendToApp (QuxSentMsgToApp msg))
+                , sendMsg (Control.routeToApp (QuxSentMsgToApp msg))
                 )
         , notify =
             \formMsg model ->
@@ -182,15 +182,15 @@ textInput : String -> String -> H.Html (Control.Send String FormMsg AppMsg)
 textInput id model =
     H.input
         [ HA.type_ "text"
-        , HE.onInput Control.sendToSelf
+        , HE.onInput Control.routeToSelf
         , HA.id id
         , HA.value model
         ]
         []
 
 
-send : Control.Send String FormMsg AppMsg -> Cmd (Control.Send String FormMsg AppMsg)
-send msg =
+sendMsg : Control.Send String FormMsg AppMsg -> Cmd (Control.Send String FormMsg AppMsg)
+sendMsg msg =
     Task.perform identity (Task.succeed msg)
 
 

@@ -24,18 +24,18 @@ type alias Send controlMsg formMsg appMsg =
     C.Send controlMsg formMsg appMsg
 
 
-sendToSelf : controlMsg -> C.Send controlMsg formMsg appMsg
-sendToSelf =
+routeToSelf : controlMsg -> C.Send controlMsg formMsg appMsg
+routeToSelf =
     C.toSelf
 
 
-sendToApp : appMsg -> C.Send controlMsg formMsg appMsg
-sendToApp =
+routeToApp : appMsg -> C.Send controlMsg formMsg appMsg
+routeToApp =
     C.toApp
 
 
-sendToForm : formMsg -> C.Send controlMsg formMsg appMsg
-sendToForm =
+routeToForm : formMsg -> C.Send controlMsg formMsg appMsg
+routeToForm =
     C.toForm
 
 
