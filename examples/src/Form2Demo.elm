@@ -221,12 +221,13 @@ init flags =
             safeForm.init
 
         formModel =
-            safeForm.load
-                { bar = "Hello"
-                , qux = 100
-                , zod = Nothing
-                }
-                |> Result.withDefault formModel0
+            -- safeForm.load
+            --     { bar = "Hello"
+            --     , qux = 100
+            --     , zod = Nothing
+            --     }
+            --     |> Result.withDefault
+            formModel0
     in
     ( { form = formModel, output = Err [] }
     , formCmd

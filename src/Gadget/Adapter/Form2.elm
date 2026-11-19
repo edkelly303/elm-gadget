@@ -19,6 +19,7 @@ import Gadget.Adapter.Form2.Internal as Internal exposing (..)
 import Gadget.IR as IR exposing (Error, Type(..), Value(..), VariantType(..), VariantValue(..))
 import Html as H
 import Html.Attributes as HA
+import Html.Events as HE
 import List.Extra
 import Result.Extra
 import Set
@@ -842,8 +843,33 @@ view config path type_ model =
                                 )
                                 argTypesAndModels
                                 |> List.concat
+
+                        selector =
+                            H.fieldset []
+                                (List.indexedMap
+                                    (\idx ( ( thisVariantName, _ ), _ ) ->
+                                        let
+                                            radioId =
+                                                (String.fromInt idx :: path)
+                                                    |> pathToString
+                                        in
+                                        H.span []
+                                            [ H.input
+                                                [ HA.type_ "radio"
+                                                , HA.checked (idx == selected)
+                                                , HE.onCheck (\_ -> ToSelf (IR.fromInput Gadget.int idx))
+                                                , HA.id radioId
+                                                , HA.name (pathToString path)
+                                                ]
+                                                []
+                                            , H.label [ HA.for radioId ] [ H.text thisVariantName ]
+                                            ]
+                                    )
+                                    namedVariantTypesAndModels
+                                )
+                                |> H.map (msgMapper config path)
                     in
-                    optionalLabel :: args
+                    config.viewControl False (optionalLabel :: selector :: args)
 
                 Nothing ->
                     [ H.text "uh oh! invalid variant selection in view function" ]
