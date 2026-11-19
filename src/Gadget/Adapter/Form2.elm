@@ -485,31 +485,44 @@ load config path type_ value =
                             List.Extra.indexedFoldl
                                 (\variantIdx ( thisVariantName, thisVariantType ) prevVariantModels ->
                                     let
-                                        thisVariantArgTypesAndValues =
-                                            List.Extra.zip
-                                                (variantTypeToArgsList thisVariantType)
-                                                (variantValueToArgsList thisVariantValue)
+                                        thisVariantArgTypes =
+                                            variantTypeToArgsList thisVariantType
+
+                                        argPath argIdx =
+                                            String.fromInt argIdx :: thisVariantName :: path
 
                                         thisVariantModel =
-                                            List.Extra.indexedFoldl
-                                                (\argIdx ( argType, argValue ) prevArgModels ->
-                                                    let
-                                                        argPath =
-                                                            String.fromInt argIdx :: thisVariantName :: path
+                                            if variantIdx == selected then
+                                                let
+                                                    thisVariantArgTypesAndValues =
+                                                        List.Extra.zip
+                                                            thisVariantArgTypes
+                                                            (variantValueToArgsList thisVariantValue)
+                                                in
+                                                List.Extra.indexedFoldl
+                                                    (\argIdx ( argType, argValue ) prevArgModels ->
+                                                        let
+                                                            argModel =
+                                                                load config (argPath argIdx) argType argValue
+                                                        in
+                                                        argModel :: prevArgModels
+                                                    )
+                                                    []
+                                                    thisVariantArgTypesAndValues
 
-                                                        argModel =
-                                                            if variantIdx == selected then
-                                                                load config argPath argType argValue
-
-                                                            else
-                                                                init config argPath argType
+                                            else
+                                                List.Extra.indexedFoldl
+                                                    (\argIdx argType prevArgModels ->
+                                                        let
+                                                            argModel =
+                                                                init config (argPath argIdx) argType
                                                                     |> Tuple.first
                                                                     |> Ok
-                                                    in
-                                                    argModel :: prevArgModels
-                                                )
-                                                []
-                                                thisVariantArgTypesAndValues
+                                                        in
+                                                        argModel :: prevArgModels
+                                                    )
+                                                    []
+                                                    thisVariantArgTypes
                                     in
                                     (List.reverse thisVariantModel |> Result.Extra.combine) :: prevVariantModels
                                 )
