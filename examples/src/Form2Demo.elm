@@ -64,28 +64,7 @@ type alias Foo =
 
 safeForm : Form.Form FormMsg AppMsg Foo
 safeForm =
-    Control.record (\bar qux zod _ -> Foo bar qux zod)
-        |> Control.field "bar" .bar (barControl |> Control.label "What is bar?")
-        |> Control.field "qux" .qux (quxControl |> Control.label "What is qux?")
-        |> Control.field "zod" .zod (customControl |> Control.label "what is zod?")
-        |> Control.field "clock" (always 0) (clockControl |> Control.label "time!")
-        |> Control.endRecord
-        |> Control.toForm FormUpdatedItself
-
-
-customControl =
-    Control.custom
-        (\just nothing variant ->
-            case variant of
-                Just s ->
-                    just s
-
-                Nothing ->
-                    nothing
-        )
-        |> Control.variant1 "Just" Just Control.string
-        |> Control.variant0 "Nothing" Nothing
-        |> Control.endCustom
+    Control.toForm FormUpdatedItself fooControl
 
 
 
@@ -99,6 +78,30 @@ customControl =
 
 
 -}
+
+
+fooControl =
+    Control.record (\bar qux zod _ -> Foo bar qux zod)
+        |> Control.field "bar" .bar (barControl |> Control.label "What is bar?")
+        |> Control.field "qux" .qux (quxControl |> Control.label "What is qux?")
+        |> Control.field "zod" .zod (zodControl |> Control.label "what is zod?")
+        |> Control.field "clock" (always 0) (clockControl |> Control.label "time!")
+        |> Control.endRecord
+
+
+zodControl =
+    Control.custom
+        (\just nothing variant ->
+            case variant of
+                Just s ->
+                    just s
+
+                Nothing ->
+                    nothing
+        )
+        |> Control.variant1 "Just" Just Control.string
+        |> Control.variant0 "Nothing" Nothing
+        |> Control.endCustom
 
 
 clockControl =
