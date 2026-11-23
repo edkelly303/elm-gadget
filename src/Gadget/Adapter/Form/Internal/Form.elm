@@ -1,16 +1,17 @@
 module Gadget.Adapter.Form.Internal.Form exposing
-    ( label, useControl
-    , Form, Model, Msg
-    , Builder, new, registerControl, withControlView, withFeedbackView, withTopLevelView, end
+    ( Builder
+    , Form
+    , Model
+    , Msg
+    , end
+    , label
+    , new
+    , registerControl
+    , useControl
+    , withControlView
+    , withFeedbackView
+    , withTopLevelView
     )
-
-{-|
-
-@docs label, useControl
-@docs Form, Model, Msg
-@docs Builder, new, registerControl, withControlView, withFeedbackView, withTopLevelView, end
-
--}
 
 import Dict
 import Gadget
@@ -86,8 +87,8 @@ label labelText gadget =
     tools.attach "label" Gadget.string labelText gadget
 
 
-useControl : Control formMsg appMsg a -> IR.Gadget a -> IR.Gadget a
-useControl (Control id _) gadget =
+useControl : InternalControl formMsg appMsg a -> IR.Gadget a -> IR.Gadget a
+useControl (InternalControl id _) gadget =
     tools.attach "useControl" Gadget.string id gadget
 
 
@@ -107,7 +108,7 @@ useControl (Control id _) gadget =
 new : (Msg formMsg -> appMsg) -> IR.Gadget output -> Builder formMsg appMsg output
 new msgToAppMsg outputGadget =
     let
-        unwrap (Control _ c) =
+        unwrap (InternalControl _ c) =
             c
     in
     Builder
@@ -196,12 +197,12 @@ end (Builder config) =
 
 
 registerControl :
-    Control formMsg appMsg controlOutput
+    InternalControl formMsg appMsg controlOutput
     -> Builder formMsg appMsg output
     -> Builder formMsg appMsg output
 registerControl controlBuilder (Builder builder) =
     let
-        (Control id internalControl) =
+        (InternalControl id internalControl) =
             controlBuilder
     in
     Builder { builder | overrides = Dict.insert id internalControl builder.overrides }
@@ -712,7 +713,7 @@ update config modelPath type_ msg model =
             ( Unit, Cmd.none )
 
 
-lookupControl : Primitive -> Config formMsg appMsg output -> Maybe (InternalControl formMsg appMsg)
+lookupControl : Primitive -> Config formMsg appMsg output -> Maybe (InternalControlData formMsg appMsg)
 lookupControl primitive config =
     case primitive of
         IntPrimitive ->

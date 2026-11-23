@@ -13,10 +13,14 @@ type Send controlMsg formMsg appMsg
 
 
 type Control formMsg appMsg output
-    = Control String (InternalControl formMsg appMsg)
+    = Control ( IR.Gadget output, List (InternalControl formMsg appMsg Never) )
 
 
-type alias InternalControl formMsg appMsg =
+type InternalControl formMsg appMsg output
+    = InternalControl String (InternalControlData formMsg appMsg)
+
+
+type alias InternalControlData formMsg appMsg =
     { init : ( Value, Cmd (Send Value formMsg appMsg) )
     , load : Value -> Result (List Error) Value
     , dummyOutputValue : Value
@@ -45,12 +49,12 @@ type Msg formMsg
 
 
 type alias Config formMsg appMsg output =
-    { bool : InternalControl formMsg appMsg
-    , int : InternalControl formMsg appMsg
-    , float : InternalControl formMsg appMsg
-    , char : InternalControl formMsg appMsg
-    , string : InternalControl formMsg appMsg
-    , overrides : Dict String (InternalControl formMsg appMsg)
+    { bool : InternalControlData formMsg appMsg
+    , int : InternalControlData formMsg appMsg
+    , float : InternalControlData formMsg appMsg
+    , char : InternalControlData formMsg appMsg
+    , string : InternalControlData formMsg appMsg
+    , overrides : Dict String (InternalControlData formMsg appMsg)
     , viewFeedback : String -> H.Html appMsg
     , viewControl : Bool -> List (H.Html appMsg) -> List (H.Html appMsg)
     , viewTopLevel :

@@ -63,7 +63,7 @@ type alias Foo =
 
 form : Form.Form FormMsg AppMsg Foo
 form =
-    Control.toForm FormUpdatedItself fooControl
+    Form.fromControl FormUpdatedItself fooControl
 
 
 

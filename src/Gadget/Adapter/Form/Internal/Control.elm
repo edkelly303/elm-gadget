@@ -1,16 +1,19 @@
 module Gadget.Adapter.Form.Internal.Control exposing
-    ( Control, sandbox, element, new, withLayout
-    , Send, toSelf, toForm, toApp
-    , bool, int, float, string, char
+    ( Control
+    , Send
+    , bool
+    , char
+    , element
+    , float
+    , int
+    , new
+    , sandbox
+    , string
+    , toApp
+    , toForm
+    , toSelf
+    , withLayout
     )
-
-{-|
-
-@docs Control, sandbox, element, new, withLayout
-@docs Send, toSelf, toForm, toApp
-@docs bool, int, float, string, char
-
--}
 
 import Gadget
 import Gadget.Adapter.Default as Default
@@ -43,7 +46,7 @@ toApp =
 
 
 type alias Control formMsg appMsg output =
-    Internal.Control formMsg appMsg output
+    Internal.InternalControl formMsg appMsg output
 
 
 sandbox :
@@ -57,7 +60,7 @@ sandbox :
     , outputGadget : IR.Gadget output
     , id : String
     }
-    -> Control formMsg appMsg output
+    -> InternalControl formMsg appMsg output
 sandbox args =
     new
         { modelGadget = args.modelGadget
@@ -86,7 +89,7 @@ element :
     , outputGadget : IR.Gadget output
     , id : String
     }
-    -> Control formMsg appMsg output
+    -> InternalControl formMsg appMsg output
 element args =
     new
         { modelGadget = args.modelGadget
@@ -116,7 +119,7 @@ new :
     , submit : model -> Result String output
     , id : String
     }
-    -> Control formMsg appMsg output
+    -> InternalControl formMsg appMsg output
 new builder =
     let
         controlMsgToValue controlMsg =
@@ -130,7 +133,7 @@ new builder =
                 Internal.ToApp m ->
                     Internal.ToApp m
     in
-    Control builder.id
+    InternalControl builder.id
         { init =
             let
                 ( model, command ) =
@@ -194,9 +197,9 @@ new builder =
         }
 
 
-withLayout : ({ label : UI, input : UI, feedback : UI } -> List UI) -> Control formMsg appMsg output -> Control formMsg appMsg a
-withLayout f (Control id builder) =
-    Control id
+withLayout : ({ label : UI, input : UI, feedback : UI } -> List UI) -> InternalControl formMsg appMsg output -> InternalControl formMsg appMsg a
+withLayout f (InternalControl id builder) =
+    InternalControl id
         { builder
             | layout =
                 f { label = Label, input = Input, feedback = Feedback }
@@ -204,7 +207,7 @@ withLayout f (Control id builder) =
         }
 
 
-int : Control formMsg appMsg Int
+int : InternalControl formMsg appMsg Int
 int =
     sandbox
         { modelGadget = Gadget.string
@@ -231,7 +234,7 @@ int =
         }
 
 
-float : Control formMsg appMsg Float
+float : InternalControl formMsg appMsg Float
 float =
     sandbox
         { modelGadget = Gadget.string
@@ -258,7 +261,7 @@ float =
         }
 
 
-string : Control formMsg appMsg String
+string : InternalControl formMsg appMsg String
 string =
     sandbox
         { modelGadget = Gadget.string
@@ -281,7 +284,7 @@ string =
         }
 
 
-bool : Control formMsg appMsg output
+bool : InternalControl formMsg appMsg output
 bool =
     sandbox
         { modelGadget = Gadget.bool
@@ -305,7 +308,7 @@ bool =
         |> withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
 
 
-char : Control formMsg appMsg Char
+char : InternalControl formMsg appMsg Char
 char =
     sandbox
         { modelGadget = Gadget.string

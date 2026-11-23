@@ -1,18 +1,20 @@
 module Gadget.Adapter.Form exposing
-    ( Form, Msg, Model
+    ( Form, Msg, Model, fromControl
     , init, load, update, notify, view, subscriptions, submit
     , withControlView, withFeedbackView, withTopLevelView
     )
 
 {-|
 
-@docs Form, Msg, Model
+@docs Form, Msg, Model, fromControl
 @docs init, load, update, notify, view, subscriptions, submit
 @docs withControlView, withFeedbackView, withTopLevelView
 
 -}
 
+import Gadget.Adapter.Form.Control as Control
 import Gadget.Adapter.Form.Internal.Form as F
+import Gadget.Adapter.Form.Internal.Types as I
 import Gadget.IR as IR
 import Html as H
 import Set exposing (Set)
@@ -28,6 +30,19 @@ type alias Model =
 
 type alias Msg formMsg =
     F.Msg formMsg
+
+
+fromControl :
+    (Msg formMsg -> appMsg)
+    -> Control.Control formMsg appMsg output
+    -> Form formMsg appMsg output
+fromControl toAppMsg (I.Control ( gadget, controls )) =
+    List.foldl
+        (\control formBuilder ->
+            F.registerControl control formBuilder
+        )
+        (F.new toAppMsg gadget)
+        controls
 
 
 init : Form formMsg appMsg output -> ( Model, Cmd appMsg )
