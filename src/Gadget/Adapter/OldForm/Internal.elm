@@ -1,4 +1,4 @@
-module Gadget.Adapter.Form.Internal exposing (..)
+module Gadget.Adapter.OldForm.Internal exposing (..)
 
 import Gadget.IR as IR exposing (Error, Path, Value)
 import Html as H

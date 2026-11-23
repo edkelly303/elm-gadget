@@ -1,4 +1,4 @@
-module Gadget.Adapter.Form.Control exposing
+module Gadget.Adapter.OldForm.Control exposing
     ( Control, sandbox, element, transmitter, new, withReceiver, withLayout
     , Command, noCommand, toCommand, request, broadcast
     )
@@ -10,7 +10,7 @@ module Gadget.Adapter.Form.Control exposing
 
 -}
 
-import Gadget.Adapter.Form.Internal as Internal
+import Gadget.Adapter.OldForm.Internal as Internal
 import Gadget.IR as IR
 import Html as H
 import List.Extra

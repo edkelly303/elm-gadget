@@ -1,4 +1,4 @@
-module Gadget.Adapter.Form exposing
+module Gadget.Adapter.OldForm exposing
     ( Form
     , Model
     , Msg
@@ -23,8 +23,8 @@ module Gadget.Adapter.Form exposing
 
 import Dict exposing (Dict)
 import Gadget
-import Gadget.Adapter.Form.Control as Control exposing (Command, noCommand)
-import Gadget.Adapter.Form.Internal as Internal exposing (IRControl, batchCommands, concatCommands, splitCommand)
+import Gadget.Adapter.OldForm.Control as Control exposing (Command, noCommand)
+import Gadget.Adapter.OldForm.Internal as Internal exposing (IRControl, batchCommands, concatCommands, splitCommand)
 import Gadget.IR as IR exposing (Error, Path, Type(..), Value(..), VariantType(..), VariantValue(..))
 import Html as H
 import Html.Attributes as HA

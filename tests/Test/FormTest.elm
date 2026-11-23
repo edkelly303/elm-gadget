@@ -2,7 +2,7 @@ module Test.FormTest exposing (suite)
 
 import Expect
 import Gadget as G
-import Gadget.Adapter.Form as F
+import Gadget.Adapter.OldForm as F
 import Test exposing (..)
 
 

@@ -4,12 +4,12 @@ import Browser
 import Fuzz
 import Gadget
 import Gadget.Adapter.Diff
-import Gadget.Adapter.Form as Form
-import Gadget.Adapter.Form.Control as Control
 import Gadget.Adapter.Form2
 import Gadget.Adapter.Fuzz
 import Gadget.Adapter.Html
 import Gadget.Adapter.Json
+import Gadget.Adapter.OldForm as Form
+import Gadget.Adapter.OldForm.Control as Control
 import Gadget.Adapter.Pretty
 import Gadget.Adapter.Quine
 import Gadget.Adapter.Random
