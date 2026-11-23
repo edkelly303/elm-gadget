@@ -1,6 +1,5 @@
 module Gadget.Adapter.Form.Internal.Control exposing
-    ( Control
-    , Send
+    ( Send
     , bool
     , char
     , element
@@ -17,7 +16,7 @@ module Gadget.Adapter.Form.Internal.Control exposing
 
 import Gadget
 import Gadget.Adapter.Default as Default
-import Gadget.Adapter.Form.Internal.Types as Internal exposing (..)
+import Gadget.Adapter.Form.Internal.Types as Internal exposing (InternalControl(..), UI(..))
 import Gadget.IR as IR
 import Html as H
 import Html.Attributes as HA
@@ -27,22 +26,22 @@ import Result.Extra
 
 
 type alias Send controlMsg formMsg appMsg =
-    Internal.Send controlMsg formMsg appMsg
+    Internal.Router controlMsg formMsg appMsg
 
 
 toSelf : controlMsg -> Send controlMsg formMsg appMsg
 toSelf =
-    Internal.ToSelf
+    Internal.RouteToSelf
 
 
 toForm : formMsg -> Send controlMsg formMsg appMsg
 toForm =
-    Internal.ToForm
+    Internal.RouteToForm
 
 
 toApp : appMsg -> Send controlMsg formMsg appMsg
 toApp =
-    Internal.ToApp
+    Internal.RouteToApp
 
 
 type alias Control formMsg appMsg output =
@@ -70,7 +69,7 @@ sandbox args =
         , load = args.load
         , update = \msg model -> ( args.update msg model, Cmd.none )
         , notify = \_ model -> model
-        , view = \id model -> args.view id model |> H.map Internal.ToSelf
+        , view = \id model -> args.view id model |> H.map Internal.RouteToSelf
         , subscriptions = \_ -> Sub.none
         , submit = args.submit
         , id = args.id
@@ -95,12 +94,12 @@ element args =
         { modelGadget = args.modelGadget
         , msgGadget = args.msgGadget
         , outputGadget = args.outputGadget
-        , init = args.init |> Tuple.mapSecond (Cmd.map Internal.ToSelf)
+        , init = args.init |> Tuple.mapSecond (Cmd.map Internal.RouteToSelf)
         , load = args.load
-        , update = \msg model -> args.update msg model |> Tuple.mapSecond (Cmd.map Internal.ToSelf)
+        , update = \msg model -> args.update msg model |> Tuple.mapSecond (Cmd.map Internal.RouteToSelf)
         , notify = \_ model -> model
-        , view = \id model -> args.view id model |> H.map Internal.ToSelf
-        , subscriptions = \model -> args.subscriptions model |> Sub.map Internal.ToSelf
+        , view = \id model -> args.view id model |> H.map Internal.RouteToSelf
+        , subscriptions = \model -> args.subscriptions model |> Sub.map Internal.RouteToSelf
         , submit = args.submit
         , id = args.id
         }
@@ -124,14 +123,14 @@ new builder =
     let
         controlMsgToValue controlMsg =
             case controlMsg of
-                Internal.ToSelf m ->
-                    Internal.ToSelf (IR.fromInput builder.msgGadget m)
+                Internal.RouteToSelf m ->
+                    Internal.RouteToSelf (IR.fromInput builder.msgGadget m)
 
-                Internal.ToForm m ->
-                    Internal.ToForm m
+                Internal.RouteToForm m ->
+                    Internal.RouteToForm m
 
-                Internal.ToApp m ->
-                    Internal.ToApp m
+                Internal.RouteToApp m ->
+                    Internal.RouteToApp m
     in
     InternalControl builder.id
         { init =

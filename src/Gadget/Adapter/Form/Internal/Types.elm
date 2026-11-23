@@ -1,4 +1,13 @@
-module Gadget.Adapter.Form.Internal.Types exposing (..)
+module Gadget.Adapter.Form.Internal.Types exposing
+    ( Config
+    , Control(..)
+    , InternalControl(..)
+    , InternalControlData
+    , Msg(..)
+    , Path
+    , Router(..)
+    , UI(..)
+    )
 
 import Dict exposing (Dict)
 import Gadget.IR as IR exposing (Error, Value)
@@ -6,10 +15,10 @@ import Html as H
 import Set
 
 
-type Send controlMsg formMsg appMsg
-    = ToSelf controlMsg
-    | ToForm formMsg
-    | ToApp appMsg
+type Router controlMsg formMsg appMsg
+    = RouteToSelf controlMsg
+    | RouteToForm formMsg
+    | RouteToApp appMsg
 
 
 type Control formMsg appMsg output
@@ -21,13 +30,13 @@ type InternalControl formMsg appMsg output
 
 
 type alias InternalControlData formMsg appMsg =
-    { init : ( Value, Cmd (Send Value formMsg appMsg) )
+    { init : ( Value, Cmd (Router Value formMsg appMsg) )
     , load : Value -> Result (List Error) Value
     , dummyOutputValue : Value
-    , update : Value -> Value -> ( Value, Cmd (Send Value formMsg appMsg) )
+    , update : Value -> Value -> ( Value, Cmd (Router Value formMsg appMsg) )
     , notify : formMsg -> Value -> Value
-    , view : String -> Value -> H.Html (Send Value formMsg appMsg)
-    , subscriptions : Value -> Sub (Send Value formMsg appMsg)
+    , view : String -> Value -> H.Html (Router Value formMsg appMsg)
+    , subscriptions : Value -> Sub (Router Value formMsg appMsg)
     , submit : Path -> Value -> Result (List Error) Value
     , layout : List UI
     }

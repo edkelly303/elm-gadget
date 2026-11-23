@@ -17,7 +17,7 @@ module Gadget.Adapter.Form.Internal.Form exposing
 import Dict
 import Gadget
 import Gadget.Adapter.Form.Internal.Control as Control
-import Gadget.Adapter.Form.Internal.Types as Internal exposing (..)
+import Gadget.Adapter.Form.Internal.Types as Internal exposing (Config, InternalControl(..), InternalControlData, Msg(..), Path, Router(..))
 import Gadget.IR as IR exposing (Error, Type(..), Value(..), VariantType(..), VariantValue(..))
 import Html as H
 import Html.Attributes as HA
@@ -88,11 +88,13 @@ label labelText gadget =
     tools.attach "label" Gadget.string labelText gadget
 
 
+customLabels : String -> List String -> IR.Gadget a -> IR.Gadget a
 customLabels typeLabel variantLabels gadget =
-    tools.attach "customLabels"
-        (Gadget.tuple Gadget.string (Gadget.list Gadget.string))
-        ( typeLabel, variantLabels )
-        gadget
+    gadget
+        |> label typeLabel
+        |> tools.attach "customLabels"
+            (Gadget.list Gadget.string)
+            variantLabels
 
 
 useControl : InternalControl formMsg appMsg a -> IR.Gadget a -> IR.Gadget a
@@ -158,22 +160,10 @@ end (Form config) =
             []
 
         init_ =
-            let
-                ( model, cmd ) =
-                    init config path outputType
-            in
-            ( model
-            , cmd
-            )
+            init config path outputType
 
         update_ msg model =
-            let
-                ( newModel, cmd ) =
-                    update config path outputType msg model
-            in
-            ( newModel
-            , cmd
-            )
+            update config path outputType msg model
 
         load_ output =
             output
@@ -879,7 +869,7 @@ view config path type_ model =
                                             [ H.input
                                                 [ HA.type_ "radio"
                                                 , HA.checked (idx == selected)
-                                                , HE.onCheck (\_ -> ToSelf (IR.fromInput Gadget.int idx))
+                                                , HE.onCheck (\_ -> RouteToSelf (IR.fromInput Gadget.int idx))
                                                 , HA.id radioId
                                                 , HA.name (pathToString path)
                                                 ]
@@ -1075,11 +1065,7 @@ submitHelp config path type_ model =
                 ( itemValues, errors ) =
                     List.indexedMap
                         (\idx itemModel ->
-                            let
-                                ( value, errs ) =
-                                    submitHelp config (String.fromInt idx :: path) itemType itemModel
-                            in
-                            ( value, errs )
+                            submitHelp config (String.fromInt idx :: path) itemType itemModel
                         )
                         itemModels
                         |> List.unzip
@@ -1141,16 +1127,16 @@ submitHelp config path type_ model =
             ( UnitValue, [ { path = path, error = "uh oh, type/value mismatch in submit" } ] )
 
 
-msgMapper : Config formMsg appMsg output -> Path -> Send Value formMsg appMsg -> appMsg
+msgMapper : Config formMsg appMsg output -> Path -> Router Value formMsg appMsg -> appMsg
 msgMapper config path msg =
     case msg of
-        ToSelf toSelf ->
+        RouteToSelf toSelf ->
             config.msgToAppMsg (ControlMsg path toSelf)
 
-        ToForm toAll ->
+        RouteToForm toAll ->
             config.msgToAppMsg (FormMsg toAll)
 
-        ToApp toApp ->
+        RouteToApp toApp ->
             toApp
 
 
