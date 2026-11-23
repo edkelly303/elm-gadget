@@ -1,5 +1,5 @@
 module Gadget.Adapter.Form.Control exposing
-    ( Control, sandbox, element, advanced, label
+    ( Control, sandbox, element, advanced, label, customLabels
     , Router, routeToApp, routeToForm, routeToSelf
     , int, float, string
     , RecordBuilder, record, field, endRecord
@@ -9,7 +9,7 @@ module Gadget.Adapter.Form.Control exposing
 
 {-|
 
-@docs Control, sandbox, element, advanced, label
+@docs Control, sandbox, element, advanced, label, customLabels
 @docs Router, routeToApp, routeToForm, routeToSelf
 @docs int, float, string
 @docs RecordBuilder, record, field, endRecord
@@ -233,6 +233,11 @@ element args =
 label : String -> Control formMsg appMsg output -> Control formMsg appMsg output
 label l (I.Control ( g, cs )) =
     I.Control ( g |> F.label l, cs )
+
+
+customLabels : String -> List String -> Control formMsg appMsg output -> Control formMsg appMsg output
+customLabels typeLabel variantLabels control =
+    Debug.log "implement customLabels" control
 
 
 eraseOutputType : I.InternalControl formMsg appMsg output -> I.InternalControl formMsg appMsg Never
