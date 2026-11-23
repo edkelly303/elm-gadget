@@ -1,4 +1,4 @@
-module Gadget.Adapter.Form2.Control exposing
+module Gadget.Adapter.Form.Internal.Control exposing
     ( Control, sandbox, element, new, withLayout
     , Send, toSelf, toForm, toApp
     , bool, int, float, string, char
@@ -14,7 +14,7 @@ module Gadget.Adapter.Form2.Control exposing
 
 import Gadget
 import Gadget.Adapter.Default as Default
-import Gadget.Adapter.Form2.Internal as Internal exposing (..)
+import Gadget.Adapter.Form.Internal.Internal as Internal exposing (..)
 import Gadget.IR as IR
 import Html as H
 import Html.Attributes as HA

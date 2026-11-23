@@ -1,15 +1,15 @@
-module Gadget.Adapter.Form2.Safe exposing (..)
+module Gadget.Adapter.Form.Control exposing (..)
 
 import Gadget as G
-import Gadget.Adapter.Form2 as F
-import Gadget.Adapter.Form2.Control as C
-import Gadget.Adapter.Form2.Internal as I
+import Gadget.Adapter.Form as F
+import Gadget.Adapter.Form.Internal.Control as C
+import Gadget.Adapter.Form.Internal.Internal as I
 import Gadget.IR as IR
 import Html as H
 
 
-type Safe formMsg appMsg output
-    = Safe ( G.Gadget output, List (I.Control formMsg appMsg Never) )
+type Control formMsg appMsg output
+    = Control ( G.Gadget output, List (I.Control formMsg appMsg Never) )
 
 
 type RecordBuilder input output formMsg appMsg
@@ -39,27 +39,27 @@ routeToForm =
     C.toForm
 
 
-fromGadget : G.Gadget output -> Safe formMsg appMsg output
+fromGadget : G.Gadget output -> Control formMsg appMsg output
 fromGadget gadget =
-    Safe ( gadget, [] )
+    Control ( gadget, [] )
 
 
-toGadget : Safe formMsg appMsg output -> G.Gadget output
-toGadget (Safe ( gadget, _ )) =
+toGadget : Control formMsg appMsg output -> G.Gadget output
+toGadget (Control ( gadget, _ )) =
     gadget
 
 
-int : Safe formMsg appMsg Int
+int : Control formMsg appMsg Int
 int =
     fromGadget G.int
 
 
-float : Safe formMsg appMsg Float
+float : Control formMsg appMsg Float
 float =
     fromGadget G.float
 
 
-string : Safe formMsg appMsg String
+string : Control formMsg appMsg String
 string =
     fromGadget G.string
 
@@ -72,18 +72,18 @@ record output =
 field :
     String
     -> (input -> field)
-    -> Safe formMsg appMsg field
+    -> Control formMsg appMsg field
     -> RecordBuilder input (field -> output) formMsg appMsg
     -> RecordBuilder input output formMsg appMsg
-field name getter (Safe ( g, cs )) (RecordBuilder ( builder, controls )) =
+field name getter (Control ( g, cs )) (RecordBuilder ( builder, controls )) =
     RecordBuilder ( G.field name getter g builder, controls ++ cs )
 
 
 endRecord :
     RecordBuilder output output formMsg appMsg
-    -> Safe formMsg appMsg output
+    -> Control formMsg appMsg output
 endRecord (RecordBuilder ( builder, controls )) =
-    Safe ( G.endRecord builder, controls )
+    Control ( G.endRecord builder, controls )
 
 
 custom : input -> CustomBuilder input Never output formMsg appMsg
@@ -106,10 +106,10 @@ variant0 name output (CustomBuilder ( builder, prevControls )) =
 variant1 :
     String
     -> (output -> a)
-    -> Safe formMsg appMsg output
+    -> Control formMsg appMsg output
     -> CustomBuilder ((output -> IR.Value) -> input) hasAtLeastOneVariant a formMsg appMsg
     -> CustomBuilder input () a formMsg appMsg
-variant1 name ctor (Safe ( gadget, controls )) (CustomBuilder ( builder, prevControls )) =
+variant1 name ctor (Control ( gadget, controls )) (CustomBuilder ( builder, prevControls )) =
     CustomBuilder
         ( G.variant1 name ctor gadget builder
         , controls ++ prevControls
@@ -119,11 +119,11 @@ variant1 name ctor (Safe ( gadget, controls )) (CustomBuilder ( builder, prevCon
 variant2 :
     String
     -> (output -> a -> b)
-    -> Safe formMsg appMsg output
-    -> Safe formMsg appMsg a
+    -> Control formMsg appMsg output
+    -> Control formMsg appMsg a
     -> CustomBuilder ((output -> a -> IR.Value) -> input) hasAtLeastOneVariant b formMsg appMsg
     -> CustomBuilder input () b formMsg appMsg
-variant2 name ctor (Safe ( gadget1, controls1 )) (Safe ( gadget2, controls2 )) (CustomBuilder ( builder, prevControls )) =
+variant2 name ctor (Control ( gadget1, controls1 )) (Control ( gadget2, controls2 )) (CustomBuilder ( builder, prevControls )) =
     CustomBuilder
         ( G.variant2 name ctor gadget1 gadget2 builder
         , controls1 ++ controls2 ++ prevControls
@@ -132,16 +132,16 @@ variant2 name ctor (Safe ( gadget1, controls1 )) (Safe ( gadget2, controls2 )) (
 
 endCustom :
     CustomBuilder (output -> IR.Value) () output formMsg appMsg
-    -> Safe formMsg appMsg output
+    -> Control formMsg appMsg output
 endCustom (CustomBuilder ( builder, controls )) =
-    Safe ( G.endCustom builder, controls )
+    Control ( G.endCustom builder, controls )
 
 
 toForm :
     (F.Msg formMsg -> appMsg)
-    -> Safe formMsg appMsg output
+    -> Control formMsg appMsg output
     -> F.Form formMsg appMsg output
-toForm toAppMsg (Safe ( gadget, controls )) =
+toForm toAppMsg (Control ( gadget, controls )) =
     List.foldl
         (\control formBuilder ->
             F.registerControl control formBuilder
@@ -164,13 +164,13 @@ new :
     , submit : model -> Result String output
     , id : String
     }
-    -> Safe formMsg appMsg output
+    -> Control formMsg appMsg output
 new args =
     let
         control =
             C.new args
     in
-    Safe
+    Control
         ( args.outputGadget
             |> F.useControl control
         , [ eraseOutputType control ]
@@ -189,22 +189,22 @@ element :
     , outputGadget : G.Gadget output
     , id : String
     }
-    -> Safe formMsg appMsg output
+    -> Control formMsg appMsg output
 element args =
     let
         control =
             C.element args
     in
-    Safe
+    Control
         ( args.outputGadget
             |> F.useControl control
         , [ eraseOutputType control ]
         )
 
 
-label : String -> Safe formMsg appMsg output -> Safe formMsg appMsg output
-label l (Safe ( g, cs )) =
-    Safe ( g |> F.label l, cs )
+label : String -> Control formMsg appMsg output -> Control formMsg appMsg output
+label l (Control ( g, cs )) =
+    Control ( g |> F.label l, cs )
 
 
 eraseOutputType : I.Control formMsg appMsg output -> I.Control formMsg appMsg Never

@@ -2,8 +2,8 @@ module Form2Demo exposing (main)
 
 import Browser
 import Gadget
-import Gadget.Adapter.Form2 as Form
-import Gadget.Adapter.Form2.Safe as Control
+import Gadget.Adapter.Form as Form
+import Gadget.Adapter.Form.Control as Control
 import Gadget.IR
 import Html as H
 import Html.Attributes as HA
@@ -120,7 +120,7 @@ clockControl =
         |> Control.label "I am a `()` control. I subscribe to `Time.every`"
 
 
-barControl : Control.Safe FormMsg AppMsg String
+barControl : Control.Control FormMsg AppMsg String
 barControl =
     Control.new
         { modelGadget = Gadget.string
@@ -149,7 +149,7 @@ barControl =
         |> Control.label "I am a `String` control, with special powers! I can send and receive `FormMsg` values"
 
 
-quxControl : Control.Safe FormMsg AppMsg Int
+quxControl : Control.Control FormMsg AppMsg Int
 quxControl =
     Control.new
         { modelGadget = Gadget.string

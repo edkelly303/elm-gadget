@@ -1,4 +1,4 @@
-module Gadget.Adapter.Form2.Internal exposing (..)
+module Gadget.Adapter.Form.Internal.Internal exposing (..)
 
 import Dict exposing (Dict)
 import Gadget.IR as IR exposing (Error, Value)
