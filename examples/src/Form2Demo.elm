@@ -26,7 +26,7 @@ import Time
 
 
 type alias AppModel =
-    { form : Form.Model
+    { formModel : Form.Model
     , output : Result (List Gadget.IR.Error) Foo
     }
 
@@ -230,7 +230,7 @@ init flags =
                 }
                 |> Result.withDefault formModel0
     in
-    ( { form = formModel, output = Err [] }
+    ( { formModel = formModel, output = Err [] }
     , formCmd
     )
 
@@ -241,23 +241,23 @@ update msg model =
         FormUpdatedItself formMsg ->
             let
                 ( formModel, formCmd ) =
-                    Form.update form formMsg model.form
+                    Form.update form formMsg model.formModel
             in
-            ( { model | form = formModel }
+            ( { model | formModel = formModel }
             , formCmd
             )
 
         FormSubmitted ->
-            ( { model | output = Form.submit form model.form }
+            ( { model | output = Form.submit form model.formModel }
             , Cmd.none
             )
 
         QuxSentMsgToApp string ->
             let
                 formModel =
-                    Form.notify form (AppSentMsgToForm string) model.form
+                    Form.notify form (AppSentMsgToForm string) model.formModel
             in
-            ( { model | form = formModel }
+            ( { model | formModel = formModel }
             , Cmd.none
             )
 
@@ -267,7 +267,7 @@ view model =
     { title = "Form 2 demo"
     , body =
         [ H.main_ []
-            [ Form.view form model.form
+            [ Form.view form model.formModel
             , H.button [ HE.onClick FormSubmitted ] [ H.text "Submit!" ]
             , H.h2 [] [ H.text "Form output" ]
             , H.output [] [ H.text (Debug.toString model.output) ]
@@ -277,4 +277,4 @@ view model =
 
 
 subscriptions model =
-    Form.subscriptions form model.form
+    Form.subscriptions form model.formModel
