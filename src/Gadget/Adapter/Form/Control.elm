@@ -9,7 +9,7 @@ module Gadget.Adapter.Form.Control exposing
 
 {-|
 
-@docs Control, sandbox, element, advanced, label, toForm
+@docs Control, sandbox, element, advanced, label
 @docs Router, routeToApp, routeToForm, routeToSelf
 @docs int, float, string
 @docs RecordBuilder, record, field, endRecord

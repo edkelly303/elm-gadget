@@ -1,6 +1,6 @@
 module Gadget.Adapter.Form.Internal.Form exposing
-    ( Builder
-    , Form
+    ( Form
+    , FormFunctions
     , Model
     , Msg
     , end
@@ -39,7 +39,7 @@ import Set
 -}
 
 
-type alias Form formMsg appMsg output =
+type alias FormFunctions formMsg appMsg output =
     { init : ( Model, Cmd appMsg )
     , load : output -> Result (List Error) Model
     , update : Msg formMsg -> Model -> ( Model, Cmd appMsg )
@@ -73,8 +73,8 @@ type Primitive
     | OtherPrimitive String
 
 
-type Builder formMsg appMsg output
-    = Builder (Internal.Config formMsg appMsg output)
+type Form formMsg appMsg output
+    = Form (Internal.Config formMsg appMsg output)
 
 
 tools : IR.MetadataTools meta a
@@ -105,13 +105,13 @@ useControl (InternalControl id _) gadget =
 -}
 
 
-new : (Msg formMsg -> appMsg) -> IR.Gadget output -> Builder formMsg appMsg output
+new : (Msg formMsg -> appMsg) -> IR.Gadget output -> Form formMsg appMsg output
 new msgToAppMsg outputGadget =
     let
         unwrap (InternalControl _ c) =
             c
     in
-    Builder
+    Form
         { bool = unwrap Control.bool
         , int = unwrap Control.int
         , float = unwrap Control.float
@@ -139,9 +139,9 @@ new msgToAppMsg outputGadget =
 
 
 end :
-    Builder formMsg appMsg output
-    -> Form formMsg appMsg output
-end (Builder config) =
+    Form formMsg appMsg output
+    -> FormFunctions formMsg appMsg output
+end (Form config) =
     let
         outputType =
             IR.irType config.outputGadget
@@ -198,30 +198,30 @@ end (Builder config) =
 
 registerControl :
     InternalControl formMsg appMsg controlOutput
-    -> Builder formMsg appMsg output
-    -> Builder formMsg appMsg output
-registerControl controlBuilder (Builder builder) =
+    -> Form formMsg appMsg output
+    -> Form formMsg appMsg output
+registerControl controlBuilder (Form builder) =
     let
         (InternalControl id internalControl) =
             controlBuilder
     in
-    Builder { builder | overrides = Dict.insert id internalControl builder.overrides }
+    Form { builder | overrides = Dict.insert id internalControl builder.overrides }
 
 
 withControlView :
     (Bool -> List (H.Html appMsg) -> List (H.Html appMsg))
-    -> Builder formMsg appMsg output
-    -> Builder formMsg appMsg output
-withControlView f (Builder builder) =
-    Builder { builder | viewControl = f }
+    -> Form formMsg appMsg output
+    -> Form formMsg appMsg output
+withControlView f (Form builder) =
+    Form { builder | viewControl = f }
 
 
 withFeedbackView :
     (String -> H.Html appMsg)
-    -> Builder formMsg appMsg output
-    -> Builder formMsg appMsg output
-withFeedbackView f (Builder builder) =
-    Builder { builder | viewFeedback = f }
+    -> Form formMsg appMsg output
+    -> Form formMsg appMsg output
+withFeedbackView f (Form builder) =
+    Form { builder | viewFeedback = f }
 
 
 withTopLevelView :
@@ -232,10 +232,10 @@ withTopLevelView :
      }
      -> List (H.Html appMsg)
     )
-    -> Builder formMsg appMsg output
-    -> Builder formMsg appMsg output
-withTopLevelView f (Builder builder) =
-    Builder { builder | viewTopLevel = f }
+    -> Form formMsg appMsg output
+    -> Form formMsg appMsg output
+withTopLevelView f (Form builder) =
+    Form { builder | viewTopLevel = f }
 
 
 

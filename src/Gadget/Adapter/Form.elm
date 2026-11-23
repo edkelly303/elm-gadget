@@ -21,7 +21,7 @@ import Set exposing (Set)
 
 
 type alias Form formMsg appMsg output =
-    F.Builder formMsg appMsg output
+    F.Form formMsg appMsg output
 
 
 type alias Model =
