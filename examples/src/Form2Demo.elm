@@ -61,8 +61,8 @@ type alias Foo =
 -}
 
 
-safeForm : Form.Form FormMsg AppMsg Foo
-safeForm =
+form : Form.Form FormMsg AppMsg Foo
+form =
     Control.toForm FormUpdatedItself fooControl
 
 
@@ -221,10 +221,10 @@ init : () -> ( AppModel, Cmd AppMsg )
 init flags =
     let
         ( formModel0, formCmd ) =
-            safeForm.init
+            Form.init form
 
         formModel =
-            safeForm.load
+            Form.load form
                 { qux = 100
                 , zod = Just "hello"
                 }
@@ -241,21 +241,21 @@ update msg model =
         FormUpdatedItself formMsg ->
             let
                 ( formModel, formCmd ) =
-                    safeForm.update formMsg model.form
+                    Form.update form formMsg model.form
             in
             ( { model | form = formModel }
             , formCmd
             )
 
         FormSubmitted ->
-            ( { model | output = safeForm.submit model.form }
+            ( { model | output = Form.submit form model.form }
             , Cmd.none
             )
 
         QuxSentMsgToApp string ->
             let
                 formModel =
-                    safeForm.notify (AppSentMsgToForm string) model.form
+                    Form.notify form (AppSentMsgToForm string) model.form
             in
             ( { model | form = formModel }
             , Cmd.none
@@ -267,7 +267,7 @@ view model =
     { title = "Form 2 demo"
     , body =
         [ H.main_ []
-            [ safeForm.view model.form
+            [ Form.view form model.form
             , H.button [ HE.onClick FormSubmitted ] [ H.text "Submit!" ]
             , H.h2 [] [ H.text "Form output" ]
             , H.output [] [ H.text (Debug.toString model.output) ]
@@ -277,4 +277,4 @@ view model =
 
 
 subscriptions model =
-    safeForm.subscriptions model.form
+    Form.subscriptions form model.form

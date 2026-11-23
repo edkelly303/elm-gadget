@@ -19,8 +19,8 @@ module Gadget.Adapter.Form.Control exposing
 -}
 
 import Gadget as G
-import Gadget.Adapter.Form as F
 import Gadget.Adapter.Form.Internal.Control as C
+import Gadget.Adapter.Form.Internal.Form as F
 import Gadget.Adapter.Form.Internal.Types as I
 import Gadget.IR as IR
 import Html as H
@@ -158,7 +158,7 @@ endCustom (CustomBuilder ( builder, controls )) =
 toForm :
     (F.Msg formMsg -> appMsg)
     -> Control formMsg appMsg output
-    -> F.Form formMsg appMsg output
+    -> F.Builder formMsg appMsg output
 toForm toAppMsg (Control ( gadget, controls )) =
     List.foldl
         (\control formBuilder ->
@@ -166,7 +166,6 @@ toForm toAppMsg (Control ( gadget, controls )) =
         )
         (F.new toAppMsg gadget)
         controls
-        |> F.end
 
 
 advanced :
