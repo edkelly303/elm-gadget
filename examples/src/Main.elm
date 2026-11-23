@@ -4,7 +4,7 @@ import Browser
 import Fuzz
 import Gadget
 import Gadget.Adapter.Diff
-import Gadget.Adapter.Form2
+import Gadget.Adapter.Form
 import Gadget.Adapter.Fuzz
 import Gadget.Adapter.Html
 import Gadget.Adapter.Json
