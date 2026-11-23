@@ -58,21 +58,25 @@
 
         elmVersions = map getAndInstallElmVersion releases;
 
-        lamdera = pkgs.stdenv.mkDerivation rec {
-          pname = "lamdera";
-          version = "1.4.0";
+        lamdera =
+          let
+            version = "1.5.1";
+          in
+          pkgs.stdenv.mkDerivation {
+            pname = "lamdera";
+            version = version;
 
-          src = pkgs.fetchurl {
-            url = "https://static.lamdera.com/bin/lamdera-${version}-linux-x86_64";
-            sha256 = "sha256-YofQhTI3qAa+c9QyEqLtg5vWl/KxuUZqjRNerkOFdcQ=";
+            src = pkgs.fetchurl {
+              url = "https://static.lamdera.com/bin/lamdera-${version}-linux-x86_64";
+              sha256 = "sha256-fxp2IEOQ0F1haW0xATfRelzonv7qRqTls0xQ9qS7LTE=";
+            };
+
+            dontUnpack = true;
+
+            installPhase = ''
+              install -Dm755 $src $out/bin/lamdera
+            '';
           };
-
-          dontUnpack = true;
-
-          installPhase = ''
-            install -Dm755 $src $out/bin/lamdera
-          '';
-        };
       in
       pkgs.stdenv.mkDerivation {
         pname = "elm";
