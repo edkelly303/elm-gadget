@@ -15,7 +15,7 @@ module Gadget.Adapter.Form exposing
 import Dict
 import Gadget
 import Gadget.Adapter.Form.Internal.Control as Control
-import Gadget.Adapter.Form.Internal.Internal as Internal exposing (..)
+import Gadget.Adapter.Form.Internal.Types as Internal exposing (..)
 import Gadget.IR as IR exposing (Error, Type(..), Value(..), VariantType(..), VariantValue(..))
 import Html as H
 import Html.Attributes as HA

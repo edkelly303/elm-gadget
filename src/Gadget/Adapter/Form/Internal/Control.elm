@@ -14,7 +14,7 @@ module Gadget.Adapter.Form.Internal.Control exposing
 
 import Gadget
 import Gadget.Adapter.Default as Default
-import Gadget.Adapter.Form.Internal.Internal as Internal exposing (..)
+import Gadget.Adapter.Form.Internal.Types as Internal exposing (..)
 import Gadget.IR as IR
 import Html as H
 import Html.Attributes as HA

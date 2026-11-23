@@ -3,7 +3,7 @@ module Gadget.Adapter.Form.Control exposing (..)
 import Gadget as G
 import Gadget.Adapter.Form as F
 import Gadget.Adapter.Form.Internal.Control as C
-import Gadget.Adapter.Form.Internal.Internal as I
+import Gadget.Adapter.Form.Internal.Types as I
 import Gadget.IR as IR
 import Html as H
 
