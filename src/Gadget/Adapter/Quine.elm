@@ -41,10 +41,10 @@ pretty-printed to a specified number of columns.
     import Gadget.Adapter.Quine as Quine
 
     gadget =
-        Gadget.tuple Gadget.int Gadget.string
+        Gadget.pair Gadget.int Gadget.string
 
     Quine.quine 80 gadget
-    --> "gadget = Gadget.tuple Gadget.int Gadget.string"
+    --> "gadget = Gadget.pair Gadget.int Gadget.string"
 
 -}
 quine : Int -> IR.Gadget a -> String
@@ -229,7 +229,7 @@ quineHelp isChildNode irType =
 
                 PairType _ a b ->
                     breakable
-                        [ G.fromString "Gadget.tuple"
+                        [ G.fromString "Gadget.pair"
                         , quineHelp True a
                         , quineHelp True b
                         ]

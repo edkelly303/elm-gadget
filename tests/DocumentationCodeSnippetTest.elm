@@ -219,6 +219,22 @@ tests =
                     ]
                 ]
             , Test.describe
+                "pair"
+                [ Test.describe
+                    "code snippet 0"
+                    [ Test.test
+                        "0"
+                        (\() ->
+                            let
+                                unused : Gadget.Gadget ( String.String, Basics.Int )
+                                unused =
+                                    pairGadget__Gadget__pair_0
+                            in
+                            Expect.pass
+                        )
+                    ]
+                ]
+            , Test.describe
                 "result"
                 [ Test.describe
                     "code snippet 0"
@@ -261,22 +277,6 @@ tests =
                                 unused : Gadget.Gadget ( String.String, Basics.Int, Basics.Float )
                                 unused =
                                     tripleGadget__Gadget__triple_0
-                            in
-                            Expect.pass
-                        )
-                    ]
-                ]
-            , Test.describe
-                "tuple"
-                [ Test.describe
-                    "code snippet 0"
-                    [ Test.test
-                        "0"
-                        (\() ->
-                            let
-                                unused : Gadget.Gadget ( String.String, Basics.Int )
-                                unused =
-                                    tupleGadget__Gadget__tuple_0
                             in
                             Expect.pass
                         )
@@ -408,7 +408,7 @@ tests =
                                 80
                                 gadget__Gadget_Adapter_Quine__quine_0
                                 |> Expect.equal
-                                    "gadget = Gadget.tuple Gadget.int Gadget.string"
+                                    "gadget = Gadget.pair Gadget.int Gadget.string"
                         )
                     ]
                 ]
@@ -630,7 +630,7 @@ nonEmptyListGadget__Gadget__filterMap_0 a =
 
 
 nonEmptyListGadget__Gadget__filterMap_1 a =
-    Gadget.tuple a (Gadget.list a)
+    Gadget.pair a (Gadget.list a)
 
 
 type Tree__Gadget__lazy_0
@@ -669,6 +669,10 @@ maybeGadget__Gadget__maybe_0 =
     Gadget.maybe Gadget.int
 
 
+pairGadget__Gadget__pair_0 =
+    Gadget.pair Gadget.string Gadget.int
+
+
 resultGadget__Gadget__result_0 =
     Gadget.result Gadget.string Gadget.int
 
@@ -679,10 +683,6 @@ dictGadget__Gadget__set_0 =
 
 tripleGadget__Gadget__triple_0 =
     Gadget.triple Gadget.string Gadget.int Gadget.float
-
-
-tupleGadget__Gadget__tuple_0 =
-    Gadget.tuple Gadget.string Gadget.int
 
 
 gadget__Gadget_Adapter_Diff__Header_0 =
@@ -791,7 +791,7 @@ jsonString__Gadget_Adapter_Json__encode_0 =
 
 
 gadget__Gadget_Adapter_Quine__quine_0 =
-    Gadget.tuple Gadget.int Gadget.string
+    Gadget.pair Gadget.int Gadget.string
 
 
 type alias Person__Gadget_Adapter_Random__generator_0 =
@@ -872,7 +872,7 @@ range__Gadget_IR__MetadataTools_0 : number -> number -> Gadget.IR.Gadget number 
 range__Gadget_IR__MetadataTools_0 lo hi gadget =
     tools__Gadget_IR__MetadataTools_0.attach
         "range"
-        (Gadget.tuple gadget gadget)
+        (Gadget.pair gadget gadget)
         ( lo, hi )
         gadget
 
@@ -896,7 +896,7 @@ irValue__Gadget_IR__MetadataTools_0 =
 elmValue__Gadget_IR__MetadataTools_0 =
     tools__Gadget_IR__MetadataTools_0.decode
         "range"
-        (Gadget.tuple Gadget.int Gadget.int)
+        (Gadget.pair Gadget.int Gadget.int)
         metadata__Gadget_IR__MetadataTools_0
 
 

@@ -165,7 +165,7 @@ For example, here's how [`Gadget.Adapter.Random`](Gadget-Adapter-Random) defines
 
     range : number -> number -> Gadget.IR.Gadget number -> Gadget.IR.Gadget number
     range lo hi gadget =
-        tools.attach "range" (Gadget.tuple gadget gadget) ( lo, hi ) gadget
+        tools.attach "range" (Gadget.pair gadget gadget) ( lo, hi ) gadget
 
     -- and we can look up those values using the other tools:
 
@@ -184,7 +184,7 @@ For example, here's how [`Gadget.Adapter.Random`](Gadget-Adapter-Random) defines
     irValue --> Just (Gadget.IR.PairValue (Gadget.IR.IntValue 0) (Gadget.IR.IntValue 10))
 
     elmValue =
-        tools.decode "range" (Gadget.tuple Gadget.int Gadget.int) metadata
+        tools.decode "range" (Gadget.pair Gadget.int Gadget.int) metadata
 
     elmValue --> Just ( 0, 10 )
 

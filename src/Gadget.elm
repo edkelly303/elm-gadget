@@ -2,7 +2,7 @@ module Gadget exposing
     ( Gadget
     , unit, bool, char, string, int, float
     , list, array, dict, set
-    , tuple, triple
+    , pair, triple
     , maybe, result
     , RecordGadgetBuilder, record, field, endRecord
     , CustomGadgetBuilder, custom, variant0, variant1, variant2, variant3
@@ -41,7 +41,7 @@ If you want to make your own adapters, see the [`Gadget.IR`](Gadget-IR) module.
 
 @docs list, array, dict, set
 
-@docs tuple, triple
+@docs pair, triple
 
 @docs maybe, result
 
@@ -294,7 +294,7 @@ dict :
     -> Gadget v
     -> Gadget (Dict.Dict comparable v)
 dict key value =
-    list (tuple key value)
+    list (pair key value)
         |> map Dict.fromList Dict.toList
 
 
@@ -386,18 +386,18 @@ result x a =
         |> endCustom
 
 
-{-| A combinator used to define Gadgets for tuples.
+{-| A combinator used to define Gadgets for pairs (2-tuples).
 
     import Gadget
 
-    tupleGadget =
-        Gadget.tuple Gadget.string Gadget.int
+    pairGadget =
+        Gadget.pair Gadget.string Gadget.int
 
-    tupleGadget --: Gadget.Gadget ( String, Int )
+    pairGadget --: Gadget.Gadget ( String, Int )
 
 -}
-tuple : Gadget a -> Gadget b -> Gadget ( a, b )
-tuple (Gadget a) (Gadget b) =
+pair : Gadget a -> Gadget b -> Gadget ( a, b )
+pair (Gadget a) (Gadget b) =
     Gadget
         { fromInput =
             \input ->
@@ -413,7 +413,7 @@ tuple (Gadget a) (Gadget b) =
                             (b.toOutput ("1" :: path) snd)
 
                     _ ->
-                        Err [ { error = "Not a tuple", path = path } ]
+                        Err [ { error = "Not a pair", path = path } ]
         , irType =
             PairType IR.emptyMetadata a.irType b.irType
         }
@@ -878,7 +878,7 @@ values. Instead, prefer a constructive approach, like this:
     import Gadget
 
     nonEmptyListGadget a =
-        Gadget.tuple a (Gadget.list a)
+        Gadget.pair a (Gadget.list a)
 
     nonEmptyListGadget --: Gadget.Gadget a -> Gadget.Gadget ( a, List a )
 

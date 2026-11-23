@@ -182,7 +182,7 @@ and for each of its variants (displayed as HTML `<input type="radio">` buttons).
 customLabels : String -> List String -> IR.Gadget a -> IR.Gadget a
 customLabels l ls gadget =
     tools.attach "customLabel"
-        (Gadget.tuple Gadget.string (Gadget.list Gadget.string))
+        (Gadget.pair Gadget.string (Gadget.list Gadget.string))
         ( l, ls )
         gadget
 
@@ -1583,7 +1583,7 @@ viewHelp config result modelPath model =
                                 |> List.concat
 
                         ( customLabel_, variantLabels ) =
-                            tools.decode "customLabel" (Gadget.tuple Gadget.string (Gadget.list Gadget.string)) metadata
+                            tools.decode "customLabel" (Gadget.pair Gadget.string (Gadget.list Gadget.string)) metadata
                                 |> Maybe.withDefault ( pathToString modelPath, [] )
 
                         selectorView =

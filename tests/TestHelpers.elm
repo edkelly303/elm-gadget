@@ -90,7 +90,7 @@ tupleGadget : Gadget.Gadget ( Int, ( String, Float ), Bool )
 tupleGadget =
     Gadget.triple
         Gadget.int
-        (Gadget.tuple Gadget.string Gadget.float)
+        (Gadget.pair Gadget.string Gadget.float)
         Gadget.bool
 
 
@@ -128,7 +128,7 @@ customGadget =
         )
         |> Gadget.variant0 "Var0" Var0
         |> Gadget.variant1 "Var1" Var1 (Gadget.list Gadget.bool)
-        |> Gadget.variant2 "Var2" Var2 Gadget.int (Gadget.tuple Gadget.bool Gadget.char)
+        |> Gadget.variant2 "Var2" Var2 Gadget.int (Gadget.pair Gadget.bool Gadget.char)
         |> Gadget.variant3 "Var3" Var3 Gadget.bool Gadget.bool Gadget.bool
         |> Gadget.variant4 "Var4" Var4 Gadget.bool Gadget.bool Gadget.bool Gadget.bool
         |> Gadget.variant5 "Var5" Var5 Gadget.bool Gadget.bool Gadget.bool Gadget.bool Gadget.bool

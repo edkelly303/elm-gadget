@@ -250,7 +250,7 @@ tupleParser =
                         P.succeed (IR.PairValue a b)
 
                     _ ->
-                        P.problem "wrong number of members for tuple"
+                        P.problem "wrong number of members for pair"
             )
 
 

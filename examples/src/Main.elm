@@ -32,7 +32,7 @@ type alias Person =
     { name : String
     , heightInCentimetres : Float
     , pets : List Pet
-    , tuple : ( Bool, Bool )
+    , pair : ( Bool, Bool )
     , triple : ( Bool, Bool, Bool )
     }
 
@@ -96,9 +96,9 @@ personGadget =
                 |> Gadget.Adapter.Random.listLength 0 3
                 |> Form.label "Do you have any pets?"
             )
-        |> Gadget.field "tuple"
-            .tuple
-            (Gadget.tuple
+        |> Gadget.field "pair"
+            .pair
+            (Gadget.pair
                 (Gadget.bool |> Form.label "one" |> Form.override "myBoolBroadcaster")
                 (Gadget.bool |> Form.label "two" |> Form.override "myBoolReceiver")
                 |> Form.label "What's your favourite pair of booleans?"
@@ -440,7 +440,7 @@ init _ =
                 { name = "Ed"
                 , heightInCentimetres = 180
                 , pets = [ Robot 'A' (Just 3000) ]
-                , tuple = ( True, False )
+                , pair = ( True, False )
                 , triple = ( False, True, False )
                 }
     in

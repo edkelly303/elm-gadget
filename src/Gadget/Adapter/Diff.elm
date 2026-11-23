@@ -100,7 +100,7 @@ changes =
             Gadget.lazy (\() -> changes)
 
         indexedChanges_ =
-            Gadget.tuple Gadget.int changes_
+            Gadget.pair Gadget.int changes_
     in
     Gadget.custom
         (\identical recordChanges customChanges boolChange intChange floatChange charChange stringChange listChanges tupleChanges tripleChanges variant ->

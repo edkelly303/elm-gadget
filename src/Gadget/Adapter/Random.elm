@@ -71,7 +71,7 @@ values for the `Int` that it generates.
 -}
 range : number -> number -> IR.Gadget number -> IR.Gadget number
 range lo hi gadget =
-    tools.attach "range" (Gadget.tuple gadget gadget) ( lo, hi ) gadget
+    tools.attach "range" (Gadget.pair gadget gadget) ( lo, hi ) gadget
 
 
 {-| Limit the output of a Gadget's `Random.Generator` by setting minimum and maximum
@@ -99,14 +99,14 @@ values for the length of the `List` that it generates.
 -}
 listLength : Int -> Int -> IR.Gadget (List a) -> IR.Gadget (List a)
 listLength lo hi gadget =
-    tools.attach "listLength" (Gadget.tuple Gadget.int Gadget.int) ( lo, hi ) gadget
+    tools.attach "listLength" (Gadget.pair Gadget.int Gadget.int) ( lo, hi ) gadget
 
 
 {-| Constrain a Gadget's `Random.Generator` to emit one of a set of options.
 -}
 choose : a -> List a -> IR.Gadget a -> IR.Gadget a
 choose first rest gadget =
-    tools.attach "choose" (Gadget.tuple gadget (Gadget.list gadget)) ( first, rest ) gadget
+    tools.attach "choose" (Gadget.pair gadget (Gadget.list gadget)) ( first, rest ) gadget
 
 
 {-| Turn a Gadget into a `Random.Generator`.
@@ -186,7 +186,7 @@ randomAdapter irType =
                 IR.IntType metadata ->
                     Random.map IR.IntValue <|
                         case
-                            tools.decode "range" (Gadget.tuple Gadget.int Gadget.int) metadata
+                            tools.decode "range" (Gadget.pair Gadget.int Gadget.int) metadata
                         of
                             Just ( lo, hi ) ->
                                 Random.int lo hi
@@ -197,7 +197,7 @@ randomAdapter irType =
                 IR.FloatType metadata ->
                     Random.map IR.FloatValue <|
                         case
-                            tools.decode "range" (Gadget.tuple Gadget.float Gadget.float) metadata
+                            tools.decode "range" (Gadget.pair Gadget.float Gadget.float) metadata
                         of
                             Just ( lo, hi ) ->
                                 Random.float lo hi
@@ -264,7 +264,7 @@ randomAdapter irType =
                 IR.ListType metadata itemType ->
                     let
                         ( min, max ) =
-                            tools.decode "listLength" (Gadget.tuple Gadget.int Gadget.int) metadata
+                            tools.decode "listLength" (Gadget.pair Gadget.int Gadget.int) metadata
                                 |> Maybe.withDefault ( 0, 10 )
                     in
                     Random.int min max
