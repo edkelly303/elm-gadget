@@ -1,4 +1,18 @@
-module Gadget.Adapter.Form.Control exposing (..)
+module Gadget.Adapter.Form.Control exposing
+    ( Control, new, element, label, toForm
+    , Router, routeToApp, routeToForm, routeToSelf
+    , RecordBuilder, record, field, endRecord
+    , CustomBuilder, custom, variant0, variant1, variant2, endCustom
+    )
+
+{-|
+
+@docs Control, new, element, label, toForm
+@docs Router, routeToApp, routeToForm, routeToSelf
+@docs RecordBuilder, record, field, endRecord
+@docs CustomBuilder, custom, variant0, variant1, variant2, endCustom
+
+-}
 
 import Gadget as G
 import Gadget.Adapter.Form as F
@@ -20,7 +34,7 @@ type CustomBuilder input hasAtLeastOneVariant output formMsg appMsg
     = CustomBuilder ( G.CustomGadgetBuilder input hasAtLeastOneVariant output, List (I.Control formMsg appMsg Never) )
 
 
-type alias Send controlMsg formMsg appMsg =
+type alias Router controlMsg formMsg appMsg =
     C.Send controlMsg formMsg appMsg
 
 

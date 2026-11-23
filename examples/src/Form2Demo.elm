@@ -178,7 +178,7 @@ quxControl =
         |> Control.label "I am an `Int` control, with special powers! I can send `AppMsg` values and receive `FormMsg` values"
 
 
-textInput : String -> String -> H.Html (Control.Send String FormMsg AppMsg)
+textInput : String -> String -> H.Html (Control.Router String FormMsg AppMsg)
 textInput id model =
     H.input
         [ HA.type_ "text"
@@ -189,7 +189,7 @@ textInput id model =
         []
 
 
-sendMsg : Control.Send String FormMsg AppMsg -> Cmd (Control.Send String FormMsg AppMsg)
+sendMsg : Control.Router String FormMsg AppMsg -> Cmd (Control.Router String FormMsg AppMsg)
 sendMsg msg =
     Task.perform identity (Task.succeed msg)
 
