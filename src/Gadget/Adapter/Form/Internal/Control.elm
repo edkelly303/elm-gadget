@@ -44,10 +44,6 @@ toApp =
     Internal.RouteToApp
 
 
-type alias Control formMsg appMsg output =
-    Internal.InternalControl formMsg appMsg output
-
-
 sandbox :
     { init : model
     , load : output -> model
