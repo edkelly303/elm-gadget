@@ -1,5 +1,5 @@
 module Gadget.Adapter.Form.Control exposing
-    ( Control, new, element, label, toForm
+    ( Control, sandbox, element, advanced, label, toForm
     , Router, routeToApp, routeToForm, routeToSelf
     , int, float, string
     , RecordBuilder, record, field, endRecord
@@ -9,7 +9,7 @@ module Gadget.Adapter.Form.Control exposing
 
 {-|
 
-@docs Control, new, element, label, toForm
+@docs Control, sandbox, element, advanced, label, toForm
 @docs Router, routeToApp, routeToForm, routeToSelf
 @docs int, float, string
 @docs RecordBuilder, record, field, endRecord
@@ -169,7 +169,7 @@ toForm toAppMsg (Control ( gadget, controls )) =
         |> F.end
 
 
-new :
+advanced :
     { modelGadget : G.Gadget model
     , msgGadget : G.Gadget controlMsg
     , outputGadget : G.Gadget output
@@ -183,10 +183,34 @@ new :
     , id : String
     }
     -> Control formMsg appMsg output
-new args =
+advanced args =
     let
         control =
             C.new args
+    in
+    Control
+        ( args.outputGadget
+            |> F.useControl control
+        , [ eraseOutputType control ]
+        )
+
+
+sandbox :
+    { init : model
+    , load : output -> model
+    , update : controlMsg -> model -> model
+    , view : String -> model -> H.Html controlMsg
+    , submit : model -> Result String output
+    , modelGadget : IR.Gadget model
+    , msgGadget : IR.Gadget controlMsg
+    , outputGadget : IR.Gadget output
+    , id : String
+    }
+    -> Control formMsg appMsg output
+sandbox args =
+    let
+        control =
+            C.sandbox args
     in
     Control
         ( args.outputGadget

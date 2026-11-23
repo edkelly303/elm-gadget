@@ -122,7 +122,7 @@ clockControl =
 
 barControl : Control.Control FormMsg AppMsg String
 barControl =
-    Control.new
+    Control.advanced
         { modelGadget = Gadget.string
         , msgGadget = Gadget.string
         , outputGadget = Gadget.string
@@ -151,7 +151,7 @@ barControl =
 
 quxControl : Control.Control FormMsg AppMsg Int
 quxControl =
-    Control.new
+    Control.advanced
         { modelGadget = Gadget.string
         , msgGadget = Gadget.string
         , outputGadget = Gadget.int
