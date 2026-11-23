@@ -236,8 +236,8 @@ label l (I.Control ( g, cs )) =
 
 
 customLabels : String -> List String -> Control formMsg appMsg output -> Control formMsg appMsg output
-customLabels typeLabel variantLabels control =
-    Debug.log "implement customLabels" control
+customLabels typeLabel variantLabels (I.Control ( g, cs )) =
+    I.Control ( g |> F.customLabels typeLabel variantLabels, cs )
 
 
 eraseOutputType : I.InternalControl formMsg appMsg output -> I.InternalControl formMsg appMsg Never

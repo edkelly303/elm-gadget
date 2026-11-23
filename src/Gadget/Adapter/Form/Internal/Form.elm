@@ -3,6 +3,7 @@ module Gadget.Adapter.Form.Internal.Form exposing
     , FormFunctions
     , Model
     , Msg
+    , customLabels
     , end
     , label
     , new
@@ -85,6 +86,13 @@ tools =
 label : String -> IR.Gadget a -> IR.Gadget a
 label labelText gadget =
     tools.attach "label" Gadget.string labelText gadget
+
+
+customLabels typeLabel variantLabels gadget =
+    tools.attach "customLabels"
+        (Gadget.tuple Gadget.string (Gadget.list Gadget.string))
+        ( typeLabel, variantLabels )
+        gadget
 
 
 useControl : InternalControl formMsg appMsg a -> IR.Gadget a -> IR.Gadget a
