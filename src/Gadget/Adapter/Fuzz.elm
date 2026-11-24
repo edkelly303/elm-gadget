@@ -276,3 +276,117 @@ fuzzAdapter overrides irType =
                         (fuzzAdapter overrides aType)
                         (fuzzAdapter overrides bType)
                         (fuzzAdapter overrides cType)
+
+
+handlePrimaryKeys :
+    Dict.Dict String (Fuzz.Fuzzer Value)
+    -> Type
+    -> Fuzz.Fuzzer (Dict.Dict String (List Value))
+handlePrimaryKeys overrides irType =
+    handlePrimaryKeysHelp overrides 0 irType (Fuzz.constant Dict.empty)
+
+
+handlePrimaryKeysHelp :
+    Dict.Dict String (Fuzz.Fuzzer Value)
+    -> Int
+    -> Type
+    -> Fuzz.Fuzzer (Dict.Dict String (List Value))
+    -> Fuzz.Fuzzer (Dict.Dict String (List Value))
+handlePrimaryKeysHelp overrides nesting irType oldDictFuzzer =
+    let
+        newDictFuzzer =
+            if nesting == 1 then
+                case tools.extract irType |> tools.decode "primaryKey" Gadget.string of
+                    Nothing ->
+                        oldDictFuzzer
+
+                    Just pkey ->
+                        Fuzz.map2 (Dict.insert pkey)
+                            (Fuzz.list (fuzzAdapter overrides irType))
+                            oldDictFuzzer
+
+            else
+                oldDictFuzzer
+    in
+    case irType of
+        CustomType _ firstNamedVariant restNamedVariants ->
+            List.foldl
+                (\( _, variantType ) variantDict ->
+                    List.foldl
+                        (\argType argDict ->
+                            handlePrimaryKeysHelp overrides nesting argType argDict
+                        )
+                        variantDict
+                        (variantTypeToList variantType)
+                )
+                newDictFuzzer
+                (firstNamedVariant :: restNamedVariants)
+
+        RecordType _ namedFieldTypes ->
+            List.foldl
+                (\( _, fieldType ) fieldDict ->
+                    handlePrimaryKeysHelp overrides nesting fieldType fieldDict
+                )
+                newDictFuzzer
+                namedFieldTypes
+
+        ListType _ itemType ->
+            handlePrimaryKeysHelp overrides (nesting + 1) itemType newDictFuzzer
+
+        LazyType _ thunk ->
+            handlePrimaryKeysHelp overrides nesting (thunk ()) newDictFuzzer
+
+        PairType _ aType bType ->
+            List.foldl
+                (\elemType elemDict ->
+                    handlePrimaryKeysHelp overrides nesting elemType elemDict
+                )
+                newDictFuzzer
+                [ aType, bType ]
+
+        TripleType _ aType bType cType ->
+            List.foldl
+                (\elemType elemDict ->
+                    handlePrimaryKeysHelp overrides nesting elemType elemDict
+                )
+                newDictFuzzer
+                [ aType, bType, cType ]
+
+        _ ->
+            newDictFuzzer
+
+
+variantTypeToList : VariantType -> List Type
+variantTypeToList variantType =
+    case variantType of
+        Variant0Type ->
+            []
+
+        Variant1Type arg ->
+            [ arg ]
+
+        Variant2Type arg1 arg2 ->
+            [ arg1
+            , arg2
+            ]
+
+        Variant3Type arg1 arg2 arg3 ->
+            [ arg1
+            , arg2
+            , arg3
+            ]
+
+        Variant4Type arg1 arg2 arg3 arg4 ->
+            [ arg1
+            , arg2
+            , arg3
+            , arg4
+            ]
+
+        Variant5Type arg1 arg2 arg3 arg4 arg5 ->
+            [ arg1
+            , arg2
+            , arg3
+            , arg4
+            , arg5
+            ]
