@@ -1,6 +1,6 @@
 module Gadget.Adapter.Fuzz exposing
     ( fuzzer
-    , fuzzerWithOverrides, Override, override, useOverride, primaryKey, foreignKey
+    , fuzzerWithOverrides, Override, override, useOverride, containsPrimaryKeys, hasForeignKey
     )
 
 {-|
@@ -24,7 +24,7 @@ Use a Gadget to create a `Fuzz.Fuzzer` for use with functions from the
 
 @docs fuzzer
 
-@docs fuzzerWithOverrides, Override, override, useOverride, primaryKey, foreignKey
+@docs fuzzerWithOverrides, Override, override, useOverride, containsPrimaryKeys, hasForeignKey
 
 -}
 
@@ -32,6 +32,7 @@ import Dict
 import Fuzz
 import Gadget
 import Gadget.IR as IR exposing (Gadget, Type(..), Value(..), VariantType(..), VariantValue(..))
+import List.Extra
 
 
 tools : IR.MetadataTools meta a
@@ -118,7 +119,7 @@ fuzzerWithOverrides overrides gadget =
         irType =
             IR.irType gadget
     in
-    handlePrimaryKeys overridesDict irType
+    makePrimaryKeysFuzzer overridesDict irType
         |> Fuzz.andThen
             (\primaryKeys ->
                 fuzzAdapter overridesDict primaryKeys irType
@@ -162,7 +163,7 @@ type alias PrimaryKeysFuzzer =
 
 
 type alias PrimaryKeys =
-    Dict.Dict String ( Value, List Value )
+    Dict.Dict String (List Value)
 
 
 type alias OverridesDict =
@@ -178,7 +179,7 @@ fuzzAdapter overrides primaryKeys irType =
     case tools.decode "foreignKey" Gadget.string metadata of
         Just key ->
             Dict.get key primaryKeys
-                |> Maybe.map (\( first, rest ) -> Fuzz.oneOfValues (first :: rest))
+                |> Maybe.map Fuzz.oneOfValues
                 |> Maybe.withDefault (Fuzz.invalid "primary key not found")
 
         Nothing ->
@@ -298,8 +299,8 @@ fuzzAdapter overrides primaryKeys irType =
                                         Nothing ->
                                             Fuzz.invalid "primary key not found"
 
-                                        Just ( val, vals ) ->
-                                            Fuzz.constant (val :: vals)
+                                        Just vals ->
+                                            Fuzz.constant vals
                                                 |> Fuzz.map ListValue
 
                                 Nothing ->
@@ -318,37 +319,37 @@ fuzzAdapter overrides primaryKeys irType =
                                 (fuzzAdapter overrides primaryKeys cType)
 
 
-primaryKey : String -> Gadget (List a) -> Gadget (List a)
-primaryKey key gadget =
+containsPrimaryKeys : String -> Gadget a -> Gadget a
+containsPrimaryKeys key gadget =
     tools.attach "primaryKey" Gadget.string key gadget
 
 
-foreignKey : String -> Gadget a -> Gadget a
-foreignKey key gadget =
+hasForeignKey : String -> Gadget a -> Gadget a
+hasForeignKey key gadget =
     tools.attach "foreignKey" Gadget.string key gadget
 
 
-handlePrimaryKeys :
+makePrimaryKeysFuzzer :
     OverridesDict
     -> Type
     -> PrimaryKeysFuzzer
-handlePrimaryKeys overrides irType =
-    handlePrimaryKeysHelp overrides irType (Fuzz.constant Dict.empty)
+makePrimaryKeysFuzzer overrides irType =
+    makePrimaryKeysFuzzerHelp overrides irType (Fuzz.constant Dict.empty)
 
 
-handlePrimaryKeysHelp :
+makePrimaryKeysFuzzerHelp :
     Dict.Dict String (Fuzz.Fuzzer Value)
     -> Type
     -> PrimaryKeysFuzzer
     -> PrimaryKeysFuzzer
-handlePrimaryKeysHelp overrides irType primaryKeysFuzzer =
+makePrimaryKeysFuzzerHelp overrides irType primaryKeysFuzzer =
     case irType of
         CustomType _ firstNamedVariant restNamedVariants ->
             List.foldl
                 (\( _, variantType ) variantDict ->
                     List.foldl
                         (\argType argDict ->
-                            handlePrimaryKeysHelp overrides argType argDict
+                            makePrimaryKeysFuzzerHelp overrides argType argDict
                         )
                         variantDict
                         (variantTypeToList variantType)
@@ -359,7 +360,7 @@ handlePrimaryKeysHelp overrides irType primaryKeysFuzzer =
         RecordType _ namedFieldTypes ->
             List.foldl
                 (\( _, fieldType ) fieldDict ->
-                    handlePrimaryKeysHelp overrides fieldType fieldDict
+                    makePrimaryKeysFuzzerHelp overrides fieldType fieldDict
                 )
                 primaryKeysFuzzer
                 namedFieldTypes
@@ -374,21 +375,20 @@ handlePrimaryKeysHelp overrides irType primaryKeysFuzzer =
                         Just key ->
                             Fuzz.map2
                                 (Dict.insert key)
-                                (Fuzz.pair
-                                    (fuzzAdapter overrides Dict.empty itemType)
-                                    (Fuzz.list (fuzzAdapter overrides Dict.empty itemType))
+                                (Fuzz.list (fuzzAdapter overrides Dict.empty itemType)
+                                    |> Fuzz.map List.Extra.unique
                                 )
                                 primaryKeysFuzzer
             in
-            handlePrimaryKeysHelp overrides itemType newPrimaryKeysFuzzer
+            makePrimaryKeysFuzzerHelp overrides itemType newPrimaryKeysFuzzer
 
         LazyType _ thunk ->
-            handlePrimaryKeysHelp overrides (thunk ()) primaryKeysFuzzer
+            makePrimaryKeysFuzzerHelp overrides (thunk ()) primaryKeysFuzzer
 
         PairType _ aType bType ->
             List.foldl
                 (\elemType elemDict ->
-                    handlePrimaryKeysHelp overrides elemType elemDict
+                    makePrimaryKeysFuzzerHelp overrides elemType elemDict
                 )
                 primaryKeysFuzzer
                 [ aType, bType ]
@@ -396,7 +396,7 @@ handlePrimaryKeysHelp overrides irType primaryKeysFuzzer =
         TripleType _ aType bType cType ->
             List.foldl
                 (\elemType elemDict ->
-                    handlePrimaryKeysHelp overrides elemType elemDict
+                    makePrimaryKeysFuzzerHelp overrides elemType elemDict
                 )
                 primaryKeysFuzzer
                 [ aType, bType, cType ]

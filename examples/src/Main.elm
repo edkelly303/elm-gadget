@@ -204,8 +204,8 @@ init _ =
 
 gadget =
     Gadget.pair
-        (Gadget.list Gadget.int |> Gadget.Adapter.Fuzz.primaryKey "a")
-        (Gadget.list (Gadget.int |> Gadget.Adapter.Fuzz.foreignKey "a"))
+        (Gadget.list Gadget.int |> Gadget.Adapter.Fuzz.containsPrimaryKeys "a")
+        (Gadget.int |> Gadget.Adapter.Fuzz.hasForeignKey "a")
 
 
 
