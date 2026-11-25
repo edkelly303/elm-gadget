@@ -179,9 +179,15 @@ fuzzAdapter overrides primaryKeys irType =
     in
     case tools.decode "foreignKey" Gadget.string metadata of
         Just key ->
-            Dict.get key primaryKeys
-                |> Maybe.map Fuzz.oneOfValues
-                |> Maybe.withDefault (Fuzz.invalid ("primary key `" ++ key ++ "` not found"))
+            case Dict.get key primaryKeys of
+                Just [] ->
+                    Fuzz.invalid "didn't generate any values for primary keys"
+
+                Just values ->
+                    Fuzz.oneOfValues values
+
+                Nothing ->
+                    Fuzz.invalid ("primary key `" ++ key ++ "` not found")
 
         Nothing ->
             case
@@ -294,19 +300,33 @@ fuzzAdapter overrides primaryKeys irType =
                                 |> Fuzz.map RecordValue
 
                         ListType _ itemType ->
-                            case getPrimaryKey itemType of
-                                Nothing ->
-                                    Fuzz.list (fuzzAdapter overrides primaryKeys itemType)
-                                        |> Fuzz.map ListValue
-
-                                Just key ->
-                                    case Dict.get key primaryKeys of
-                                        Just vals ->
-                                            Fuzz.traverse (\val -> insertValue overrides primaryKeys key (Fuzz.constant val) itemType) vals
+                            let
+                                continue =
+                                    case getKey "primaryKey" itemType of
+                                        Nothing ->
+                                            Fuzz.list (fuzzAdapter overrides primaryKeys itemType)
                                                 |> Fuzz.map ListValue
 
-                                        Nothing ->
-                                            Fuzz.invalid "primary key not found"
+                                        Just key ->
+                                            case Dict.get key primaryKeys of
+                                                Just vals ->
+                                                    Fuzz.traverse (\val -> insertValue overrides primaryKeys key (Fuzz.constant val) itemType) vals
+                                                        |> Fuzz.map ListValue
+
+                                                Nothing ->
+                                                    Fuzz.invalid "primary key not found"
+                            in
+                            case getKey "foreignKey" itemType of
+                                Just key ->
+                                    case Dict.get key primaryKeys of
+                                        Just [] ->
+                                            Fuzz.constant (ListValue [])
+
+                                        _ ->
+                                            continue
+
+                                Nothing ->
+                                    continue
 
                         PairType _ aType bType ->
                             Fuzz.map2 (\a b -> PairValue a b)
@@ -384,7 +404,7 @@ insertValue overrides primaryKeys pKey valueFuzzer irType =
                         |> Fuzz.map RecordValue
 
                 ListType _ itemType ->
-                    case getPrimaryKey itemType of
+                    case getKey "primaryKey" itemType of
                         Nothing ->
                             Fuzz.list (insertValue overrides primaryKeys pKey valueFuzzer itemType)
                                 |> Fuzz.map ListValue
@@ -424,9 +444,9 @@ insertValue overrides primaryKeys pKey valueFuzzer irType =
             continue
 
 
-getPrimaryKey : Type -> Maybe String
-getPrimaryKey irType =
-    case tools.extract irType |> tools.decode "primaryKey" Gadget.string of
+getKey : String -> Type -> Maybe String
+getKey keyName irType =
+    case tools.extract irType |> tools.decode keyName Gadget.string of
         Nothing ->
             case irType of
                 CustomType _ firstNamedVariantType restNamedVariantTypes ->
@@ -435,26 +455,26 @@ getPrimaryKey irType =
                             (\( _, variantType ) ->
                                 variantType
                                     |> variantTypeToList
-                                    |> List.map getPrimaryKey
+                                    |> List.map (getKey keyName)
                             )
                         |> Maybe.Extra.orList
 
                 RecordType _ namedFieldTypes ->
                     namedFieldTypes
-                        |> List.map (\( _, fieldType ) -> getPrimaryKey fieldType)
+                        |> List.map (\( _, fieldType ) -> getKey keyName fieldType)
                         |> Maybe.Extra.orList
 
                 LazyType _ thunk ->
-                    getPrimaryKey (thunk ())
+                    getKey keyName (thunk ())
 
                 PairType _ aType bType ->
-                    getPrimaryKey aType
-                        |> Maybe.Extra.or (getPrimaryKey bType)
+                    getKey keyName aType
+                        |> Maybe.Extra.or (getKey keyName bType)
 
                 TripleType _ aType bType cType ->
-                    getPrimaryKey aType
-                        |> Maybe.Extra.or (getPrimaryKey bType)
-                        |> Maybe.Extra.or (getPrimaryKey cType)
+                    getKey keyName aType
+                        |> Maybe.Extra.or (getKey keyName bType)
+                        |> Maybe.Extra.or (getKey keyName cType)
 
                 ListType _ _ ->
                     -- I think we don't want to look deeper for primary keys
