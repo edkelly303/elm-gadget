@@ -8,8 +8,6 @@ import Gadget.Adapter.Form
 import Gadget.Adapter.Fuzz
 import Gadget.Adapter.Html
 import Gadget.Adapter.Json
-import Gadget.Adapter.OldForm as Form
-import Gadget.Adapter.OldForm.Control as Control
 import Gadget.Adapter.Pretty
 import Gadget.Adapter.Quine
 import Gadget.Adapter.Random
@@ -72,14 +70,11 @@ personGadget =
                     )
                     identity
                 |> Gadget.Adapter.Random.choose "Ed" [ "Leonardo", "Wolfgang", "Rupert", "Mario", "Martin" ]
-                |> Form.label "What is your name?"
             )
         |> Gadget.field "heightInCentimetres"
             .heightInCentimetres
             (Gadget.float
                 |> Gadget.Adapter.Random.range 100 180
-                |> Form.label "What is your height (in centimetres)?"
-                |> Form.override "heightInCentimetres"
                 |> Gadget.filterMap
                     (\f ->
                         if f < 50 then
@@ -94,22 +89,19 @@ personGadget =
             .pets
             (Gadget.list petGadget
                 |> Gadget.Adapter.Random.listLength 0 3
-                |> Form.label "Do you have any pets?"
             )
         |> Gadget.field "pair"
             .pair
             (Gadget.pair
-                (Gadget.bool |> Form.label "one" |> Form.override "myBoolBroadcaster")
-                (Gadget.bool |> Form.label "two" |> Form.override "myBoolReceiver")
-                |> Form.label "What's your favourite pair of booleans?"
+                Gadget.bool
+                Gadget.bool
             )
         |> Gadget.field "triple"
             .triple
             (Gadget.triple
-                (Gadget.bool |> Form.label "one")
-                (Gadget.bool |> Form.label "two")
-                (Gadget.bool |> Form.label "three")
-                |> Form.label "And what about your favourite triple?"
+                Gadget.bool
+                Gadget.bool
+                Gadget.bool
             )
         |> Gadget.endRecord
 
@@ -134,7 +126,6 @@ petGadget =
                     (Gadget.string
                         |> Gadget.Adapter.Fuzz.useOverride "dogName"
                         |> Gadget.Adapter.Random.choose "Rex" [ "Fido", "Kevin", "Rover", "Fifi", "George", "Winnie" ]
-                        |> Form.label "What is your dog's name?"
                         |> Gadget.filterMap
                             (\s ->
                                 if String.isEmpty s then
@@ -153,18 +144,14 @@ petGadget =
             (Gadget.char
                 |> Gadget.Adapter.Fuzz.useOverride "series"
                 |> Gadget.Adapter.Random.choose 'A' (List.range 66 90 |> List.map Char.fromCode)
-                |> Form.label "What is your robot's model series?"
             )
             (Gadget.maybe
                 (Gadget.int
                     |> Gadget.Adapter.Fuzz.useOverride "model"
                     |> Gadget.Adapter.Random.range 1000 5000
-                    |> Form.label "What is your robot's model number?"
                 )
-                |> Form.customLabels "Does your robot have a model number?" [ "Yes", "No" ]
             )
         |> Gadget.endCustom
-        |> Form.customLabels "What type of pet do you have?" [ "Dog", "Robot" ]
 
 
 main : Program () Model Msg
@@ -180,7 +167,6 @@ main =
 type alias Model =
     { seed : Int
     , prettyWidth : Int
-    , form : Form.Model
     }
 
 
@@ -188,10 +174,6 @@ type Msg
     = UserClickedRegenerate
     | UserChangedPrettyWidth String
     | NewSeed Int
-    | FormReceivedMsg Form.Msg
-    | BackendReceivedRequest Form.Request
-    | FormReceivedResponse Form.Response
-    | FormSubmitted
 
 
 update msg model =
@@ -211,252 +193,23 @@ update msg model =
             , Cmd.none
             )
 
-        FormReceivedMsg formMsg ->
-            form.update formMsg model.form
-                |> cmdify model
-
-        FormReceivedResponse response ->
-            form.updateFromResponse response model.form
-                |> cmdify model
-
-        FormSubmitted ->
-            Debug.log "Submitted!"
-                ( model
-                , Cmd.none
-                )
-
-        BackendReceivedRequest request ->
-            let
-                response =
-                    form.respond request { int = 1, float = 1.2 }
-            in
-            ( model
-            , lamdera_sendToFrontend "" (FormReceivedResponse response)
-            )
-
-
-cmdify model ( formModel, formCmd, requests ) =
-    let
-        cmd =
-            requests
-                |> List.map (lamdera_sendToBackend << BackendReceivedRequest)
-                |> (::) formCmd
-                |> Cmd.batch
-    in
-    ( { model | form = formModel }
-    , cmd
-    )
-
-
-form =
-    Form.newForm FormReceivedMsg
-        |> Form.withTopLevelView wizardView
-        |> Form.withOverride "heightInCentimetres" myFloat
-        |> Form.withOverride "myBoolBroadcaster" myBoolBroadcaster
-        |> Form.withOverride "myBoolReceiver" myBoolReceiver
-        |> Form.withIntControl counter
-        |> Form.endForm gadget
-
-
-lamdera_sendToBackend : Msg -> Cmd Msg
-lamdera_sendToBackend request =
-    let
-        _ =
-            Debug.log "sendRequest" request
-    in
-    Task.perform (\() -> request) (Process.sleep 0)
-
-
-lamdera_sendToFrontend : sessionId -> Msg -> Cmd Msg
-lamdera_sendToFrontend sessionId response =
-    Task.perform
-        (\() ->
-            let
-                _ =
-                    Debug.log "sendResponse" response
-            in
-            response
-        )
-        (Process.sleep 1000)
-
-
-type CounterMsg
-    = Inc
-    | Dec
-
-
-counterMsgGadget =
-    Gadget.map
-        (\bool ->
-            if bool then
-                Inc
-
-            else
-                Dec
-        )
-        (\msg ->
-            case msg of
-                Inc ->
-                    True
-
-                Dec ->
-                    False
-        )
-        Gadget.bool
-
-
-counter =
-    Control.sandbox
-        { modelGadget = Gadget.int
-        , msgGadget = counterMsgGadget
-        , outputGadget = Gadget.int
-        , placeholder = 0
-        , init = 0
-        , load = identity
-        , update =
-            \msg model ->
-                case msg of
-                    Inc ->
-                        model + 1
-
-                    Dec ->
-                        model - 1
-        , view =
-            \id model ->
-                H.fieldset [ HA.class "counter" ]
-                    [ H.input
-                        [ HA.type_ "button"
-                        , HE.onClick Dec
-                        , HA.value "-"
-                        ]
-                        []
-                    , H.span [] [ H.text (String.fromInt model) ]
-                    , H.input
-                        [ HA.type_ "button"
-                        , HE.onClick Inc
-                        , HA.value "+"
-                        ]
-                        []
-                    ]
-        , submit = Ok
-        }
-
-
-type Broadcast
-    = Incremented
-
-
-myFloat =
-    Control.new
-        { modelGadget = Gadget.float
-        , msgGadget = Gadget.unit
-        , outputGadget = Gadget.float
-        , requestGadget = Gadget.unit
-        , responseGadget = Gadget.float
-        , init = ( 0.5, Control.noCommand )
-        , load = identity
-        , placeholder = 0.0
-        , update = \_ model -> ( model, Control.request () )
-        , updateFromResponse = \float _ -> ( float, Control.noCommand )
-        , updateFromBroadcast = \_ model -> ( model, Control.noCommand )
-        , view =
-            \id model ->
-                H.div []
-                    [ H.text (String.fromFloat model)
-                    , H.input
-                        [ HA.type_ "button"
-                        , HE.onClick ()
-                        , HA.value "click me"
-                        ]
-                        []
-                    ]
-        , subscriptions = \model -> Sub.none
-        , submit = Ok
-        , respond = \() { float } -> float
-        }
-
-
-myBoolBroadcaster =
-    Control.transmitter
-        { modelGadget = Gadget.bool
-        , msgGadget = Gadget.unit
-        , outputGadget = Gadget.bool
-        , init = ( False, Control.noCommand )
-        , load = identity
-        , placeholder = True
-        , update = \_ model -> ( not model, Control.broadcast Incremented )
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "checkbox"
-                    , HE.onCheck (always ())
-                    , HA.checked model
-                    , HA.id id
-                    ]
-                    []
-        , subscriptions = always Sub.none
-        , submit = Ok
-        }
-        |> Control.withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
-
-
-myBoolReceiver =
-    Control.sandbox
-        { modelGadget = Gadget.bool
-        , msgGadget = Gadget.unit
-        , outputGadget = Gadget.bool
-        , init = False
-        , load = identity
-        , placeholder = True
-        , update = \_ model -> not model
-        , view =
-            \id model ->
-                H.input
-                    [ HA.type_ "checkbox"
-                    , HE.onCheck (always ())
-                    , HA.checked model
-                    , HA.id id
-                    ]
-                    []
-        , submit = Ok
-        }
-        |> Control.withLayout (\ui -> [ ui.input, ui.label, ui.feedback ])
-        |> Control.withReceiver (\Incremented model -> ( not model, Control.noCommand ))
-
 
 init _ =
-    let
-        ( formModel, formCmd, requests ) =
-            form.init
-
-        cmd =
-            requests
-                |> List.map (lamdera_sendToBackend << BackendReceivedRequest)
-                |> (::) formCmd
-                |> Cmd.batch
-
-        loadedFormModel =
-            form.load
-                { name = "Ed"
-                , heightInCentimetres = 180
-                , pets = [ Robot 'A' (Just 3000) ]
-                , pair = ( True, False )
-                , triple = ( False, True, False )
-                }
-    in
     ( { seed = 0
       , prettyWidth = 120
-      , form = loadedFormModel
       }
-    , cmd
+    , Cmd.none
     )
 
 
 gadget =
-    personGadget
+    Gadget.pair
+        (Gadget.list Gadget.int |> Gadget.Adapter.Fuzz.primaryKey "a")
+        (Gadget.list (Gadget.int |> Gadget.Adapter.Fuzz.foreignKey "a"))
 
 
 
+--personGadget
 -- Gadget.maybe Gadget.int
 -- Gadget.result
 --     (Gadget.result
@@ -496,7 +249,7 @@ view model =
             Gadget.Adapter.Fuzz.fuzzerWithOverrides fuzzOverrides gadget
 
         fuzzed =
-            Fuzz.examples 1 fuzzer
+            Fuzz.examples 10 fuzzer
 
         randomGenerator =
             Gadget.Adapter.Random.generator gadget
@@ -506,15 +259,16 @@ view model =
                 |> Tuple.first
                 |> Result.fromMaybe "Generator failed"
 
-        formOutput =
-            form.submit model.form
-                |> Result.mapError (\errors -> List.map (\{ path, error } -> "[" ++ String.join "-" path ++ "]: " ++ error) errors |> String.join "\n")
+        secondValue =
+            Random.step randomGenerator (Random.initialSeed (model.seed + 1))
+                |> Tuple.first
+                |> Result.fromMaybe "Generator failed"
 
         pretty g x =
             H.pre [] [ H.text (Gadget.Adapter.Pretty.print g model.prettyWidth x) ]
 
         diff =
-            Result.map2 (Gadget.Adapter.Diff.diff gadget) firstValue formOutput
+            Result.map2 (Gadget.Adapter.Diff.diff gadget) firstValue secondValue
 
         patched =
             Result.map2 (Gadget.Adapter.Diff.patch gadget) diff firstValue
@@ -538,19 +292,6 @@ view model =
     H.div []
         [ H.h1 [] [ H.text "elm-gadget examples" ]
         , widthAdjuster model
-        , demo "Form"
-            [ head "Form input"
-            , form.view model.form
-            , head "Form output"
-            , H.pre []
-                [ H.text
-                    (formOutput
-                        |> Gadget.Adapter.Pretty.print
-                            (Gadget.result Gadget.string gadget)
-                            model.prettyWidth
-                    )
-                ]
-            ]
         , demo "Random generator"
             [ H.button [ HE.onClick UserClickedRegenerate ] [ H.text "Click to regenerate!" ]
             , Result.map (pretty gadget) firstValue |> Result.withDefault (H.text "")
@@ -563,12 +304,12 @@ view model =
                 |> Result.map (pretty gadget)
                 |> Result.withDefault (H.text "")
             , head "Does the patched value equal the form output value?"
-            , pretty Gadget.bool (patched == formOutput)
+            , pretty Gadget.bool (patched == secondValue)
             ]
         , demo "Html viewer"
             [ head "Randomly generated value"
             , Result.map (Gadget.Adapter.Html.view gadget) firstValue |> Result.withDefault (H.text "")
-            , case formOutput of
+            , case secondValue of
                 Ok v ->
                     H.div [] [ head "Form output value", Gadget.Adapter.Html.view gadget v ]
 
@@ -634,69 +375,3 @@ demo title contents =
 head : String -> H.Html msg
 head txt =
     H.h3 [] [ H.text txt ]
-
-
-wizardView { switchActiveField, activeField, fieldViews, result } =
-    let
-        numberOfPages =
-            List.length fieldViews
-
-        pages =
-            List.indexedMap
-                (\idx fv ->
-                    H.span
-                        [ HA.class
-                            (if idx == activeField then
-                                "active"
-
-                             else
-                                "inactive"
-                            )
-                        ]
-                        [ fv ]
-                )
-                (fieldViews ++ summary)
-
-        ( summary, errors ) =
-            case result of
-                Ok person ->
-                    ( [ H.text person.name ], Set.empty )
-
-                Err e ->
-                    ( [ H.text "error!" ], e )
-    in
-    [ H.div [ HA.id "wizard-pages" ] pages
-    , H.div [ HA.id "wizard-controls" ]
-        [ H.input
-            [ HA.type_ "button"
-            , HE.onClick (switchActiveField (activeField - 1))
-            , HA.value "Previous"
-            , HA.style "visibility"
-                (if activeField > 0 then
-                    "visible"
-
-                 else
-                    "hidden"
-                )
-            ]
-            []
-        , H.text ("Page " ++ String.fromInt (activeField + 1) ++ " of " ++ String.fromInt (numberOfPages + 1))
-        , if activeField < numberOfPages then
-            H.input
-                [ HA.type_ "button"
-                , HE.onClick (switchActiveField (activeField + 1))
-                , HA.value "Next"
-                , HA.disabled (Set.member activeField errors)
-                ]
-                []
-
-          else
-            H.input
-                [ HA.type_ "button"
-                , HA.id "wizard-submit"
-                , HE.onClick FormSubmitted
-                , HA.value "Submit"
-                ]
-                []
-        ]
-    ]
