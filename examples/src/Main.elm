@@ -26,134 +26,6 @@ import Set
 import Task
 
 
-type alias Person =
-    { name : String
-    , heightInCentimetres : Float
-    , pets : List Pet
-    , pair : ( Bool, Bool )
-    , triple : ( Bool, Bool, Bool )
-    }
-
-
-type Pet
-    = Dog { dogName : String }
-    | Robot Char (Maybe Int)
-
-
-personGadget : Gadget.Gadget Person
-personGadget =
-    Gadget.record Person
-        |> Gadget.field "name"
-            .name
-            (Gadget.string
-                |> Gadget.filterMap
-                    (\string ->
-                        case
-                            List.filterMap identity
-                                [ if String.isEmpty string then
-                                    Just "This must not be blank"
-
-                                  else
-                                    Nothing
-                                , if String.length string < 2 then
-                                    Just "This must be at least 2 characters"
-
-                                  else
-                                    Nothing
-                                ]
-                        of
-                            [] ->
-                                Ok string
-
-                            errs ->
-                                Err errs
-                    )
-                    identity
-                |> Gadget.Adapter.Random.choose "Ed" [ "Leonardo", "Wolfgang", "Rupert", "Mario", "Martin" ]
-            )
-        |> Gadget.field "heightInCentimetres"
-            .heightInCentimetres
-            (Gadget.float
-                |> Gadget.Adapter.Random.range 100 180
-                |> Gadget.filterMap
-                    (\f ->
-                        if f < 50 then
-                            Err [ "This must be at least 50cm" ]
-
-                        else
-                            Ok f
-                    )
-                    identity
-            )
-        |> Gadget.field "pets"
-            .pets
-            (Gadget.list petGadget
-                |> Gadget.Adapter.Random.listLength 0 3
-            )
-        |> Gadget.field "pair"
-            .pair
-            (Gadget.pair
-                Gadget.bool
-                Gadget.bool
-            )
-        |> Gadget.field "triple"
-            .triple
-            (Gadget.triple
-                Gadget.bool
-                Gadget.bool
-                Gadget.bool
-            )
-        |> Gadget.endRecord
-
-
-petGadget : Gadget.Gadget Pet
-petGadget =
-    Gadget.custom
-        (\dog robot variant ->
-            case variant of
-                Dog name ->
-                    dog name
-
-                Robot series model ->
-                    robot series model
-        )
-        |> Gadget.variant1
-            "Dog"
-            Dog
-            (Gadget.record (\dogName -> { dogName = dogName })
-                |> Gadget.field "dogName"
-                    .dogName
-                    (Gadget.string
-                        |> Gadget.Adapter.Fuzz.useOverride "dogName"
-                        |> Gadget.Adapter.Random.choose "Rex" [ "Fido", "Kevin", "Rover", "Fifi", "George", "Winnie" ]
-                        |> Gadget.filterMap
-                            (\s ->
-                                if String.isEmpty s then
-                                    Err [ "This must not be blank" ]
-
-                                else
-                                    Ok s
-                            )
-                            identity
-                    )
-                |> Gadget.endRecord
-            )
-        |> Gadget.variant2
-            "Robot"
-            Robot
-            (Gadget.char
-                |> Gadget.Adapter.Fuzz.useOverride "series"
-                |> Gadget.Adapter.Random.choose 'A' (List.range 66 90 |> List.map Char.fromCode)
-            )
-            (Gadget.maybe
-                (Gadget.int
-                    |> Gadget.Adapter.Fuzz.useOverride "model"
-                    |> Gadget.Adapter.Random.range 1000 5000
-                )
-            )
-        |> Gadget.endCustom
-
-
 main : Program () Model Msg
 main =
     Browser.element
@@ -195,7 +67,7 @@ update msg model =
 
 
 init _ =
-    ( { seed = 0
+    ( { seed = 10
       , prettyWidth = 120
       }
     , Cmd.none
@@ -203,37 +75,56 @@ init _ =
 
 
 gadget =
-    Gadget.pair
-        (Gadget.list Gadget.int |> Gadget.Adapter.Fuzz.containsPrimaryKeys "a")
-        (Gadget.int |> Gadget.Adapter.Fuzz.hasForeignKey "a")
+    databaseGadget
 
 
+type PersonId
+    = PersonId Int
 
---personGadget
--- Gadget.maybe Gadget.int
--- Gadget.result
---     (Gadget.result
---         (Gadget.int |> Form.label "hello")
---         (Gadget.int |> Form.label "world")
---     )
---     (Gadget.result Gadget.int Gadget.int)
--- petGadget
--- Gadget.record (\x y -> { x = x, y = y })
---     |> Gadget.field "x" .x (Gadget.int |> Form.label "How much is x?")
---     |> Gadget.field "y"
---         .y
---         (Gadget.string
---             |> Form.label "What is y?"
---             |> Form.validate
---                 (\s ->
---                     if String.isEmpty s then
---                         Err "This must not be blank"
---                     else
---                         Ok s
---                 )
---         )
---     |> Gadget.endRecord
---     |> Form.validate (\_ -> Err "filterMap failed")
+
+personIdGadget =
+    Gadget.map PersonId (\(PersonId n) -> n) Gadget.int
+
+
+type alias Person =
+    { id : PersonId, name : String }
+
+
+personGadget =
+    Gadget.record Person
+        |> Gadget.field "id"
+            .id
+            (Gadget.Adapter.Fuzz.isPrimaryKey "personId" personIdGadget)
+        |> Gadget.field "name" .name Gadget.string
+        |> Gadget.endRecord
+
+
+type alias Pet =
+    { name : String, owner : PersonId }
+
+
+petGadget =
+    Gadget.record Pet
+        |> Gadget.field "name" .name Gadget.string
+        |> Gadget.field "owner"
+            .owner
+            (Gadget.Adapter.Fuzz.hasForeignKey "personId" personIdGadget)
+        |> Gadget.endRecord
+
+
+type alias Database =
+    { people : List Person, pets : List Pet }
+
+
+databaseGadget =
+    Gadget.record Database
+        |> Gadget.field "people" .people (Gadget.list personGadget)
+        |> Gadget.field "pets" .pets (Gadget.list petGadget)
+        |> Gadget.endRecord
+
+
+databaseFuzzer =
+    Gadget.Adapter.Fuzz.fuzzer databaseGadget
 
 
 view : Model -> H.Html Msg
@@ -249,7 +140,7 @@ view model =
             Gadget.Adapter.Fuzz.fuzzerWithOverrides fuzzOverrides gadget
 
         fuzzed =
-            Fuzz.examples 10 fuzzer
+            Fuzz.examples 1 fuzzer
 
         randomGenerator =
             Gadget.Adapter.Random.generator gadget
