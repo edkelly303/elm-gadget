@@ -281,7 +281,7 @@ fuzzAdapter overrides irType =
 handlePrimaryKeys :
     Dict.Dict String (Fuzz.Fuzzer Value)
     -> Type
-    -> Fuzz.Fuzzer (Dict.Dict String (List Value))
+    -> Fuzz.Fuzzer (Dict.Dict String ( Value, List Value ))
 handlePrimaryKeys overrides irType =
     handlePrimaryKeysHelp overrides 0 irType (Fuzz.constant Dict.empty)
 
@@ -290,8 +290,8 @@ handlePrimaryKeysHelp :
     Dict.Dict String (Fuzz.Fuzzer Value)
     -> Int
     -> Type
-    -> Fuzz.Fuzzer (Dict.Dict String (List Value))
-    -> Fuzz.Fuzzer (Dict.Dict String (List Value))
+    -> Fuzz.Fuzzer (Dict.Dict String ( Value, List Value ))
+    -> Fuzz.Fuzzer (Dict.Dict String ( Value, List Value ))
 handlePrimaryKeysHelp overrides nesting irType oldDictFuzzer =
     let
         newDictFuzzer =
@@ -301,8 +301,12 @@ handlePrimaryKeysHelp overrides nesting irType oldDictFuzzer =
                         oldDictFuzzer
 
                     Just pkey ->
-                        Fuzz.map2 (Dict.insert pkey)
-                            (Fuzz.list (fuzzAdapter overrides irType))
+                        Fuzz.map2
+                            (Dict.insert pkey)
+                            (Fuzz.pair
+                                (fuzzAdapter overrides irType)
+                                (Fuzz.list (fuzzAdapter overrides irType))
+                            )
                             oldDictFuzzer
 
             else
