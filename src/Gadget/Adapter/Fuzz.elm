@@ -31,6 +31,7 @@ Use a Gadget to create a `Fuzz.Fuzzer` for use with functions from the
 import Dict
 import Fuzz
 import Gadget
+import Gadget.Adapter.Random as Random
 import Gadget.IR as IR exposing (Gadget, Type(..), Value(..), VariantType(..), VariantValue(..))
 
 
@@ -114,9 +115,15 @@ fuzzerWithOverrides overrides gadget =
             overrides
                 |> List.map (\(Override label_ overrideFuzzer) -> ( label_, overrideFuzzer ))
                 |> Dict.fromList
+
+        irType =
+            IR.irType gadget
+
+        primaryKeysFuzzer =
+            handlePrimaryKeys overridesDict irType
     in
-    IR.irType gadget
-        |> fuzzAdapter overridesDict
+    irType
+        |> fuzzAdapter overridesDict primaryKeysFuzzer
         |> Fuzz.andThen
             (\fuzzedIR ->
                 case IR.toOutput gadget fuzzedIR of
@@ -151,137 +158,175 @@ override label_ gadget inputFuzzer =
     Override label_ (Fuzz.map (IR.fromInput gadget) inputFuzzer)
 
 
-fuzzAdapter : Dict.Dict String (Fuzz.Fuzzer Value) -> Type -> Fuzz.Fuzzer Value
-fuzzAdapter overrides irType =
-    case
-        overrides
-            |> Dict.foldl
-                (\key thisOverride maybePrevOverride ->
-                    case maybePrevOverride of
-                        Just prevOverride ->
-                            Just prevOverride
+type alias PrimaryKeysFuzzer =
+    Fuzz.Fuzzer (Dict.Dict String ( Value, List Value ))
 
-                        Nothing ->
-                            tools.extract irType
-                                |> tools.decode "useOverride" Gadget.string
-                                |> Maybe.andThen
-                                    (\lbl ->
-                                        if key == lbl then
-                                            Just thisOverride
 
-                                        else
-                                            Nothing
-                                    )
-                )
-                Nothing
-    of
-        Just thisOverride ->
-            thisOverride
+type alias OverridesDict =
+    Dict.Dict String (Fuzz.Fuzzer Value)
+
+
+fuzzAdapter : OverridesDict -> PrimaryKeysFuzzer -> Type -> Fuzz.Fuzzer Value
+fuzzAdapter overrides primaryKeysFuzzer irType =
+    let
+        metadata =
+            tools.extract irType
+    in
+    case tools.decode "foreignKey" Gadget.string metadata of
+        Just foreignKey ->
+            primaryKeysFuzzer
+                |> Fuzz.andThen
+                    (\dict ->
+                        Dict.get foreignKey dict
+                            |> Maybe.map (\( first, rest ) -> Fuzz.oneOfValues (first :: rest))
+                            |> Maybe.withDefault (Fuzz.invalid "primary key not found")
+                    )
 
         Nothing ->
-            case irType of
-                LazyType _ construct ->
-                    Fuzz.lazy (\() -> fuzzAdapter overrides (construct ()))
+            case
+                overrides
+                    |> Dict.foldl
+                        (\key thisOverride maybePrevOverride ->
+                            case maybePrevOverride of
+                                Just prevOverride ->
+                                    Just prevOverride
 
-                UnitType _ ->
-                    Fuzz.constant UnitValue
+                                Nothing ->
+                                    metadata
+                                        |> tools.decode "useOverride" Gadget.string
+                                        |> Maybe.andThen
+                                            (\lbl ->
+                                                if key == lbl then
+                                                    Just thisOverride
 
-                BoolType _ ->
-                    Fuzz.bool
-                        |> Fuzz.map BoolValue
-
-                CharType _ ->
-                    Fuzz.char
-                        |> Fuzz.map CharValue
-
-                StringType _ ->
-                    Fuzz.string
-                        |> Fuzz.map StringValue
-
-                IntType _ ->
-                    Fuzz.int
-                        |> Fuzz.map IntValue
-
-                FloatType _ ->
-                    Fuzz.niceFloat
-                        |> Fuzz.map FloatValue
-
-                CustomType _ firstVariant restVariants ->
-                    Fuzz.oneOf
-                        (List.indexedMap
-                            (\idx ( name, variant ) ->
-                                case variant of
-                                    Variant0Type ->
-                                        Fuzz.constant
-                                            (CustomValue idx ( name, Variant0Value ))
-
-                                    Variant1Type arg ->
-                                        Fuzz.map
-                                            (\a -> CustomValue idx ( name, Variant1Value a ))
-                                            (fuzzAdapter overrides arg)
-
-                                    Variant2Type arg1 arg2 ->
-                                        Fuzz.map2
-                                            (\a1 a2 -> CustomValue idx ( name, Variant2Value a1 a2 ))
-                                            (fuzzAdapter overrides arg1)
-                                            (fuzzAdapter overrides arg2)
-
-                                    Variant3Type arg1 arg2 arg3 ->
-                                        Fuzz.map3
-                                            (\a1 a2 a3 -> CustomValue idx ( name, Variant3Value a1 a2 a3 ))
-                                            (fuzzAdapter overrides arg1)
-                                            (fuzzAdapter overrides arg2)
-                                            (fuzzAdapter overrides arg3)
-
-                                    Variant4Type arg1 arg2 arg3 arg4 ->
-                                        Fuzz.map4
-                                            (\a1 a2 a3 a4 -> CustomValue idx ( name, Variant4Value a1 a2 a3 a4 ))
-                                            (fuzzAdapter overrides arg1)
-                                            (fuzzAdapter overrides arg2)
-                                            (fuzzAdapter overrides arg3)
-                                            (fuzzAdapter overrides arg4)
-
-                                    Variant5Type arg1 arg2 arg3 arg4 arg5 ->
-                                        Fuzz.map5
-                                            (\a1 a2 a3 a4 a5 -> CustomValue idx ( name, Variant5Value a1 a2 a3 a4 a5 ))
-                                            (fuzzAdapter overrides arg1)
-                                            (fuzzAdapter overrides arg2)
-                                            (fuzzAdapter overrides arg3)
-                                            (fuzzAdapter overrides arg4)
-                                            (fuzzAdapter overrides arg5)
-                            )
-                            (firstVariant :: restVariants)
+                                                else
+                                                    Nothing
+                                            )
                         )
+                        Nothing
+            of
+                Just thisOverride ->
+                    thisOverride
 
-                RecordType _ fields ->
-                    fields
-                        |> Fuzz.traverse
-                            (\( name, field ) ->
-                                fuzzAdapter overrides field
-                                    |> Fuzz.map (Tuple.pair name)
-                            )
-                        |> Fuzz.map RecordValue
+                Nothing ->
+                    case irType of
+                        LazyType _ construct ->
+                            Fuzz.lazy (\() -> fuzzAdapter overrides primaryKeysFuzzer (construct ()))
 
-                ListType _ itemType ->
-                    Fuzz.list (fuzzAdapter overrides itemType)
-                        |> Fuzz.map ListValue
+                        UnitType _ ->
+                            Fuzz.constant UnitValue
 
-                PairType _ aType bType ->
-                    Fuzz.map2 (\a b -> PairValue a b)
-                        (fuzzAdapter overrides aType)
-                        (fuzzAdapter overrides bType)
+                        BoolType _ ->
+                            Fuzz.bool
+                                |> Fuzz.map BoolValue
 
-                TripleType _ aType bType cType ->
-                    Fuzz.map3 (\a b c -> TripleValue a b c)
-                        (fuzzAdapter overrides aType)
-                        (fuzzAdapter overrides bType)
-                        (fuzzAdapter overrides cType)
+                        CharType _ ->
+                            Fuzz.char
+                                |> Fuzz.map CharValue
+
+                        StringType _ ->
+                            Fuzz.string
+                                |> Fuzz.map StringValue
+
+                        IntType _ ->
+                            Fuzz.int
+                                |> Fuzz.map IntValue
+
+                        FloatType _ ->
+                            Fuzz.niceFloat
+                                |> Fuzz.map FloatValue
+
+                        CustomType _ firstVariant restVariants ->
+                            Fuzz.oneOf
+                                (List.indexedMap
+                                    (\idx ( name, variant ) ->
+                                        case variant of
+                                            Variant0Type ->
+                                                Fuzz.constant
+                                                    (CustomValue idx ( name, Variant0Value ))
+
+                                            Variant1Type arg ->
+                                                Fuzz.map
+                                                    (\a -> CustomValue idx ( name, Variant1Value a ))
+                                                    (fuzzAdapter overrides primaryKeysFuzzer arg)
+
+                                            Variant2Type arg1 arg2 ->
+                                                Fuzz.map2
+                                                    (\a1 a2 -> CustomValue idx ( name, Variant2Value a1 a2 ))
+                                                    (fuzzAdapter overrides primaryKeysFuzzer arg1)
+                                                    (fuzzAdapter overrides primaryKeysFuzzer arg2)
+
+                                            Variant3Type arg1 arg2 arg3 ->
+                                                Fuzz.map3
+                                                    (\a1 a2 a3 -> CustomValue idx ( name, Variant3Value a1 a2 a3 ))
+                                                    (fuzzAdapter overrides primaryKeysFuzzer arg1)
+                                                    (fuzzAdapter overrides primaryKeysFuzzer arg2)
+                                                    (fuzzAdapter overrides primaryKeysFuzzer arg3)
+
+                                            Variant4Type arg1 arg2 arg3 arg4 ->
+                                                Fuzz.map4
+                                                    (\a1 a2 a3 a4 -> CustomValue idx ( name, Variant4Value a1 a2 a3 a4 ))
+                                                    (fuzzAdapter overrides primaryKeysFuzzer arg1)
+                                                    (fuzzAdapter overrides primaryKeysFuzzer arg2)
+                                                    (fuzzAdapter overrides primaryKeysFuzzer arg3)
+                                                    (fuzzAdapter overrides primaryKeysFuzzer arg4)
+
+                                            Variant5Type arg1 arg2 arg3 arg4 arg5 ->
+                                                Fuzz.map5
+                                                    (\a1 a2 a3 a4 a5 -> CustomValue idx ( name, Variant5Value a1 a2 a3 a4 a5 ))
+                                                    (fuzzAdapter overrides primaryKeysFuzzer arg1)
+                                                    (fuzzAdapter overrides primaryKeysFuzzer arg2)
+                                                    (fuzzAdapter overrides primaryKeysFuzzer arg3)
+                                                    (fuzzAdapter overrides primaryKeysFuzzer arg4)
+                                                    (fuzzAdapter overrides primaryKeysFuzzer arg5)
+                                    )
+                                    (firstVariant :: restVariants)
+                                )
+
+                        RecordType _ fields ->
+                            fields
+                                |> Fuzz.traverse
+                                    (\( name, field ) ->
+                                        fuzzAdapter overrides primaryKeysFuzzer field
+                                            |> Fuzz.map (Tuple.pair name)
+                                    )
+                                |> Fuzz.map RecordValue
+
+                        ListType _ itemType ->
+                            case tools.extract itemType |> tools.decode "primaryKey" Gadget.string of
+                                Just primaryKey ->
+                                    primaryKeysFuzzer
+                                        |> Fuzz.andThen
+                                            (\dict ->
+                                                case Dict.get primaryKey dict of
+                                                    Nothing ->
+                                                        Fuzz.invalid "primary key not found"
+
+                                                    Just ( val, vals ) ->
+                                                        Fuzz.constant (val :: vals)
+                                                            |> Fuzz.map ListValue
+                                            )
+
+                                Nothing ->
+                                    Fuzz.list (fuzzAdapter overrides primaryKeysFuzzer itemType)
+                                        |> Fuzz.map ListValue
+
+                        PairType _ aType bType ->
+                            Fuzz.map2 (\a b -> PairValue a b)
+                                (fuzzAdapter overrides primaryKeysFuzzer aType)
+                                (fuzzAdapter overrides primaryKeysFuzzer bType)
+
+                        TripleType _ aType bType cType ->
+                            Fuzz.map3 (\a b c -> TripleValue a b c)
+                                (fuzzAdapter overrides primaryKeysFuzzer aType)
+                                (fuzzAdapter overrides primaryKeysFuzzer bType)
+                                (fuzzAdapter overrides primaryKeysFuzzer cType)
 
 
 handlePrimaryKeys :
-    Dict.Dict String (Fuzz.Fuzzer Value)
+    OverridesDict
     -> Type
-    -> Fuzz.Fuzzer (Dict.Dict String ( Value, List Value ))
+    -> PrimaryKeysFuzzer
 handlePrimaryKeys overrides irType =
     handlePrimaryKeysHelp overrides 0 irType (Fuzz.constant Dict.empty)
 
@@ -290,27 +335,27 @@ handlePrimaryKeysHelp :
     Dict.Dict String (Fuzz.Fuzzer Value)
     -> Int
     -> Type
-    -> Fuzz.Fuzzer (Dict.Dict String ( Value, List Value ))
-    -> Fuzz.Fuzzer (Dict.Dict String ( Value, List Value ))
-handlePrimaryKeysHelp overrides nesting irType oldDictFuzzer =
+    -> PrimaryKeysFuzzer
+    -> PrimaryKeysFuzzer
+handlePrimaryKeysHelp overrides nesting irType oldPrimaryKeysFuzzer =
     let
-        newDictFuzzer =
+        newPrimaryKeysFuzzer =
             if nesting == 1 then
                 case tools.extract irType |> tools.decode "primaryKey" Gadget.string of
                     Nothing ->
-                        oldDictFuzzer
+                        oldPrimaryKeysFuzzer
 
                     Just pkey ->
                         Fuzz.map2
                             (Dict.insert pkey)
                             (Fuzz.pair
-                                (fuzzAdapter overrides irType)
-                                (Fuzz.list (fuzzAdapter overrides irType))
+                                (fuzzAdapter overrides oldPrimaryKeysFuzzer irType)
+                                (Fuzz.list (fuzzAdapter overrides oldPrimaryKeysFuzzer irType))
                             )
-                            oldDictFuzzer
+                            oldPrimaryKeysFuzzer
 
             else
-                oldDictFuzzer
+                oldPrimaryKeysFuzzer
     in
     case irType of
         CustomType _ firstNamedVariant restNamedVariants ->
@@ -323,7 +368,7 @@ handlePrimaryKeysHelp overrides nesting irType oldDictFuzzer =
                         variantDict
                         (variantTypeToList variantType)
                 )
-                newDictFuzzer
+                newPrimaryKeysFuzzer
                 (firstNamedVariant :: restNamedVariants)
 
         RecordType _ namedFieldTypes ->
@@ -331,21 +376,21 @@ handlePrimaryKeysHelp overrides nesting irType oldDictFuzzer =
                 (\( _, fieldType ) fieldDict ->
                     handlePrimaryKeysHelp overrides nesting fieldType fieldDict
                 )
-                newDictFuzzer
+                newPrimaryKeysFuzzer
                 namedFieldTypes
 
         ListType _ itemType ->
-            handlePrimaryKeysHelp overrides (nesting + 1) itemType newDictFuzzer
+            handlePrimaryKeysHelp overrides (nesting + 1) itemType newPrimaryKeysFuzzer
 
         LazyType _ thunk ->
-            handlePrimaryKeysHelp overrides nesting (thunk ()) newDictFuzzer
+            handlePrimaryKeysHelp overrides nesting (thunk ()) newPrimaryKeysFuzzer
 
         PairType _ aType bType ->
             List.foldl
                 (\elemType elemDict ->
                     handlePrimaryKeysHelp overrides nesting elemType elemDict
                 )
-                newDictFuzzer
+                newPrimaryKeysFuzzer
                 [ aType, bType ]
 
         TripleType _ aType bType cType ->
@@ -353,11 +398,11 @@ handlePrimaryKeysHelp overrides nesting irType oldDictFuzzer =
                 (\elemType elemDict ->
                     handlePrimaryKeysHelp overrides nesting elemType elemDict
                 )
-                newDictFuzzer
+                newPrimaryKeysFuzzer
                 [ aType, bType, cType ]
 
         _ ->
-            newDictFuzzer
+            newPrimaryKeysFuzzer
 
 
 variantTypeToList : VariantType -> List Type
