@@ -211,8 +211,8 @@ fuzzAdapter overrides primaryKeys irType =
 
                 Nothing ->
                     case irType of
-                        LazyType _ construct ->
-                            Fuzz.lazy (\() -> fuzzAdapter overrides primaryKeys (construct ()))
+                        LazyType _ thunk ->
+                            Fuzz.lazy (\() -> fuzzAdapter overrides primaryKeys (thunk ()))
 
                         UnitType _ ->
                             Fuzz.constant UnitValue
@@ -324,8 +324,8 @@ insertValue overrides primaryKeys pKey valueFuzzer irType =
     let
         continue =
             case irType of
-                LazyType _ construct ->
-                    Fuzz.lazy (\() -> insertValue overrides primaryKeys pKey valueFuzzer (construct ()))
+                LazyType _ thunk ->
+                    Fuzz.lazy (\() -> insertValue overrides primaryKeys pKey valueFuzzer (thunk ()))
 
                 CustomType _ firstVariant restVariants ->
                     Fuzz.oneOf
@@ -533,7 +533,7 @@ makePrimaryKeysFuzzerHelp overrides irType oldPrimaryKeysFuzzer =
             makePrimaryKeysFuzzerHelp overrides itemType primaryKeysFuzzer
 
         LazyType _ thunk ->
-            makePrimaryKeysFuzzerHelp overrides (thunk ()) primaryKeysFuzzer
+            Fuzz.lazy (\() -> makePrimaryKeysFuzzerHelp overrides (thunk ()) primaryKeysFuzzer)
 
         PairType _ aType bType ->
             List.foldl

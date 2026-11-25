@@ -10,7 +10,7 @@ type Tree
 
 treeGadget : Gadget.Gadget Tree
 treeGadget =
-    treeGadgetHelp 100
+    treeGadgetHelp 10
 
 
 treeGadgetHelp : Int -> Gadget.Gadget Tree
