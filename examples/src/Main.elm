@@ -123,6 +123,7 @@ databaseGadget =
         |> Gadget.endRecord
 
 
+databaseFuzzer : Fuzz.Fuzzer Database
 databaseFuzzer =
     Gadget.Adapter.Fuzz.fuzzer databaseGadget
 
