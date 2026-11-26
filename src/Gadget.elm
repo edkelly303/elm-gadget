@@ -111,6 +111,7 @@ import Gadget.IR as IR
         , VariantType(..)
         , VariantValue(..)
         )
+import List.Extra
 import Result.Extra
 import Set
 
@@ -776,17 +777,31 @@ field name getter (Gadget gadget) (RecordGadgetBuilder builder) =
                 ( name, thisField ) :: prevFields
         , toOutput =
             \path fields ->
-                case fields of
-                    ( _, thisField ) :: prevFields ->
-                        multiErrorResultMap2 (\ctor val -> ctor val)
-                            (builder.toOutput path prevFields)
-                            (gadget.toOutput (name :: path) thisField)
+                if fieldNameIsValid name then
+                    case fields of
+                        ( _, thisField ) :: prevFields ->
+                            multiErrorResultMap2 (\ctor val -> ctor val)
+                                (builder.toOutput path prevFields)
+                                (gadget.toOutput (name :: path) thisField)
 
-                    [] ->
-                        Err [ { error = "expecting a Record field", path = path } ]
+                        [] ->
+                            Err [ { error = "expecting a Record field", path = path } ]
+
+                else
+                    Err [ { error = "'" ++ name ++ "' is not a valid record field name", path = path } ]
         , irType =
             ( name, gadget.irType ) :: builder.irType
         }
+
+
+fieldNameIsValid : String -> Bool
+fieldNameIsValid name =
+    case String.uncons name of
+        Just ( h, t ) ->
+            Char.isLower h && String.all (\c -> Char.isAlphaNum c || c == '_') t
+
+        Nothing ->
+            False
 
 
 multiErrorResultMap2 : (value -> a -> b) -> Result appendable value -> Result appendable a -> Result appendable b
@@ -817,7 +832,30 @@ endRecord (RecordGadgetBuilder builder) =
             \path value ->
                 case value of
                     RecordValue fields ->
-                        builder.toOutput path (List.reverse fields)
+                        let
+                            dups =
+                                List.map Tuple.first fields
+                                    |> List.Extra.frequencies
+                                    |> List.filterMap
+                                        (\( d, count ) ->
+                                            if count > 1 then
+                                                Just d
+
+                                            else
+                                                Nothing
+                                        )
+                        in
+                        if List.isEmpty dups then
+                            builder.toOutput path (List.reverse fields)
+
+                        else
+                            Err
+                                [ { error =
+                                        "record field names must be unique, but these names appear more than once: "
+                                            ++ String.join ", " dups
+                                  , path = path
+                                  }
+                                ]
 
                     _ ->
                         Err [ { error = "expecting a Record", path = path } ]
