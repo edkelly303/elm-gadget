@@ -483,16 +483,20 @@ variant0 name ctor (CustomGadgetBuilder prev) =
         , index = prev.index + 1
         , fromIR =
             \path value ->
-                case value of
-                    CustomValue selected ( _, Variant0Value ) ->
-                        if selected == prev.index then
-                            Ok ctor
+                if variantNameIsValid name then
+                    case value of
+                        CustomValue selected ( _, Variant0Value ) ->
+                            if selected == prev.index then
+                                Ok ctor
 
-                        else
+                            else
+                                prev.fromIR path value
+
+                        _ ->
                             prev.fromIR path value
 
-                    _ ->
-                        prev.fromIR path value
+                else
+                    Err []
         , variantTypes =
             ( name, Variant0Type )
                 :: prev.variantTypes
@@ -513,16 +517,20 @@ variant1 name ctor (Gadget argfns) (CustomGadgetBuilder prev) =
         , index = prev.index + 1
         , fromIR =
             \path value ->
-                case value of
-                    CustomValue selected ( _, Variant1Value arg ) ->
-                        if selected == prev.index then
-                            Result.map ctor (argfns.toOutput ("0" :: name :: path) arg)
+                if variantNameIsValid name then
+                    case value of
+                        CustomValue selected ( _, Variant1Value arg ) ->
+                            if selected == prev.index then
+                                Result.map ctor (argfns.toOutput ("0" :: name :: path) arg)
 
-                        else
+                            else
+                                prev.fromIR path value
+
+                        _ ->
                             prev.fromIR path value
 
-                    _ ->
-                        prev.fromIR path value
+                else
+                    Err []
         , variantTypes =
             ( name, Variant1Type argfns.irType )
                 :: prev.variantTypes
@@ -544,18 +552,22 @@ variant2 name ctor (Gadget arg1fns) (Gadget arg2fns) (CustomGadgetBuilder prev) 
         , index = prev.index + 1
         , fromIR =
             \path value ->
-                case value of
-                    CustomValue selected ( _, Variant2Value arg1 arg2 ) ->
-                        if selected == prev.index then
-                            Result.map2 ctor
-                                (arg1fns.toOutput ("0" :: name :: path) arg1)
-                                (arg2fns.toOutput ("1" :: name :: path) arg2)
+                if variantNameIsValid name then
+                    case value of
+                        CustomValue selected ( _, Variant2Value arg1 arg2 ) ->
+                            if selected == prev.index then
+                                Result.map2 ctor
+                                    (arg1fns.toOutput ("0" :: name :: path) arg1)
+                                    (arg2fns.toOutput ("1" :: name :: path) arg2)
 
-                        else
+                            else
+                                prev.fromIR path value
+
+                        _ ->
                             prev.fromIR path value
 
-                    _ ->
-                        prev.fromIR path value
+                else
+                    Err []
         , variantTypes =
             ( name, Variant2Type arg1fns.irType arg2fns.irType )
                 :: prev.variantTypes
@@ -587,19 +599,23 @@ variant3 name ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (CustomGad
         , index = prev.index + 1
         , fromIR =
             \path value ->
-                case value of
-                    CustomValue selected ( _, Variant3Value arg1 arg2 arg3 ) ->
-                        if selected == prev.index then
-                            Result.map3 ctor
-                                (arg1fns.toOutput ("0" :: name :: path) arg1)
-                                (arg2fns.toOutput ("1" :: name :: path) arg2)
-                                (arg3fns.toOutput ("2" :: name :: path) arg3)
+                if variantNameIsValid name then
+                    case value of
+                        CustomValue selected ( _, Variant3Value arg1 arg2 arg3 ) ->
+                            if selected == prev.index then
+                                Result.map3 ctor
+                                    (arg1fns.toOutput ("0" :: name :: path) arg1)
+                                    (arg2fns.toOutput ("1" :: name :: path) arg2)
+                                    (arg3fns.toOutput ("2" :: name :: path) arg3)
 
-                        else
+                            else
+                                prev.fromIR path value
+
+                        _ ->
                             prev.fromIR path value
 
-                    _ ->
-                        prev.fromIR path value
+                else
+                    Err []
         , variantTypes =
             ( name
             , Variant3Type
@@ -638,20 +654,24 @@ variant4 name ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget ar
         , index = prev.index + 1
         , fromIR =
             \path value ->
-                case value of
-                    CustomValue selected ( _, Variant4Value arg1 arg2 arg3 arg4 ) ->
-                        if selected == prev.index then
-                            Result.map4 ctor
-                                (arg1fns.toOutput ("0" :: name :: path) arg1)
-                                (arg2fns.toOutput ("1" :: name :: path) arg2)
-                                (arg3fns.toOutput ("2" :: name :: path) arg3)
-                                (arg4fns.toOutput ("3" :: name :: path) arg4)
+                if variantNameIsValid name then
+                    case value of
+                        CustomValue selected ( _, Variant4Value arg1 arg2 arg3 arg4 ) ->
+                            if selected == prev.index then
+                                Result.map4 ctor
+                                    (arg1fns.toOutput ("0" :: name :: path) arg1)
+                                    (arg2fns.toOutput ("1" :: name :: path) arg2)
+                                    (arg3fns.toOutput ("2" :: name :: path) arg3)
+                                    (arg4fns.toOutput ("3" :: name :: path) arg4)
 
-                        else
+                            else
+                                prev.fromIR path value
+
+                        _ ->
                             prev.fromIR path value
 
-                    _ ->
-                        prev.fromIR path value
+                else
+                    Err []
         , variantTypes =
             ( name
             , Variant4Type
@@ -693,21 +713,25 @@ variant5 name ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget ar
         , index = prev.index + 1
         , fromIR =
             \path value ->
-                case value of
-                    CustomValue selected ( _, Variant5Value arg1 arg2 arg3 arg4 arg5 ) ->
-                        if selected == prev.index then
-                            Result.map5 ctor
-                                (arg1fns.toOutput ("0" :: name :: path) arg1)
-                                (arg2fns.toOutput ("1" :: name :: path) arg2)
-                                (arg3fns.toOutput ("2" :: name :: path) arg3)
-                                (arg4fns.toOutput ("3" :: name :: path) arg4)
-                                (arg5fns.toOutput ("4" :: name :: path) arg5)
+                if variantNameIsValid name then
+                    case value of
+                        CustomValue selected ( _, Variant5Value arg1 arg2 arg3 arg4 arg5 ) ->
+                            if selected == prev.index then
+                                Result.map5 ctor
+                                    (arg1fns.toOutput ("0" :: name :: path) arg1)
+                                    (arg2fns.toOutput ("1" :: name :: path) arg2)
+                                    (arg3fns.toOutput ("2" :: name :: path) arg3)
+                                    (arg4fns.toOutput ("3" :: name :: path) arg4)
+                                    (arg5fns.toOutput ("4" :: name :: path) arg5)
 
-                        else
+                            else
+                                prev.fromIR path value
+
+                        _ ->
                             prev.fromIR path value
 
-                    _ ->
-                        prev.fromIR path value
+                else
+                    Err []
         , variantTypes =
             ( name
             , Variant5Type
@@ -721,14 +745,22 @@ variant5 name ctor (Gadget arg1fns) (Gadget arg2fns) (Gadget arg3fns) (Gadget ar
         }
 
 
+variantNameIsValid : String -> Bool
+variantNameIsValid name =
+    case String.uncons name of
+        Just ( h, t ) ->
+            Char.isUpper h && String.all (\c -> Char.isAlphaNum c || c == '_') t
+
+        Nothing ->
+            False
+
+
 {-| Complete the definition of a custom type.
 -}
 endCustom : CustomGadgetBuilder (a -> Value) () a -> Gadget a
 endCustom (CustomGadgetBuilder prev) =
-    Gadget
-        { fromInput = prev.match
-        , toOutput = prev.fromIR
-        , irType =
+    let
+        irType =
             case List.reverse prev.variantTypes of
                 [] ->
                     -- we know this can't happen, because if the second type
@@ -741,6 +773,44 @@ endCustom (CustomGadgetBuilder prev) =
 
                 firstVariantType :: restVariantTypes ->
                     CustomType IR.emptyMetadata firstVariantType restVariantTypes
+    in
+    Gadget
+        { fromInput = prev.match
+        , toOutput =
+            \path value ->
+                case irType of
+                    CustomType _ firstVariantType restVariantTypes ->
+                        let
+                            duplicates =
+                                (firstVariantType :: restVariantTypes)
+                                    |> List.map Tuple.first
+                                    |> List.Extra.frequencies
+                                    |> List.filterMap
+                                        (\( d, count ) ->
+                                            if count > 1 then
+                                                Just d
+
+                                            else
+                                                Nothing
+                                        )
+                        in
+                        case duplicates of
+                            [] ->
+                                prev.fromIR path value
+
+                            _ ->
+                                Err
+                                    [ { error =
+                                            "custom type variant names must be unique, but these names appear more than once: '"
+                                                ++ String.join "', '" duplicates
+                                                ++ "'"
+                                      , path = path
+                                      }
+                                    ]
+
+                    _ ->
+                        Err []
+        , irType = irType
         }
 
 
@@ -851,8 +921,9 @@ endRecord (RecordGadgetBuilder builder) =
                         else
                             Err
                                 [ { error =
-                                        "record field names must be unique, but these names appear more than once: "
-                                            ++ String.join ", " dups
+                                        "record field names must be unique, but these names appear more than once: '"
+                                            ++ String.join "', '" dups
+                                            ++ "'"
                                   , path = path
                                   }
                                 ]
