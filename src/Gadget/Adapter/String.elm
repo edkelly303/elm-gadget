@@ -31,6 +31,7 @@ If you are looking for a pretty-printer, try the
 -}
 
 import Gadget.IR as IR
+import List.Extra
 import Parser as P exposing ((|.), (|=), Parser)
 
 
@@ -171,33 +172,56 @@ into an Elm value.
 -}
 parser : IR.Gadget a -> Parser a
 parser gadget =
-    irParser
+    irParser (IR.irType gadget)
         |> P.andThen
             (\ir ->
                 case IR.toOutput gadget ir of
                     Ok output ->
                         P.succeed output
 
-                    Err _ ->
-                        P.problem "failed to convert IR"
+                    Err e ->
+                        P.problem (String.join "\n" (List.map .error e))
             )
 
 
-irParser : Parser IR.Value
-irParser =
-    P.oneOf
-        [ unitParser |> P.map (\() -> IR.UnitValue)
-        , boolParser |> P.map IR.BoolValue
-        , intParser |> P.map IR.IntValue
-        , floatParser |> P.map IR.FloatValue
-        , charParser |> P.map IR.CharValue
-        , stringParser |> P.map IR.StringValue
-        , listParser
-        , recordParser
-        , customParser
-        , tupleParser
-        , tripleParser
-        ]
+irParser : IR.Type -> Parser IR.Value
+irParser irType =
+    case irType of
+        IR.UnitType _ ->
+            unitParser |> P.map (\() -> IR.UnitValue)
+
+        IR.BoolType _ ->
+            boolParser |> P.map IR.BoolValue
+
+        IR.CharType _ ->
+            charParser |> P.map IR.CharValue
+
+        IR.StringType _ ->
+            stringParser |> P.map IR.StringValue
+
+        IR.IntType _ ->
+            intParser |> P.map IR.IntValue
+
+        IR.FloatType _ ->
+            floatParser |> P.map IR.FloatValue
+
+        IR.CustomType _ firstNamedVariantType restNamedVariantTypes ->
+            customParser firstNamedVariantType restNamedVariantTypes
+
+        IR.RecordType _ namedFieldTypes ->
+            recordParser namedFieldTypes
+
+        IR.ListType _ _ ->
+            Debug.todo "branch 'IR.ListType _ _' not implemented"
+
+        IR.LazyType _ _ ->
+            Debug.todo "branch 'IR.LazyType _ _' not implemented"
+
+        IR.PairType _ _ _ ->
+            Debug.todo "branch 'IR.PairType _ _ _' not implemented"
+
+        IR.TripleType _ _ _ _ ->
+            Debug.todo "branch 'IR.TripleType _ _ _ _' not implemented"
 
 
 unitParser : Parser ()
@@ -220,11 +244,11 @@ intParser =
     primitiveParser "i" rawIntParser
 
 
-listParser : Parser IR.Value
-listParser =
+listParser : IR.Type -> Parser IR.Value
+listParser irType =
     P.sequence
         { start = "l["
-        , item = P.lazy (\() -> irParser)
+        , item = P.lazy (\() -> irParser irType)
         , end = "]"
         , separator = ","
         , spaces = P.spaces
@@ -233,11 +257,11 @@ listParser =
         |> P.map IR.ListValue
 
 
-tupleParser : Parser IR.Value
-tupleParser =
+tupleParser : IR.Type -> Parser IR.Value
+tupleParser irType =
     P.sequence
         { start = "2["
-        , item = P.lazy (\() -> irParser)
+        , item = P.lazy (\() -> irParser irType)
         , end = "]"
         , separator = ","
         , spaces = P.spaces
@@ -254,11 +278,11 @@ tupleParser =
             )
 
 
-tripleParser : Parser IR.Value
-tripleParser =
+tripleParser : IR.Type -> Parser IR.Value
+tripleParser irType =
     P.sequence
         { start = "3["
-        , item = P.lazy (\() -> irParser)
+        , item = P.lazy (\() -> irParser irType)
         , end = "]"
         , separator = ","
         , spaces = P.spaces
@@ -275,57 +299,98 @@ tripleParser =
             )
 
 
-recordParser : Parser IR.Value
-recordParser =
-    P.sequence
-        { start = "r["
-        , item = P.lazy (\() -> irParser) |> P.map (\ir -> ( "", ir ))
-        , end = "]"
-        , separator = ","
-        , spaces = P.spaces
-        , trailing = P.Forbidden
-        }
-        |> P.map IR.RecordValue
+recordParser : List ( String, IR.Type ) -> Parser IR.Value
+recordParser namedFieldTypes =
+    P.succeed IR.RecordValue
+        |. P.token "r["
+        |= P.loop ( namedFieldTypes, [] ) fieldParser
+        |. P.token "]"
 
 
-customParser : Parser IR.Value
-customParser =
-    P.succeed IR.CustomValue
+fieldParser :
+    ( List ( a, IR.Type ), List ( a, IR.Value ) )
+    -> Parser (P.Step ( List ( a, IR.Type ), List ( a, IR.Value ) ) (List ( a, IR.Value )))
+fieldParser ( namedFieldTypes, out ) =
+    case namedFieldTypes of
+        ( fieldName, fieldType ) :: rest ->
+            P.succeed (\new -> P.Loop ( rest, ( fieldName, new ) :: out ))
+                |= P.lazy (\() -> irParser fieldType)
+
+        [] ->
+            P.succeed () |> P.map (\_ -> P.Done out)
+
+
+customParser : ( String, IR.VariantType ) -> List ( String, IR.VariantType ) -> Parser IR.Value
+customParser firstNamedVariantType restNamedVariantTypes =
+    P.succeed identity
         |. P.token "v"
         |= P.int
-        |= (P.sequence
-                { start = "["
-                , item = P.lazy (\() -> irParser)
-                , end = "]"
-                , separator = ","
-                , spaces = P.spaces
-                , trailing = P.Forbidden
-                }
-                |> P.andThen
-                    (\args ->
-                        case args of
-                            [] ->
-                                P.succeed ( "", IR.Variant0Value )
+        |> P.andThen
+            (\selected ->
+                case List.Extra.getAt selected (firstNamedVariantType :: restNamedVariantTypes) of
+                    Just ( variantName, variantType ) ->
+                        let
+                            variantValue =
+                                case variantType of
+                                    IR.Variant0Type ->
+                                        P.succeed IR.Variant0Value
+                                            |. P.symbol "]"
 
-                            [ arg ] ->
-                                P.succeed ( "", IR.Variant1Value arg )
+                                    IR.Variant1Type arg1Type ->
+                                        P.succeed IR.Variant1Value
+                                            |. P.symbol "["
+                                            |= P.lazy (\() -> irParser arg1Type)
+                                            |. P.symbol "]"
 
-                            [ arg1, arg2 ] ->
-                                P.succeed ( "", IR.Variant2Value arg1 arg2 )
+                                    IR.Variant2Type arg1Type arg2Type ->
+                                        P.succeed IR.Variant2Value
+                                            |. P.symbol "["
+                                            |= P.lazy (\() -> irParser arg1Type)
+                                            |. P.symbol ","
+                                            |= P.lazy (\() -> irParser arg2Type)
+                                            |. P.symbol "]"
 
-                            [ arg1, arg2, arg3 ] ->
-                                P.succeed ( "", IR.Variant3Value arg1 arg2 arg3 )
+                                    IR.Variant3Type arg1Type arg2Type arg3Type ->
+                                        P.succeed IR.Variant3Value
+                                            |. P.symbol "["
+                                            |= P.lazy (\() -> irParser arg1Type)
+                                            |. P.symbol ","
+                                            |= P.lazy (\() -> irParser arg2Type)
+                                            |. P.symbol ","
+                                            |= P.lazy (\() -> irParser arg3Type)
+                                            |. P.symbol "]"
 
-                            [ arg1, arg2, arg3, arg4 ] ->
-                                P.succeed ( "", IR.Variant4Value arg1 arg2 arg3 arg4 )
+                                    IR.Variant4Type arg1Type arg2Type arg3Type arg4Type ->
+                                        P.succeed IR.Variant4Value
+                                            |. P.symbol "["
+                                            |= P.lazy (\() -> irParser arg1Type)
+                                            |. P.symbol ","
+                                            |= P.lazy (\() -> irParser arg2Type)
+                                            |. P.symbol ","
+                                            |= P.lazy (\() -> irParser arg3Type)
+                                            |. P.symbol ","
+                                            |= P.lazy (\() -> irParser arg4Type)
+                                            |. P.symbol "]"
 
-                            [ arg1, arg2, arg3, arg4, arg5 ] ->
-                                P.succeed ( "", IR.Variant5Value arg1 arg2 arg3 arg4 arg5 )
+                                    IR.Variant5Type arg1Type arg2Type arg3Type arg4Type arg5Type ->
+                                        P.succeed IR.Variant5Value
+                                            |. P.symbol "["
+                                            |= P.lazy (\() -> irParser arg1Type)
+                                            |. P.symbol ","
+                                            |= P.lazy (\() -> irParser arg2Type)
+                                            |. P.symbol ","
+                                            |= P.lazy (\() -> irParser arg3Type)
+                                            |. P.symbol ","
+                                            |= P.lazy (\() -> irParser arg4Type)
+                                            |. P.symbol ","
+                                            |= P.lazy (\() -> irParser arg5Type)
+                                            |. P.symbol "]"
+                        in
+                        P.map (\v -> IR.CustomValue selected ( variantName, v )) variantValue
 
-                            _ ->
-                                P.problem "variant has too many args"
-                    )
-           )
+                    Nothing ->
+                        P.problem ("Selected variant #" ++ String.fromInt selected ++ " does not exist")
+            )
 
 
 primitiveParser : String -> Parser keep -> Parser keep
